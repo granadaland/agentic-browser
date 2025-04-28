@@ -1,0 +1,153 @@
+commit e9e0d370021704936c72595cce1f14f0f87d15e5
+Author: Felarof <nithin.sonti@gmail.com>
+Date:   Sat Apr 26 21:50:04 2025 -0700
+
+    branding worked
+
+diff --git a/chrome/app/chromium_strings.grd b/chrome/app/chromium_strings.grd
+index 2e5d2a8929ca8..c340e17579615 100644
+--- a/chrome/app/chromium_strings.grd
++++ b/chrome/app/chromium_strings.grd
+@@ -294,10 +294,10 @@ If you update this file, be sure also to update google_chrome_strings.grd. -->
+         </then>
+         <else>
+           <message name="IDS_PRODUCT_NAME" desc="The Chrome application name" translateable="false">
+-            Chromium
++            Nxtscape
+           </message>
+           <message name="IDS_SHORT_PRODUCT_NAME" desc="The Chrome application short name." translateable="false">
+-            Chromium
++            Nxtscape
+           </message>
+         </else>
+       </if>
+@@ -312,12 +312,12 @@ If you update this file, be sure also to update google_chrome_strings.grd. -->
+           Chromium is a web browser that runs webpages and applications with lightning speed. It's fast, stable, and easy to use. Browse the web more safely with malware and phishing protection built into Chromium.
+         </message>
+         <message name="IDS_WELCOME_TO_CHROME" desc="Welcoming text announced via screen readers the first time Chrome is launched at the conclusion of installation.">
+-          Welcome to Chromium; new browser window opened
++          Welcome to Nxtscape; new browser window opened
+         </message>
+       </if>
+       <if expr="is_macosx or is_linux">
+         <message name="IDS_FIRST_RUN_DIALOG_WINDOW_TITLE" desc="Window title of First Run dialog on Mac and Linux, displayed in title bar">
+-          Welcome to Chromium
++          Welcome to Nxtscape
+         </message>
+       </if>
+       <if expr="is_chromeos">
+@@ -447,7 +447,7 @@ If you update this file, be sure also to update google_chrome_strings.grd. -->
+       <if expr="_is_chrome_for_testing_branded">
+         <then>
+           <message name="IDS_ABOUT_VERSION_COMPANY_NAME" desc="Company name on the about pages">
+-            Google LLC
++            Felafax, Inc
+           </message>
+           <message name="IDS_ABOUT_VERSION_COPYRIGHT" desc="Copyright information on the about pages">
+             Copyright <ph name="YEAR">{0,date,y}<ex>2016</ex></ph> Google LLC. All rights reserved.
+diff --git a/chrome/app/theme/chromium/BRANDING b/chrome/app/theme/chromium/BRANDING
+index f8363d5b294fe..ad8baa62212ad 100644
+--- a/chrome/app/theme/chromium/BRANDING
++++ b/chrome/app/theme/chromium/BRANDING
+@@ -1,10 +1,10 @@
+-COMPANY_FULLNAME=The Chromium Authors
+-COMPANY_SHORTNAME=The Chromium Authors
+-PRODUCT_FULLNAME=Chromium
+-PRODUCT_SHORTNAME=Chromium
+-PRODUCT_INSTALLER_FULLNAME=Chromium Installer
+-PRODUCT_INSTALLER_SHORTNAME=Chromium Installer
+-COPYRIGHT=Copyright @LASTCHANGE_YEAR@ The Chromium Authors. All rights reserved.
+-MAC_BUNDLE_ID=org.chromium.Chromium
++COMPANY_FULLNAME=Nxtscape
++COMPANY_SHORTNAME=Nxtscape
++PRODUCT_FULLNAME=Nxtscape
++PRODUCT_SHORTNAME=Nxtscape
++PRODUCT_INSTALLER_FULLNAME=Nxtscape Installer
++PRODUCT_INSTALLER_SHORTNAME=Nxtscape Installer
++COPYRIGHT=Copyright @LASTCHANGE_YEAR@ Nxtscape. All rights reserved.
++MAC_BUNDLE_ID=org.nxtscape.Nxtscape
+ MAC_CREATOR_CODE=Cr24
+ MAC_TEAM_ID=
+diff --git a/chrome/enterprise_companion/branding.gni b/chrome/enterprise_companion/branding.gni
+index 6b4469870d693..c5735296201fd 100644
+--- a/chrome/enterprise_companion/branding.gni
++++ b/chrome/enterprise_companion/branding.gni
+@@ -19,19 +19,19 @@ if (is_chrome_branded) {
+   mac_enterprise_companion_bundle_identifier =
+       "com.google.ChromeEnterpriseCompanion"
+ } else {
+-  enterprise_companion_crash_product_name = "Chromium_Enterprise_Companion"
++  enterprise_companion_crash_product_name = "Nxtscape_Enterprise_Companion"
+   enterprise_companion_crash_upload_url =
+       "https://clients2.google.com/cr/staging_report"
+   enterprise_companion_appid = "{d6acc642-8982-441d-949b-312d5ccb559f}"
+-  enterprise_companion_company_short_name = "Chromium"
+-  enterprise_companion_company_short_name_lowercase = "chromium"
+-  enterprise_companion_company_short_name_uppercase = "CHROMIUM"
+-  enterprise_companion_product_full_name = "ChromiumEnterpriseCompanion"
++  enterprise_companion_company_short_name = "Nxtscape"
++  enterprise_companion_company_short_name_lowercase = "nxtscape"
++  enterprise_companion_company_short_name_uppercase = "nxtscape"
++  enterprise_companion_product_full_name = "NxtscapeEnterpriseCompanion"
+   enterprise_companion_product_full_name_dashed_lowercase =
+-      "chromium-enterprise-companion"
+-  enterprise_companion_keystone_app_name = "ChromiumSoftwareUpdate"
++      "nxtscape-enterprise-companion"
++  enterprise_companion_keystone_app_name = "NxtscapeSoftwareUpdate"
+   mac_enterprise_companion_bundle_identifier =
+-      "org.chromium.ChromiumEnterpriseCompanion"
++      "org.nxtscape.NxtscapeEnterpriseCompanion"
+ }
+ 
+ enterprise_companion_device_management_server_url =
+diff --git a/chrome/updater/branding.gni b/chrome/updater/branding.gni
+index 1f9bf5847f642..03a2ec68526a5 100644
+--- a/chrome/updater/branding.gni
++++ b/chrome/updater/branding.gni
+@@ -7,28 +7,28 @@ import("//build/config/chrome_build.gni")
+ if (is_chrome_branded) {
+   import("//chrome/updater/internal/branding_google.gni")
+ } else {
+-  browser_name = "Chromium"
+-  browser_product_name = "Chromium"
+-  crash_product_name = "ChromiumUpdater"
++  browser_name = "Nxtscape"
++  browser_product_name = "Nxtscape"
++  crash_product_name = "NxtscapeUpdater"
+   crash_upload_url = "https://clients2.google.com/cr/staging_report"
+   help_center_url = "http://support.google.com/installer/"
+   app_logo_url = "https://dl.google.com/update2/installers/icons/"
+-  keystone_app_name = "ChromiumSoftwareUpdate"
+-  keystone_bundle_identifier = "org.chromium.Keystone"
+-  mac_browser_bundle_identifier = "org.chromium.Chromium"
+-  mac_updater_bundle_identifier = "org.chromium.ChromiumUpdater"
+-  privileged_helper_bundle_name = "ChromiumUpdaterPrivilegedHelper"
+-  privileged_helper_name = "org.chromium.Chromium.UpdaterPrivilegedHelper"
+-  updater_company_full_name = "Chromium Authors"
+-  updater_company_short_name = "Chromium"
+-  updater_company_short_name_lowercase = "chromium"
+-  updater_company_short_name_uppercase = "CHROMIUM"
++  keystone_app_name = "NxtscapeSoftwareUpdate"
++  keystone_bundle_identifier = "org.nxtscape.Keystone"
++  mac_browser_bundle_identifier = "org.nxtscape.Nxtscape"
++  mac_updater_bundle_identifier = "org.nxtscape.NxtscapeUpdater"
++  privileged_helper_bundle_name = "NxtscapeUpdaterPrivilegedHelper"
++  privileged_helper_name = "org.nxtscape.Nxtscape.UpdaterPrivilegedHelper"
++  updater_company_full_name = "Nxtscape Authors"
++  updater_company_short_name = "Nxtscape"
++  updater_company_short_name_lowercase = "nxtscape"
++  updater_company_short_name_uppercase = "Nxtscape"
+   updater_copyright =
+-      "Copyright 2020 The Chromium Authors. All rights reserved."
+-  updater_product_full_name = "ChromiumUpdater"
+-  updater_product_full_name_dashed_lowercase = "chromium-updater"
+-  updater_product_full_display_name = "Chromium Updater"
+-  updater_metainstaller_name = "Chromium Installer"
++      "Copyright 2020 Nxtscape Authors. All rights reserved."
++  updater_product_full_name = "NxtscapeUpdater"
++  updater_product_full_name_dashed_lowercase = "nxtscape-updater"
++  updater_product_full_display_name = "Nxtscape Updater"
++  updater_metainstaller_name = "Nxtscape Installer"
+   mac_team_identifier = "PLACEHOLDER"
+   updater_appid = "{6e8ffa8f-e7e2-4000-9884-589283c27015}"
+   qualification_appid = "{43f3a046-04b3-4443-a770-d67dae90e440}"

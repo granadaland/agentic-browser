@@ -1,0 +1,33 @@
+From 30931e9d6a8aeb734ff25c0cf560bbd92e3da33f Mon Sep 17 00:00:00 2001
+From: Nikhil Sonti <nikhilsv92@gmail.com>
+Date: Fri, 18 Apr 2025 18:34:52 +0530
+Subject: [PATCH] disable user-gesture restriction on sidepanel.open
+
+---
+ .../extensions/api/side_panel/side_panel_api.cc        | 10 +++++-----
+ 1 file changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/chrome/browser/extensions/api/side_panel/side_panel_api.cc b/chrome/browser/extensions/api/side_panel/side_panel_api.cc
+index 5586f29b403f0..3fd9c2ab31c7f 100644
+--- a/chrome/browser/extensions/api/side_panel/side_panel_api.cc
++++ b/chrome/browser/extensions/api/side_panel/side_panel_api.cc
+@@ -71,11 +71,11 @@ ExtensionFunction::ResponseAction SidePanelOpenFunction::RunFunction() {
+   EXTENSION_FUNCTION_VALIDATE(extension());
+ 
+   // `sidePanel.open()` requires a user gesture.
+-  if (!user_gesture()) {
+-    return RespondNow(
+-        Error("`sidePanel.open()` may only be called in "
+-              "response to a user gesture."));
+-  }
++  // if (!user_gesture()) {
++  //   return RespondNow(
++  //       Error("`sidePanel.open()` may only be called in "
++  //             "response to a user gesture."));
++  // }
+ 
+   std::optional<api::side_panel::Open::Params> params =
+       api::side_panel::Open::Params::Create(args());
+-- 
+2.49.0
+

@@ -1,0 +1,105 @@
+diff --git a/chrome/browser/ui/webui/ungoogled_first_run.h b/chrome/browser/ui/webui/ungoogled_first_run.h
+index 8eb29a9085b08..84dbb869e4113 100644
+--- a/chrome/browser/ui/webui/ungoogled_first_run.h
++++ b/chrome/browser/ui/webui/ungoogled_first_run.h
+@@ -25,7 +25,7 @@ class UFRDataSource : public content::URLDataSource {
+                         const content::WebContents::Getter& wc_getter,
+                         GotDataCallback callback) {
+     std::string source = R"(
+-<title>ungoogled-chromium first run page</title>
++<title>Nxtscape Browser - First Run</title>
+ <meta name="color-scheme" content="light dark">
+ <style>
+  @import url(chrome://resources/css/text_defaults_md.css);
+@@ -47,72 +47,37 @@ class UFRDataSource : public content::URLDataSource {
+ </style>
+ <base target="_blank">
+ <section>
+- <h2>ungoogled-chromium</h2><p>
+- This browser was built with ungoogled-chromium patches and differs from the default Chromium experience
+- in a few ways. Look over the sections below and the
+- <a href="https://github.com/ungoogled-software/ungoogled-chromium/blob/master/docs/default_settings.md">
+-  changes to the default settings</a> to see what may be important to you.<p>
++ <h2>Nxtscape Browser 🦊</h2><p>
++ Welcome to Nxtscape - the open-source agentic browser built on Chromium. Nxtscape lets you run AI tools locally, 
++ block ads completely, and automate the boring parts of using the web.<p>
+  This page can always be accessed again at <a href="chrome://ungoogled-first-run">chrome://ungoogled-first-run</a>
+ </section>
+ <section>
+- <h2>How-To</h2>
++ <h2>Key Features</h2>
++ <p>🤖 <b>Runs AI agents natively.</b> Nxtscape is designed to run automations securely on your machine, locally and privately.</p>
++ <p>🔒 <b>Privacy You Can Trust.</b> We're a browser, not a search‑ad company. Your history stays local.</p>
++ <p>🌍 <b>Open source forever.</b> If we ever go in a direction you don't like, you or the community can fork the code.</p>
++ <p>🚫 <b>Actually block ads.</b> We've made changes to the Chromium source code to restore true ad blocking power.</p>
++ <p>✨ <b>Familiar, But Better:</b> All your extensions work, but we're adding superpowers without a steep learning curve.</p>
++</section>
++<section>
++ <h2>Setup Guide</h2>
+  <details><summary><b>Install and update extensions</b></summary><br>
+-  <a href="https://github.com/NeverDecaf">NeverDecaf</a> has created an extension to make this process easy:
+   <ol>
+    <li>Set <a href="chrome://flags/#extension-mime-request-handling">chrome://flags/#extension-mime-request-handling</a>
+     to <code>Always prompt for install</code> and relaunch.</li>
+-   <li>Then click on the latest <code>Chromium.Web.Store.crx</code> link on
+-    <a href="https://github.com/NeverDecaf/chromium-web-store/releases">the extension's Releases page</a>.</li>
++   <li>Now you can install extensions directly from the Chrome Web Store.</li>
+   </ol>
+-  Please check out the <a href="https://github.com/NeverDecaf/chromium-web-store">chromium-web-store</a>
+-  repo for further details and alternate installation methods for the extension.<br><br>
+-  If you do not wish to install this extension, there is still a way to install other extensions albeit
+-  without the ability to easily update them. In this case, please refer to the entry on the wiki for
+-  <a href="https://ungoogled-software.github.io/ungoogled-chromium-wiki/faq#downloading-the-crx-file">
+-   installing extensions manually</a>.</details>
+- <details><summary><b>Enable spellcheck</b></summary>
+-  <ol>
+-   <li>Go to <a href="https://chromium.googlesource.com/chromium/deps/hunspell_dictionaries/+/main">
+-     https://chromium.googlesource.com/chromium/deps/hunspell_dictionaries/+/main</a></li>
+-   <li>Find a bdic file for the language you want and click on it.
+-    You will see a mostly empty page aside from "X-byte binary file".</li>
+-   <li>On the bottom right corner, click "txt". The direct link for en-US-10-1.bdic is:
+-    <a href="https://chromium.googlesource.com/chromium/deps/hunspell_dictionaries/+/main/en-US-10-1.bdic?format=TEXT">
+-     https://chromium.googlesource.com/chromium/deps/hunspell_dictionaries/+/main/en-US-10-1.bdic?format=TEXT</a></li>
+-   <li>This is a base64-encoded file that needs to be decoded. Use the button below to select the .txt file you saved
+-    and save/move the resulting bdic file to your Dictionaries directory. Default locations:
+-    <ul>
+-     <li>Linux: <code>~/.config/chromium/Dictionaries/</code><br></li>
+-     <li>Mac: <code>~/Library/Application Support/Chromium/Dictionaries/</code><br></li>
+-     <li>Windows: <code>%LOCALAPPDATA%\Chromium\User Data\Dictionaries\</code><br></li>
+-    </ul>
+-    <input id="bdic" type="file" accept=".txt,text/plain" />
+-   </li>
+-   <li>Toggle spell check in <a href="chrome://settings/languages">chrome://settings/languages</a>,
+-    or restart the browser for the dictionaries to take effect.</li>
+-  </ol></details><p>
+-  <a href="https://ungoogled-software.github.io/ungoogled-chromium-wiki/faq">Check out the FAQ on the wiki</a>
+-  for information on other common topics.
+-</section>
+-<section>
+- <h2>Extra Features</h2><p>
+-  Most features introduced by ungoogled-chromium are disabled by default and can be enabled in
+-  <a href="chrome://flags">chrome://flags</a> or as command-line switches. Take a look at
+-  <a href="https://github.com/ungoogled-software/ungoogled-chromium/blob/master/docs/flags.md">
+-   the flags documentation</a> to see what features you may find useful to enable.
++ </details>
+ </section>
+ <section>
+- <h2>Additional Links</h2><p>
+-  Privacy and security information, motivation and philosophy, rationale for changes, and more can be found in the
+-  <a href="https://github.com/ungoogled-software/ungoogled-chromium/blob/master/README.md">README</a>.<p>
+-  Visit our <a href="https://github.com/ungoogled-software/ungoogled-chromium/blob/master/SUPPORT.md">
+-   support page</a> if you wish to report problems.<p>
+-  Are you a developer? Consider
+-  <a href="https://github.com/ungoogled-software/ungoogled-chromium/blob/master/docs/contributing.md">
+-   contributing</a> to ungoogled-chromium!
++ <h2>More Information</h2><p>
++  Visit <a href="https://nxtscape.ai">nxtscape.ai</a> for more information about Nxtscape, including documentation, 
++  support, and how to contribute to the project.
+ </section>
+ <script>
+- document.getElementById("bdic").onchange = function(e){
++ // Base script remains for functionality
++ document.getElementById("bdic")?.onchange = function(e){
+   var f = new FileReader;
+   f.onload = function(){
+    var a = document.createElement("a");
