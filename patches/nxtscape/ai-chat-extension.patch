@@ -1,16 +1,16 @@
-From fd48e7f91a0e33ca1f7f0b2c6dfb341d94e1fda6 Mon Sep 17 00:00:00 2001
+From 63fe007641d93e054e7120d61a69804ffb9c0bb0 Mon Sep 17 00:00:00 2001
 From: Nikhil Sonti <nikhilsv92@gmail.com>
-Date: Thu, 5 Jun 2025 15:26:13 -0700
-Subject: [PATCH] ai-chat-extension
+Date: Thu, 12 Jun 2025 19:46:08 -0700
+Subject: [PATCH] ai chat extension
 
 ---
- chrome/browser/browser_resources.grd             |  1 +
- .../component_extensions_allowlist/allowlist.cc  |  2 ++
- chrome/browser/extensions/component_loader.cc    |  3 +++
- chrome/browser/resources/BUILD.gn                |  1 +
- .../resources/component_extension_resources.grd  | 16 +++++++++++++++-
- chrome/common/extensions/extension_constants.h   |  3 +++
- 6 files changed, 25 insertions(+), 1 deletion(-)
+ chrome/browser/browser_resources.grd               |  1 +
+ .../component_extensions_allowlist/allowlist.cc    |  2 ++
+ chrome/browser/extensions/component_loader.cc      |  3 +++
+ chrome/browser/resources/BUILD.gn                  |  1 +
+ .../resources/component_extension_resources.grd    | 14 +++++++++++++-
+ chrome/common/extensions/extension_constants.h     |  3 +++
+ 6 files changed, 23 insertions(+), 1 deletion(-)
 
 diff --git a/chrome/browser/browser_resources.grd b/chrome/browser/browser_resources.grd
 index 533d97a0d7e02..80f296feed297 100644
@@ -71,10 +71,10 @@ index ecc70941cd1f4..b479c135ceffe 100644
  
    if (!is_android) {
 diff --git a/chrome/browser/resources/component_extension_resources.grd b/chrome/browser/resources/component_extension_resources.grd
-index 2e355c8ce7c2f..b28e2ea247fc5 100644
+index 2e355c8ce7c2f..d0d2bf499ee62 100644
 --- a/chrome/browser/resources/component_extension_resources.grd
 +++ b/chrome/browser/resources/component_extension_resources.grd
-@@ -12,7 +12,21 @@
+@@ -12,7 +12,19 @@
    </outputs>
    <release seq="1">
      <includes>
@@ -85,8 +85,6 @@ index 2e355c8ce7c2f..b28e2ea247fc5 100644
 +    <include name="IDR_AI_SIDE_PANEL_CONTENT_JS" file="ai_side_panel/content.js" type="BINDATA" />
 +    <include name="IDR_AI_SIDE_PANEL_SIDEPANEL_HTML" file="ai_side_panel/sidepanel.html" type="BINDATA" />
 +    <include name="IDR_AI_SIDE_PANEL_SIDEPANEL_JS" file="ai_side_panel/sidepanel.js" type="BINDATA" />
-+    <include name="IDR_AI_SIDE_PANEL_OPTIONS_HTML" file="ai_side_panel/options.html" type="BINDATA" />
-+    <include name="IDR_AI_SIDE_PANEL_OPTIONS_JS" file="ai_side_panel/options.js" type="BINDATA" />
 +    <include name="IDR_AI_SIDE_PANEL_READABILITY_JS" file="ai_side_panel/Readability.js" type="BINDATA" />
 +    <include name="IDR_AI_SIDE_PANEL_BUILDDOMTREE_JS" file="ai_side_panel/buildDomTree.js" type="BINDATA" />
 +    <include name="IDR_AI_SIDE_PANEL_ICON16" file="ai_side_panel/assets/icon16.png" type="BINDATA" />

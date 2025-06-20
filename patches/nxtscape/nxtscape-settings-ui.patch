@@ -1,0 +1,1010 @@
+From 7e13afaa0b31a717cbedd9fe73419642a9fc0336 Mon Sep 17 00:00:00 2001
+From: Nikhil Sonti <nikhilsv92@gmail.com>
+Date: Fri, 13 Jun 2025 16:00:31 -0700
+Subject: [PATCH] Nxtscape Settings UI for BYOK
+
+---
+ .../api/settings_private/prefs_util.cc        |  19 +
+ chrome/browser/prefs/browser_prefs.cc         |  22 +
+ chrome/browser/prefs/browser_prefs.h          |   2 +
+ chrome/browser/resources/settings/BUILD.gn    |   1 +
+ .../settings/nxtscape_page/nxtscape_page.html | 560 ++++++++++++++++++
+ .../settings/nxtscape_page/nxtscape_page.ts   | 202 +++++++
+ chrome/browser/resources/settings/route.ts    |   1 +
+ chrome/browser/resources/settings/router.ts   |   1 +
+ chrome/browser/resources/settings/settings.ts |   1 +
+ .../settings/settings_main/settings_main.html |   6 +
+ .../settings/settings_main/settings_main.ts   |  15 +-
+ .../settings/settings_menu/settings_menu.html |   6 +
+ 12 files changed, 832 insertions(+), 4 deletions(-)
+ create mode 100644 chrome/browser/resources/settings/nxtscape_page/nxtscape_page.html
+ create mode 100644 chrome/browser/resources/settings/nxtscape_page/nxtscape_page.ts
+
+diff --git a/chrome/browser/extensions/api/settings_private/prefs_util.cc b/chrome/browser/extensions/api/settings_private/prefs_util.cc
+index 97bb4be60af93..619a42dd9fc50 100644
+--- a/chrome/browser/extensions/api/settings_private/prefs_util.cc
++++ b/chrome/browser/extensions/api/settings_private/prefs_util.cc
+@@ -580,6 +580,25 @@ const PrefsUtil::TypedPrefMap& PrefsUtil::GetAllowlistedKeys() {
+   (*s_allowlist)[::prefs::kCaretBrowsingEnabled] =
+       settings_api::PrefType::kBoolean;
+ 
++  // Nxtscape AI provider preferences
++  (*s_allowlist)["nxtscape.default_provider"] = settings_api::PrefType::kString;
++  
++  // Nxtscape provider settings
++  (*s_allowlist)["nxtscape.nxtscape_model"] = settings_api::PrefType::kString;
++  
++  // OpenAI provider settings
++  (*s_allowlist)["nxtscape.openai_api_key"] = settings_api::PrefType::kString;
++  (*s_allowlist)["nxtscape.openai_model"] = settings_api::PrefType::kString;
++  
++  // Anthropic provider settings
++  (*s_allowlist)["nxtscape.anthropic_api_key"] = settings_api::PrefType::kString;
++  (*s_allowlist)["nxtscape.anthropic_model"] = settings_api::PrefType::kString;
++  
++  // Ollama provider settings
++  (*s_allowlist)["nxtscape.ollama_api_key"] = settings_api::PrefType::kString;
++  (*s_allowlist)["nxtscape.ollama_base_url"] = settings_api::PrefType::kString;
++  (*s_allowlist)["nxtscape.ollama_model"] = settings_api::PrefType::kString;
++
+ #if BUILDFLAG(IS_CHROMEOS)
+   // Accounts / Users / People.
+   (*s_allowlist)[ash::kAccountsPrefAllowGuest] =
+diff --git a/chrome/browser/prefs/browser_prefs.cc b/chrome/browser/prefs/browser_prefs.cc
+index 9a00400829ae1..bbbd6f5623a15 100644
+--- a/chrome/browser/prefs/browser_prefs.cc
++++ b/chrome/browser/prefs/browser_prefs.cc
+@@ -1939,6 +1939,7 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry,
+   regional_capabilities::prefs::RegisterProfilePrefs(registry);
+   RegisterBrowserUserPrefs(registry);
+   RegisterGeminiSettingsPrefs(registry);
++  RegisterNxtscapePrefs(registry);
+   RegisterPrefersDefaultScrollbarStylesPrefs(registry);
+   RegisterSafetyHubProfilePrefs(registry);
+ #if BUILDFLAG(IS_CHROMEOS)
+@@ -2322,6 +2323,27 @@ void RegisterGeminiSettingsPrefs(user_prefs::PrefRegistrySyncable* registry) {
+   registry->RegisterIntegerPref(prefs::kGeminiSettings, 0);
+ }
+ 
++void RegisterNxtscapePrefs(user_prefs::PrefRegistrySyncable* registry) {
++  // Nxtscape AI provider preferences
++  registry->RegisterStringPref("nxtscape.default_provider", "nxtscape");
++  
++  // Nxtscape provider settings
++  registry->RegisterStringPref("nxtscape.nxtscape_model", "claude-3-5-sonnet-latest");
++  
++  // OpenAI provider settings
++  registry->RegisterStringPref("nxtscape.openai_api_key", "");
++  registry->RegisterStringPref("nxtscape.openai_model", "gpt-4o");
++  
++  // Anthropic provider settings
++  registry->RegisterStringPref("nxtscape.anthropic_api_key", "");
++  registry->RegisterStringPref("nxtscape.anthropic_model", "claude-3-5-sonnet-latest");
++  
++  // Ollama provider settings
++  registry->RegisterStringPref("nxtscape.ollama_api_key", "");
++  registry->RegisterStringPref("nxtscape.ollama_base_url", "http://localhost:11434");
++  registry->RegisterStringPref("nxtscape.ollama_model", "");
++}
++
+ #if BUILDFLAG(IS_CHROMEOS)
+ void RegisterSigninProfilePrefs(user_prefs::PrefRegistrySyncable* registry,
+                                 std::string_view country) {
+diff --git a/chrome/browser/prefs/browser_prefs.h b/chrome/browser/prefs/browser_prefs.h
+index 3a1c48b14b37f..5600baa2143e0 100644
+--- a/chrome/browser/prefs/browser_prefs.h
++++ b/chrome/browser/prefs/browser_prefs.h
+@@ -32,6 +32,8 @@ void RegisterScreenshotPrefs(PrefRegistrySimple* registry);
+ 
+ void RegisterGeminiSettingsPrefs(user_prefs::PrefRegistrySyncable* registry);
+ 
++void RegisterNxtscapePrefs(user_prefs::PrefRegistrySyncable* registry);
++
+ // Register all prefs that will be used via a PrefService attached to a user
+ // Profile using the locale of |g_browser_process|.
+ void RegisterUserProfilePrefs(user_prefs::PrefRegistrySyncable* registry);
+diff --git a/chrome/browser/resources/settings/BUILD.gn b/chrome/browser/resources/settings/BUILD.gn
+index 6eb2b37837e97..1a8cd69860514 100644
+--- a/chrome/browser/resources/settings/BUILD.gn
++++ b/chrome/browser/resources/settings/BUILD.gn
+@@ -56,6 +56,7 @@ build_webui("build") {
+   web_component_files = [
+     "a11y_page/a11y_page.ts",
+     "about_page/about_page.ts",
++    "nxtscape_page/nxtscape_page.ts",
+     "ai_page/ai_compare_subpage.ts",
+     "ai_page/ai_info_card.ts",
+     "ai_page/ai_logging_info_bullet.ts",
+diff --git a/chrome/browser/resources/settings/nxtscape_page/nxtscape_page.html b/chrome/browser/resources/settings/nxtscape_page/nxtscape_page.html
+new file mode 100644
+index 0000000000000..fa521c5cb8a4e
+--- /dev/null
++++ b/chrome/browser/resources/settings/nxtscape_page/nxtscape_page.html
+@@ -0,0 +1,560 @@
++    <link rel="import" href="../controls/settings_toggle_button.html">
++    <style include="cr-shared-style settings-shared md-select">
++      .provider-header-section {
++        display: flex;
++        align-items: center;
++        gap: 32px;
++        padding: 24px 20px;
++        border-bottom: var(--cr-separator-line);
++      }
++
++      .provider-header-icon {
++        width: 48px;
++        height: 48px;
++        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
++        border-radius: 50%;
++        display: flex;
++        align-items: center;
++        justify-content: center;
++        color: white;
++        font-size: 28px;
++        flex-shrink: 0;
++      }
++
++      .provider-header-content {
++        flex: 1;
++      }
++
++      .provider-header-title {
++        font-size: 20px;
++        font-weight: 400;
++        color: var(--cr-primary-text-color);
++        margin: 0 0 4px 0;
++      }
++
++      .provider-header-subtitle {
++        font-size: 14px;
++        color: var(--cr-secondary-text-color);
++        line-height: 20px;
++      }
++
++      .provider-selector {
++        display: flex;
++        flex-direction: column;
++        gap: 8px;
++        min-width: 200px;
++      }
++
++      .provider-selector-label {
++        font-size: 11px;
++        font-weight: 500;
++        color: var(--cr-secondary-text-color);
++        text-transform: uppercase;
++        letter-spacing: 0.5px;
++      }
++
++      #defaultProvider {
++        height: 36px;
++        padding: 0 12px;
++        border-radius: 4px;
++        font-size: 13px;
++      }
++
++      .provider-cards-container {
++        max-width: 680px;
++        margin: 20px auto 0;
++        padding: 0 20px 20px;
++        display: flex;
++        flex-direction: column;
++        gap: 16px;
++      }
++
++      .provider-card {
++        background: var(--cr-card-background-color);
++        border: 1px solid var(--cr-separator-color);
++        border-radius: 8px;
++        padding: 20px;
++        transition: all 0.2s ease;
++        margin: 0;
++      }
++
++      .provider-card:hover {
++        box-shadow: var(--cr-card-shadow);
++      }
++
++      .provider-card.selected {
++        border-color: var(--cr-focus-outline-color);
++      }
++
++      .provider-card-header {
++        display: flex;
++        align-items: center;
++        gap: 16px;
++        margin-bottom: 16px;
++      }
++
++      .provider-card-icon {
++        width: 40px;
++        height: 40px;
++        border-radius: 8px;
++        display: flex;
++        align-items: center;
++        justify-content: center;
++        font-size: 20px;
++        font-weight: 600;
++        color: white;
++      }
++
++      #nxtscapeSection .provider-card-icon {
++        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
++      }
++
++      #openaiSection .provider-card-icon {
++        background: linear-gradient(135deg, #10a37f 0%, #1a7f64 100%);
++      }
++
++      #anthropicSection .provider-card-icon {
++        background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
++      }
++
++      #ollamaSection .provider-card-icon {
++        background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
++      }
++
++      .provider-card-info {
++        flex: 1;
++      }
++
++      .provider-card-name {
++        font-size: 16px;
++        font-weight: 500;
++        color: var(--cr-primary-text-color);
++        margin: 0;
++      }
++
++      .provider-card-status {
++        display: flex;
++        align-items: center;
++        gap: 6px;
++        font-size: 12px;
++        color: var(--cr-secondary-text-color);
++        margin-top: 2px;
++      }
++
++      .provider-tagline {
++        font-size: 13px;
++        color: var(--cr-primary-text-color);
++        font-style: italic;
++        margin-top: 8px;
++        font-weight: 400;
++        opacity: 0.9;
++      }
++
++      .status-dot {
++        width: 8px;
++        height: 8px;
++        border-radius: 50%;
++        background: var(--google-grey-400);
++      }
++
++      .provider-card.selected .status-dot {
++        background: var(--google-green-500);
++      }
++
++      .provider-card-content {
++        padding-top: 16px;
++        border-top: 1px solid var(--cr-separator-color);
++      }
++
++      .form-group {
++        margin-bottom: 16px;
++      }
++
++      .form-group:last-child {
++        margin-bottom: 0;
++      }
++
++      .form-label {
++        display: block;
++        font-size: 13px;
++        font-weight: 500;
++        color: var(--cr-primary-text-color);
++        margin-bottom: 8px;
++      }
++
++      .form-field {
++        width: 100%;
++        height: 36px;
++        padding: 0 12px;
++        border: 1px solid var(--cr-separator-color);
++        border-radius: 4px;
++        font-size: 13px;
++        background: var(--cr-input-background-color);
++        color: var(--cr-primary-text-color);
++        transition: border-color 0.2s ease;
++      }
++
++      .form-field:hover {
++        border-color: var(--cr-hover-border-color);
++      }
++
++      .form-field:focus {
++        outline: none;
++        border-color: var(--cr-focus-outline-color);
++      }
++
++      .form-helper {
++        font-size: 12px;
++        color: var(--cr-secondary-text-color);
++        margin-top: 4px;
++      }
++
++      .status-toast {
++        position: fixed;
++        bottom: 24px;
++        left: 50%;
++        transform: translateX(-50%) translateY(100px);
++        padding: 12px 24px;
++        border-radius: 4px;
++        background: var(--google-grey-900);
++        color: white;
++        font-size: 14px;
++        display: flex;
++        align-items: center;
++        gap: 8px;
++        opacity: 0;
++        transition: all 0.3s ease;
++        z-index: 1000;
++      }
++
++      .status-toast.show {
++        transform: translateX(-50%) translateY(0);
++        opacity: 1;
++      }
++
++      .ollama-instructions {
++        margin-top: 20px;
++        padding: 16px;
++        background: var(--cr-secondary-background);
++        border-radius: 8px;
++        border: 1px solid var(--cr-separator-color);
++      }
++
++      .instructions-title {
++        font-size: 13px;
++        font-weight: 500;
++        color: var(--cr-primary-text-color);
++        margin-bottom: 12px;
++      }
++
++      .instructions-code {
++        padding: 12px;
++        background: var(--cr-card-background-color);
++        border: 1px solid var(--cr-separator-color);
++        border-radius: 4px;
++        margin-bottom: 12px;
++        font-family: 'Roboto Mono', monospace;
++        font-size: 12px;
++        line-height: 1.5;
++        color: var(--cr-secondary-text-color);
++      }
++
++      .instructions-code code {
++        display: block;
++        white-space: pre-wrap;
++      }
++
++      .instructions-note {
++        font-size: 12px;
++        color: var(--cr-secondary-text-color);
++        line-height: 1.5;
++      }
++
++      .instructions-note code {
++        background: var(--cr-hover-background-color);
++        padding: 2px 4px;
++        border-radius: 3px;
++        font-family: 'Roboto Mono', monospace;
++        font-size: 11px;
++      }
++
++      .security-notice-container {
++        max-width: 680px;
++        margin: 20px auto 0;
++        padding: 0 20px;
++      }
++
++      .security-notice {
++        padding: 16px 20px;
++        background: var(--google-blue-50);
++        border-radius: 8px;
++        display: flex;
++        align-items: flex-start;
++        gap: 12px;
++      }
++
++      .security-notice-icon {
++        flex-shrink: 0;
++        width: 20px;
++        height: 20px;
++        color: var(--google-blue-600);
++      }
++
++      .security-notice-content {
++        flex: 1;
++      }
++
++      .security-notice-title {
++        font-size: 14px;
++        font-weight: 500;
++        color: var(--google-blue-900);
++        margin: 0 0 4px 0;
++      }
++
++      .security-notice-text {
++        font-size: 13px;
++        color: var(--google-blue-800);
++        line-height: 1.4;
++        margin: 0;
++      }
++
++      @media (prefers-color-scheme: dark) {
++        .security-notice {
++          background: rgba(138, 180, 248, 0.08);
++          border: 1px solid rgba(138, 180, 248, 0.2);
++        }
++
++        .security-notice-icon {
++          color: var(--google-blue-300);
++        }
++
++        .security-notice-title {
++          color: var(--google-blue-200);
++        }
++
++        .security-notice-text {
++          color: var(--cr-secondary-text-color);
++        }
++      }
++    </style>
++
++    <div class="provider-header-section">
++      <div class="provider-header-icon">
++        <cr-icon icon="settings:auto-awesome"></cr-icon>
++      </div>
++      <div class="provider-header-content">
++        <h1 class="provider-header-title">AI Provider Settings</h1>
++        <div class="provider-header-subtitle">
++          Configure your preferred AI provider and model settings. Your selection will be used across all Nxtscape AI features.
++        </div>
++      </div>
++      <div class="provider-selector">
++        <label class="provider-selector-label" for="defaultProvider">Active Provider</label>
++        <select id="defaultProvider" class="md-select"
++                value="[[prefs.nxtscape.default_provider.value]]"
++                on-change="onDefaultProviderChange_">
++          <option value="nxtscape">Nxtscape</option>
++          <option value="openai">OpenAI</option>
++          <option value="anthropic">Anthropic</option>
++          <option value="ollama">Ollama</option>
++        </select>
++      </div>
++    </div>
++
++    <div class="security-notice-container">
++      <div class="security-notice">
++        <cr-icon class="security-notice-icon" icon="settings:security"></cr-icon>
++        <div class="security-notice-content">
++          <h3 class="security-notice-title">Your API keys are secure</h3>
++          <p class="security-notice-text">
++            All API keys are stored locally on your device. Your credentials remain private and encrypted on your computer.
++          </p>
++        </div>
++      </div>
++    </div>
++
++    <div class="provider-cards-container">
++      <!-- Nxtscape Card -->
++      <div class="provider-card" id="nxtscapeSection" 
++           class$="[[getProviderCardClass_('nxtscape', prefs.nxtscape.default_provider.value)]]">
++        <div class="provider-card-header">
++          <div class="provider-card-icon">
++            <span>N</span>
++          </div>
++          <div class="provider-card-info">
++            <h3 class="provider-card-name">Nxtscape AI</h3>
++            <div class="provider-card-status">
++              <span class="status-dot"></span>
++              <span>[[getProviderStatus_('nxtscape', prefs.nxtscape.default_provider.value)]]</span>
++            </div>
++            <div class="provider-tagline">
++              Powered by Nxtscape's AI service.
++            </div>
++          </div>
++        </div>
++        <div class="provider-card-content">
++          <div class="form-group">
++            <label class="form-label" for="nxtscapeModel">Model</label>
++            <select id="nxtscapeModel" class="form-field"
++                    value="[[prefs.nxtscape.nxtscape_model.value]]"
++                    on-change="onNxtscapeModelChange_">
++              <option value="claude-3-5-sonnet">Claude Sonnet 3.5</option>
++              <option value="claude-3-7-sonnet">Claude Sonnet 3.7</option>
++              <option value="gpt-4o">GPT-4o</option>
++            </select>
++            <div class="form-helper">Select the model for Nxtscape AI operations</div>
++          </div>
++        </div>
++      </div>
++
++      <!-- OpenAI Card -->
++      <div class="provider-card" id="openaiSection" 
++           class$="[[getProviderCardClass_('openai', prefs.nxtscape.default_provider.value)]]">
++        <div class="provider-card-header">
++          <div class="provider-card-icon">
++            <span>AI</span>
++          </div>
++          <div class="provider-card-info">
++            <h3 class="provider-card-name">OpenAI</h3>
++            <div class="provider-card-status">
++              <span class="status-dot"></span>
++              <span>[[getProviderStatus_('openai', prefs.nxtscape.default_provider.value)]]</span>
++            </div>
++          </div>
++        </div>
++        <div class="provider-card-content">
++          <div class="form-group">
++            <label class="form-label" for="openaiApiKey">API Key</label>
++            <input type="password" 
++                   id="openaiApiKey"
++                   class="form-field"
++                   value="[[prefs.nxtscape.openai_api_key.value]]"
++                   on-input="onOpenAIApiKeyChange_"
++                   placeholder="Enter your OpenAI API key"
++                   required>
++            <div class="form-helper">Your OpenAI API key (required)</div>
++          </div>
++          <div class="form-group">
++            <label class="form-label" for="openaiModel">Model</label>
++            <select id="openaiModel" class="form-field"
++                    value="[[prefs.nxtscape.openai_model.value]]"
++                    on-change="onOpenAIModelChange_">
++              <option value="gpt-4o">GPT-4o</option>
++              <option value="gpt-4o-mini">GPT-4o Mini</option>
++              <option value="o3-mini">o3 Mini</option>
++              <option value="o4-mini">o4 Mini</option>
++              <option value="o3">o3</option>
++            </select>
++            <div class="form-helper">Select the OpenAI model to use for AI operations</div>
++          </div>
++        </div>
++      </div>
++
++      <!-- Anthropic Card -->
++      <div class="provider-card" id="anthropicSection"
++           class$="[[getProviderCardClass_('anthropic', prefs.nxtscape.default_provider.value)]]">
++        <div class="provider-card-header">
++          <div class="provider-card-icon">
++            <span>C</span>
++          </div>
++          <div class="provider-card-info">
++            <h3 class="provider-card-name">Anthropic</h3>
++            <div class="provider-card-status">
++              <span class="status-dot"></span>
++              <span>[[getProviderStatus_('anthropic', prefs.nxtscape.default_provider.value)]]</span>
++            </div>
++          </div>
++        </div>
++        <div class="provider-card-content">
++          <div class="form-group">
++            <label class="form-label" for="anthropicApiKey">API Key</label>
++            <input type="password" 
++                   id="anthropicApiKey"
++                   class="form-field"
++                   value="[[prefs.nxtscape.anthropic_api_key.value]]"
++                   on-input="onAnthropicApiKeyChange_"
++                   placeholder="Enter your Anthropic API key"
++                   required>
++            <div class="form-helper">Your Anthropic API key (required)</div>
++          </div>
++          <div class="form-group">
++            <label class="form-label" for="anthropicModel">Model</label>
++            <select id="anthropicModel" class="form-field"
++                    value="[[prefs.nxtscape.anthropic_model.value]]"
++                    on-change="onAnthropicModelChange_">
++              <option value="claude-opus-4-0">Claude Opus 4</option>
++              <option value="claude-sonnet-4-0">Claude Sonnet 4</option>
++              <option value="claude-3-7-sonnet-latest">Claude Sonnet 3.7</option>
++              <option value="claude-3-5-sonnet-latest">Claude Sonnet 3.5</option>
++            </select>
++            <div class="form-helper">Choose your preferred Claude model</div>
++          </div>
++        </div>
++      </div>
++
++      <!-- Ollama Card -->
++      <div class="provider-card" id="ollamaSection"
++           class$="[[getProviderCardClass_('ollama', prefs.nxtscape.default_provider.value)]]">
++        <div class="provider-card-header">
++          <div class="provider-card-icon">
++            <span>O</span>
++          </div>
++          <div class="provider-card-info">
++            <h3 class="provider-card-name">Ollama</h3>
++            <div class="provider-card-status">
++              <span class="status-dot"></span>
++              <span>[[getProviderStatus_('ollama', prefs.nxtscape.default_provider.value)]]</span>
++            </div>
++          </div>
++        </div>
++        <div class="provider-card-content">
++          <div class="form-group">
++            <label class="form-label" for="ollamaApiKey">API Key (Optional)</label>
++            <input type="password" 
++                   id="ollamaApiKey"
++                   class="form-field"
++                   value="[[prefs.nxtscape.ollama_api_key.value]]"
++                   on-input="onOllamaApiKeyChange_"
++                   placeholder="Enter API key if required">
++            <div class="form-helper">Only required if your Ollama instance uses authentication</div>
++          </div>
++          <div class="form-group">
++            <label class="form-label" for="ollamaBaseUrl">Base URL</label>
++            <input type="url" 
++                   id="ollamaBaseUrl"
++                   class="form-field"
++                   value="[[prefs.nxtscape.ollama_base_url.value]]"
++                   on-input="onOllamaBaseUrlChange_"
++                   placeholder="http://localhost:11434">
++            <div class="form-helper">URL of your Ollama server</div>
++          </div>
++          <div class="form-group">
++            <label class="form-label" for="ollamaModel">Model Name</label>
++            <input type="text" 
++                   id="ollamaModel"
++                   class="form-field"
++                   value="[[prefs.nxtscape.ollama_model.value]]"
++                   on-input="onOllamaModelChange_"
++                   placeholder="e.g., qwen3:14b, falcon3:10b, qwen2.5-coder:14b, mistral-small:24b">
++            <div class="form-helper">Name of the model installed in your Ollama instance</div>
++          </div>
++          <div class="ollama-instructions">
++            <div class="instructions-title">How to run Ollama:</div>
++            <div class="instructions-code">
++              <code># Pull a model<br>
++ollama pull qwen3:14b<br><br>
++# Serve with CORS enabled<br>
++OLLAMA_ORIGINS="*" ollama serve</code>
++            </div>
++            <div class="instructions-note">
++              Note: Set <code>OLLAMA_ORIGINS</code> to allow Nxtscape to access your Ollama server.
++            </div>
++          </div>
++        </div>
++      </div>
++    </div>
++    
++    <div id="statusMessage" class="status-toast">
++      <cr-icon icon="cr:check-circle"></cr-icon>
++      Settings saved successfully
++    </div> 
+\ No newline at end of file
+diff --git a/chrome/browser/resources/settings/nxtscape_page/nxtscape_page.ts b/chrome/browser/resources/settings/nxtscape_page/nxtscape_page.ts
+new file mode 100644
+index 0000000000000..03a3ca208c8ef
+--- /dev/null
++++ b/chrome/browser/resources/settings/nxtscape_page/nxtscape_page.ts
+@@ -0,0 +1,202 @@
++// Copyright 2024 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++/**
++ * @fileoverview 'settings-nxtscape-page' contains AI provider-specific settings.
++ */
++
++import '../settings_page/settings_section.js';
++import '../settings_page_styles.css.js';
++import '../settings_shared.css.js';
++import '../controls/settings_toggle_button.js';
++import 'chrome://resources/cr_elements/cr_button/cr_button.js';
++import 'chrome://resources/cr_elements/cr_icon/cr_icon.js';
++import 'chrome://resources/cr_elements/icons.html.js';
++import 'chrome://resources/cr_elements/cr_shared_style.css.js';
++
++import {PrefsMixin} from '/shared/settings/prefs/prefs_mixin.js';
++import {PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
++
++import {getTemplate} from './nxtscape_page.html.js';
++
++const SettingsNxtscapePageElementBase = PrefsMixin(PolymerElement);
++
++export class SettingsNxtscapePageElement extends SettingsNxtscapePageElementBase {
++  static get is() {
++    return 'settings-nxtscape-page';
++  }
++
++  static get template() {
++    return getTemplate();
++  }
++
++  static get properties() {
++    return {
++      /**
++       * Preferences state.
++       */
++      prefs: {
++        type: Object,
++        notify: true,
++      },
++    };
++  }
++
++  // Declare prefs property to satisfy ESLint
++  declare prefs: any;
++
++  /**
++   * Get the CSS class for a provider card based on selection
++   */
++  private getProviderCardClass_(provider: string, selectedProvider: string): string {
++    return provider === selectedProvider ? 'provider-card selected' : 'provider-card';
++  }
++
++  /**
++   * Get the status text for a provider
++   */
++  private getProviderStatus_(provider: string, selectedProvider: string): string {
++    return provider === selectedProvider ? 'Active' : 'Inactive';
++  }
++
++  /**
++   * Handle default provider selection change
++   */
++  private onDefaultProviderChange_(e: Event) {
++    const select = e.target as HTMLSelectElement;
++    const value = select.value;
++    
++    // Update the preference using PrefsMixin
++    // @ts-ignore: setPrefValue exists at runtime from PrefsMixin
++    this.setPrefValue('nxtscape.default_provider', value);
++    this.showStatusMessage_();
++  }
++
++  /**
++   * Handle Nxtscape model selection change
++   */
++  private onNxtscapeModelChange_(e: Event) {
++    const select = e.target as HTMLSelectElement;
++    const value = select.value;
++    
++    // Update the preference using PrefsMixin
++    // @ts-ignore: setPrefValue exists at runtime from PrefsMixin
++    this.setPrefValue('nxtscape.nxtscape_model', value);
++    this.showStatusMessage_();
++  }
++
++  /**
++   * Handle OpenAI model selection change
++   */
++  private onOpenAIModelChange_(e: Event) {
++    const select = e.target as HTMLSelectElement;
++    const value = select.value;
++    
++    // Update the preference using PrefsMixin
++    // @ts-ignore: setPrefValue exists at runtime from PrefsMixin
++    this.setPrefValue('nxtscape.openai_model', value);
++    this.showStatusMessage_();
++  }
++
++  /**
++   * Handle OpenAI API key change
++   */
++  private onOpenAIApiKeyChange_(e: Event) {
++    const input = e.target as HTMLInputElement;
++    const value = input.value;
++    
++    // Update the preference using PrefsMixin
++    // @ts-ignore: setPrefValue exists at runtime from PrefsMixin
++    this.setPrefValue('nxtscape.openai_api_key', value);
++    this.showStatusMessage_();
++  }
++
++  /**
++   * Handle Anthropic model selection change
++   */
++  private onAnthropicModelChange_(e: Event) {
++    const select = e.target as HTMLSelectElement;
++    const value = select.value;
++    
++    // Update the preference using PrefsMixin
++    // @ts-ignore: setPrefValue exists at runtime from PrefsMixin
++    this.setPrefValue('nxtscape.anthropic_model', value);
++    this.showStatusMessage_();
++  }
++
++  /**
++   * Handle Anthropic API key change
++   */
++  private onAnthropicApiKeyChange_(e: Event) {
++    const input = e.target as HTMLInputElement;
++    const value = input.value;
++    
++    // Update the preference using PrefsMixin
++    // @ts-ignore: setPrefValue exists at runtime from PrefsMixin
++    this.setPrefValue('nxtscape.anthropic_api_key', value);
++    this.showStatusMessage_();
++  }
++
++  /**
++   * Handle Ollama API key change
++   */
++  private onOllamaApiKeyChange_(e: Event) {
++    const input = e.target as HTMLInputElement;
++    const value = input.value;
++    
++    // Update the preference using PrefsMixin
++    // @ts-ignore: setPrefValue exists at runtime from PrefsMixin
++    this.setPrefValue('nxtscape.ollama_api_key', value);
++    this.showStatusMessage_();
++  }
++
++  /**
++   * Handle Ollama base URL change
++   */
++  private onOllamaBaseUrlChange_(e: Event) {
++    const input = e.target as HTMLInputElement;
++    const value = input.value;
++    
++    // Update the preference using PrefsMixin
++    // @ts-ignore: setPrefValue exists at runtime from PrefsMixin
++    this.setPrefValue('nxtscape.ollama_base_url', value);
++    this.showStatusMessage_();
++  }
++
++  /**
++   * Handle Ollama model change
++   */
++  private onOllamaModelChange_(e: Event) {
++    const input = e.target as HTMLInputElement;
++    const value = input.value;
++    
++    // Update the preference using PrefsMixin
++    // @ts-ignore: setPrefValue exists at runtime from PrefsMixin
++    this.setPrefValue('nxtscape.ollama_model', value);
++    this.showStatusMessage_();
++  }
++
++  /**
++   * Show status message briefly
++   */
++  private showStatusMessage_() {
++    // @ts-ignore: shadowRoot exists at runtime
++    const statusMessage = this.shadowRoot!.querySelector('#statusMessage');
++    if (statusMessage) {
++      statusMessage.classList.add('show');
++      setTimeout(() => {
++        statusMessage.classList.remove('show');
++      }, 2000);
++    }
++  }
++}
++
++declare global {
++  interface HTMLElementTagNameMap {
++    'settings-nxtscape-page': SettingsNxtscapePageElement;
++  }
++}
++
++customElements.define(
++    SettingsNxtscapePageElement.is, SettingsNxtscapePageElement); 
+\ No newline at end of file
+diff --git a/chrome/browser/resources/settings/route.ts b/chrome/browser/resources/settings/route.ts
+index 2458ecb3791b0..1b43a902a38f5 100644
+--- a/chrome/browser/resources/settings/route.ts
++++ b/chrome/browser/resources/settings/route.ts
+@@ -183,6 +183,7 @@ function createRoutes(): SettingsRoutes {
+   // Root pages.
+   r.BASIC = new Route('/');
+   r.ABOUT = new Route('/help', loadTimeData.getString('aboutPageTitle'));
++  r.NXTSCAPE = new Route('/nxtscape', 'Nxtscape Settings');
+ 
+   r.SEARCH = r.BASIC.createSection(
+       '/search', 'search', loadTimeData.getString('searchPageTitle'));
+diff --git a/chrome/browser/resources/settings/router.ts b/chrome/browser/resources/settings/router.ts
+index 236c564f9b909..46c2093278ceb 100644
+--- a/chrome/browser/resources/settings/router.ts
++++ b/chrome/browser/resources/settings/router.ts
+@@ -14,6 +14,7 @@ import {loadTimeData} from './i18n_setup.js';
+ export interface SettingsRoutes {
+   ABOUT: Route;
+   ACCESSIBILITY: Route;
++  NXTSCAPE: Route;
+   ADDRESSES: Route;
+   ADVANCED: Route;
+   AI: Route;
+diff --git a/chrome/browser/resources/settings/settings.ts b/chrome/browser/resources/settings/settings.ts
+index 85e1db9929325..dbd5e82c285f9 100644
+--- a/chrome/browser/resources/settings/settings.ts
++++ b/chrome/browser/resources/settings/settings.ts
+@@ -32,6 +32,7 @@ export {OpenWindowProxy, OpenWindowProxyImpl} from 'chrome://resources/js/open_w
+ export {PluralStringProxyImpl as SettingsPluralStringProxyImpl} from 'chrome://resources/js/plural_string_proxy.js';
+ export {getTrustedHTML} from 'chrome://resources/js/static_types.js';
+ export {SettingsAboutPageElement} from './about_page/about_page.js';
++export {SettingsNxtscapePageElement} from './nxtscape_page/nxtscape_page.js';
+ export {ControlledRadioButtonElement} from './controls/controlled_radio_button.js';
+ export {SettingsDropdownMenuElement} from './controls/settings_dropdown_menu.js';
+ export {SettingsToggleButtonElement} from './controls/settings_toggle_button.js';
+diff --git a/chrome/browser/resources/settings/settings_main/settings_main.html b/chrome/browser/resources/settings/settings_main/settings_main.html
+index 329e9552760de..403f2f2258fb8 100644
+--- a/chrome/browser/resources/settings/settings_main/settings_main.html
++++ b/chrome/browser/resources/settings/settings_main/settings_main.html
+@@ -49,3 +49,9 @@
+           prefs="{{prefs}}">
+       </settings-about-page>
+     </template>
++    <template is="dom-if" if="[[showPages_.nxtscape]]">
++      <settings-nxtscape-page role="main"
++          class="cr-centered-card-container"
++          prefs="{{prefs}}">
++      </settings-nxtscape-page>
++    </template>
+diff --git a/chrome/browser/resources/settings/settings_main/settings_main.ts b/chrome/browser/resources/settings/settings_main/settings_main.ts
+index 43fd55ea0b83c..433afef3be384 100644
+--- a/chrome/browser/resources/settings/settings_main/settings_main.ts
++++ b/chrome/browser/resources/settings/settings_main/settings_main.ts
+@@ -14,6 +14,7 @@ import 'chrome://resources/cr_elements/icons.html.js';
+ import 'chrome://resources/js/search_highlight_utils.js';
+ import 'chrome://resources/cr_elements/cr_icon/cr_icon.js';
+ import '../about_page/about_page.js';
++import '../nxtscape_page/nxtscape_page.js';
+ import '../basic_page/basic_page.js';
+ import '../search_settings.js';
+ import '../settings_shared.css.js';
+@@ -32,6 +33,7 @@ import {getTemplate} from './settings_main.html.js';
+ interface MainPageVisibility {
+   about: boolean;
+   settings: boolean;
++  nxtscape: boolean;
+ }
+ 
+ export interface SettingsMainElement {
+@@ -68,7 +70,7 @@ export class SettingsMainElement extends SettingsMainElementBase {
+       showPages_: {
+         type: Object,
+         value() {
+-          return {about: false, settings: false};
++          return {about: false, settings: false, nxtscape: false};
+         },
+       },
+ 
+@@ -114,9 +116,14 @@ export class SettingsMainElement extends SettingsMainElementBase {
+    * current route.
+    */
+   override currentRouteChanged() {
+-    const inAbout =
+-        routes.ABOUT.contains(Router.getInstance().getCurrentRoute());
+-    this.showPages_ = {about: inAbout, settings: !inAbout};
++    const currentRoute = Router.getInstance().getCurrentRoute();
++    const inAbout = routes.ABOUT.contains(currentRoute);
++    const inNxtscape = routes.NXTSCAPE.contains(currentRoute);
++    this.showPages_ = {
++      about: inAbout,
++      settings: !inAbout && !inNxtscape,
++      nxtscape: inNxtscape
++    };
+   }
+ 
+   private onShowingSubpage_() {
+diff --git a/chrome/browser/resources/settings/settings_menu/settings_menu.html b/chrome/browser/resources/settings/settings_menu/settings_menu.html
+index 79aad7032abc7..b3a15b5b44637 100644
+--- a/chrome/browser/resources/settings/settings_menu/settings_menu.html
++++ b/chrome/browser/resources/settings/settings_menu/settings_menu.html
+@@ -57,6 +57,12 @@
+           $i18n{peoplePageTitle}
+           <cr-ripple></cr-ripple>
+         </a>
++        <a role="menuitem" id="nxtscape-menu" href="/nxtscape"
++            class="cr-nav-menu-item">
++          <cr-icon icon="[[aiPageIcon_]]"></cr-icon>
++          Nxtscape
++          <cr-ripple></cr-ripple>
++        </a>
+         <a role="menuitem" id="autofill" href="/autofill"
+             hidden="[[!pageVisibility.autofill]]"
+             class="cr-nav-menu-item">
+-- 
+2.49.0
+

@@ -1,21 +1,21 @@
-From 12e202633ff1e358ef6e35fc7d1782b61f5d35a7 Mon Sep 17 00:00:00 2001
+From b92be348d838f757a7c04c7af785c8d4fc0e1cef Mon Sep 17 00:00:00 2001
 From: Nikhil Sonti <nikhilsv92@gmail.com>
-Date: Sun, 18 May 2025 18:52:02 +0100
+Date: Fri, 20 Jun 2025 07:29:44 -0700
 Subject: [PATCH] first run
 
 ---
  chrome/browser/chrome_browser_main.cc         |   1 +
  .../browser/ui/webui/chrome_web_ui_configs.cc |   2 +
- chrome/browser/ui/webui/nxtscape_first_run.h  | 175 ++++++++++++++++++
+ chrome/browser/ui/webui/nxtscape_first_run.h  | 189 ++++++++++++++++++
  chrome/common/webui_url_constants.cc          |   1 +
- 4 files changed, 179 insertions(+)
+ 4 files changed, 193 insertions(+)
  create mode 100644 chrome/browser/ui/webui/nxtscape_first_run.h
 
 diff --git a/chrome/browser/chrome_browser_main.cc b/chrome/browser/chrome_browser_main.cc
-index 61da14e26c4db..89d070607e1d4 100644
+index 681fd3282078c..f003d7bd5ba49 100644
 --- a/chrome/browser/chrome_browser_main.cc
 +++ b/chrome/browser/chrome_browser_main.cc
-@@ -1013,6 +1013,7 @@ int ChromeBrowserMainParts::PreCreateThreadsImpl() {
+@@ -1018,6 +1018,7 @@ int ChromeBrowserMainParts::PreCreateThreadsImpl() {
    if (first_run::IsChromeFirstRun()) {
      if (!base::CommandLine::ForCurrentProcess()->HasSwitch(switches::kApp) &&
          !base::CommandLine::ForCurrentProcess()->HasSwitch(switches::kAppId)) {
@@ -24,10 +24,10 @@ index 61da14e26c4db..89d070607e1d4 100644
      }
  
 diff --git a/chrome/browser/ui/webui/chrome_web_ui_configs.cc b/chrome/browser/ui/webui/chrome_web_ui_configs.cc
-index dd1c0af6d55ca..6ab718e19e375 100644
+index cbcdde4afa71b..0b1381fe9813c 100644
 --- a/chrome/browser/ui/webui/chrome_web_ui_configs.cc
 +++ b/chrome/browser/ui/webui/chrome_web_ui_configs.cc
-@@ -43,6 +43,7 @@
+@@ -44,6 +44,7 @@
  #include "chrome/browser/ui/webui/signin_internals_ui.h"
  #include "chrome/browser/ui/webui/sync_internals/sync_internals_ui.h"
  #include "chrome/browser/ui/webui/translate_internals/translate_internals_ui.h"
@@ -35,7 +35,7 @@ index dd1c0af6d55ca..6ab718e19e375 100644
  #include "chrome/browser/ui/webui/usb_internals/usb_internals_ui.h"
  #include "chrome/browser/ui/webui/user_actions/user_actions_ui.h"
  #include "chrome/browser/ui/webui/version/version_ui.h"
-@@ -248,6 +249,7 @@ void RegisterChromeWebUIConfigs() {
+@@ -253,6 +254,7 @@ void RegisterChromeWebUIConfigs() {
    map.AddWebUIConfig(std::make_unique<SiteEngagementUIConfig>());
    map.AddWebUIConfig(std::make_unique<SyncInternalsUIConfig>());
    map.AddWebUIConfig(std::make_unique<TranslateInternalsUIConfig>());
@@ -45,10 +45,10 @@ index dd1c0af6d55ca..6ab718e19e375 100644
    map.AddWebUIConfig(std::make_unique<VersionUIConfig>());
 diff --git a/chrome/browser/ui/webui/nxtscape_first_run.h b/chrome/browser/ui/webui/nxtscape_first_run.h
 new file mode 100644
-index 0000000000000..6a637a2a417c9
+index 0000000000000..9f54c5932bd45
 --- /dev/null
 +++ b/chrome/browser/ui/webui/nxtscape_first_run.h
-@@ -0,0 +1,175 @@
+@@ -0,0 +1,189 @@
 +#ifndef CHROME_BROWSER_UI_WEBUI_NXTSCAPE_FIRST_RUN_H_
 +#define CHROME_BROWSER_UI_WEBUI_NXTSCAPE_FIRST_RUN_H_
 +
@@ -65,7 +65,7 @@ index 0000000000000..6a637a2a417c9
 +  UFRDataSource() {}
 +  UFRDataSource(const UFRDataSource&) = delete;
 +  UFRDataSource& operator=(const UFRDataSource&) = delete;
-+  
++
 +  // URLDataSource implementation:
 +  std::string GetSource() override;
 +  std::string GetMimeType(const GURL& url) override;
@@ -93,13 +93,15 @@ index 0000000000000..6a637a2a417c9
 +void UFRDataSource::StartDataRequest(const GURL& url,
 +                                    const content::WebContents::Getter& wc_getter,
 +                                    GotDataCallback callback) {
-+  std::string source = R"(
-+<title>Nxtscape First Run 🚀</title>
++  std::string source = R"(<!DOCTYPE html>
++<html lang="en">
++<head>
++<title>Nxtscape First Run</title>
 +<meta charset="UTF-8">
 +<meta name="color-scheme" content="light dark">
 +<style>
 + @import url(chrome://resources/css/text_defaults_md.css);
-+ html{color:#202124; background:white; line-height:1.2em; font-family: sans-serif; font-size: 1.3em;}
++ html{color:#202124; background:white; line-height:1.2em; font-family: sans-serif; font-size: 1.1em;}
 + a{color:#1967d2; text-decoration: none;}
 + a:hover{text-decoration: underline;}
 + h2{margin:0; padding:0.8em 1.33em; font-size: 1.5em;}
@@ -107,7 +109,7 @@ index 0000000000000..6a637a2a417c9
 + ul,ol{padding-left:2.5em; margin-top: 0.5em; margin-bottom: 0.5em;}
 + code{background:rgba(128 128 128 / .2); padding:0.2em 0.5em; border-radius:0.25em; font-size: 0.9em;}
 + summary{cursor:pointer; font-weight: bold; padding: 0.5em 0;}
-+ section{width:60em; max-width: 90%; margin:3em auto; border-radius:.75em;
++ section{width:60em; max-width: 90%; margin:3.5em auto; padding:2em 2.5em; border-radius:.75em;
 +         background:white; box-shadow:0 .1em .2em 0 rgba(0,0,0,0.1), 0 .2em .5em 0 rgba(0,0,0,0.1);}
 + .hero {text-align: center; padding-bottom: 1em;}
 + .hero h1 {font-size: 2.5em; margin-bottom: 0.2em; color: #333;}
@@ -116,6 +118,10 @@ index 0000000000000..6a637a2a417c9
 + .feature-list li { margin-bottom: 0.5em; }
 + .community-links a { display: inline-block; margin: 0.5em; padding: 0.5em 1em; background-color: #f0f0f0; border-radius: 0.3em; color: #333; }
 + .community-links a:hover { background-color: #e0e0e0; }
++ .sub-headline {
++  display: block;
++  margin-top: 1.0em;
++ }
 +
 + @media(prefers-color-scheme:dark){
 +  html{color:#e8eaed; background:#202124}
@@ -130,7 +136,8 @@ index 0000000000000..6a637a2a417c9
 + }
 +</style>
 +<base target="_blank">
-+
++</head>
++<body>
 +<section class="hero">
 + <h1>The Open-Source Agentic Browser 🦊</h1>
 + <p class="sub-headline">Your Browser, Reimagined. ✨</p>
@@ -139,61 +146,67 @@ index 0000000000000..6a637a2a417c9
 +</section>
 +
 +<section>
-+ <h2 class="section-title">🌟 Key Features 🌟</h2>
++ <h2 class="section-title">🚀 Getting Started</h2>
++ <details open>
++  <summary><b>📥 Import your data from Chrome</b></summary>
++  <ol>
++   <li>Navigate to <a href="chrome://settings/importData"><code>chrome://settings/importData</code></a></li>
++   <li>Click "Import"</li>
++   <li>Follow the on-screen prompts and click "Always allow" when prompted to import all your data at once</li>
++  </ol>
++ </details>
++ <details>
++  <summary><b>🔑 BYOK (Bring Your Own Keys)</b></summary>
++  <p style="padding: 1em 2em;">
++   You have full control over your AI models! Navigate to <a href="chrome://settings/nxtscape"><code>chrome://settings/nxtscape</code></a> to configure your own API keys for various providers.
++  </p>
++  <p style="padding: 0.5em 2em 1em 2em;">
++   <strong>Note:</strong> You can even run everything locally using <a href="https://ollama.com">Ollama</a>! 🔒
++  </p>
++ </details>
++ <details>
++  <summary><b>⌨️ Keyboard Shortcuts</b></summary>
++  <p style="padding: 1em 2em;">
++   <strong>Toggle AI Agent:</strong> Press <code>Cmd+E</code> to quickly open or close the AI agent sidebar. 🤖
++  </p>
++ </details>
++</section>
++
++<section>
++ <h2 class="section-title">✨ Key Features</h2>
 + <ul class="feature-list">
-+  <li>🤖 <strong>AI Agents:</strong> Delegate repetitive tasks and information gathering to local agents that work for you.</li>
-+  <li>🧠 <strong>AI Chat & Insights:</strong> Quickly summarize multiple tabs or dense documents with powerful AI assistance.</li>
-+  <li>🔒 <strong>Enhanced Privacy Controls:</strong> Take charge of your data with advanced tracking protection and privacy settings.</li>
-+  <li>🧩 <strong>Seamless Extension Support:</strong> Easily install your favorite extensions!</li>
++  <li>🤖 <strong>Nxtscape Agent:</strong> Your productivity agent that can manage your tabs and browsing sessions. For example:
++   <ul>
++    <li>"list tabs I have open"</li>
++    <li>"close duplicate tabs"</li>
++    <li>"group tabs by topic"</li>
++    <li>"switch to Bookface tab"</li>
++    <li>"save my current browsing session as XYZ-Research"</li>
++    <li>"resume XYZ-Research browsing session"</li>
++    <li>"search my browser history for all github pages I visited"</li>
++    <li>"organize my entire bookmark collection"</li>
++   </ul>
++  </li>
++  <li>🧭 <strong>Nxtscape Navigator:</strong> Performs agentic tasks for you on web pages. For example:
++   <ul>
++    <li>Go to amazon.com and search for "hard disk"</li>
++    <li>Navigate to specific pages and interact with content</li>
++    <li>Automate repetitive browsing tasks</li>
++   </ul>
++  </li>
 + </ul>
 +</section>
 +
 +<section>
-+ <h2 class="section-title">🤝 Join Our Community & Explore 🤝</h2>
++ <h2 class="section-title">🤝 Join Our Community & Explore</h2>
 + <p class="community-links">
-+  <a href="https://discord.gg/Z33rpYme">💬 Discord</a>
++  <a href="https://discord.gg/YKwjt5vuKr">💬 Discord</a>
 +  <a href="https://github.com/nxtscape/nxtscape">💻 GitHub</a>
 +  <a href="https://x.com/nxtscape">🐦 X (Twitter)</a>
 + </p>
 + <p style="font-size:0.9em; text-align:center;">Have questions or want to contribute? We'd love to hear from you!</p>
 +</section>
 +
-+<section>
-+ <h2>🛠️ How-To Guides 🛠️</h2>
-+ <details open>
-+  <summary><b>📥 Importing Your Data from Chrome</b></summary>
-+  <p>Easily bring your settings over from Chrome!</p>
-+  <ol>
-+   <li>Open Nxtscape settings by navigating to <a href="chrome://settings/importData"><code>chrome://settings/importData</code></a>.</li>
-+   <li>You can import:
-+    <ul>
-+     <li>📖 Bookmarks</li>
-+     <li>📜 History</li>
-+     <li>🧩 Extensions</li>
-+     <li>➕ And more!</li>
-+    </ul>
-+   </li>
-+   <li>Follow the on-screen prompts to complete the import.</li>
-+  </ol>
-+ </details>
-+ <p>
-+  <a href="https://github.com/nxtscape/nxtscape">Check out the FAQ on the GitHub</a>
-+  for information on other common topics.
-+</section>
-+
-+<section>
-+ <h2>✨ Extra Nxtscape Features ✨</h2>
-+ <p>Many unique features introduced by Nxtscape may be disabled by default. These can be enabled in
-+  <a href="chrome://flags"><code>chrome://flags</code></a> or as command-line switches. Take a look at
-+  <a href="https://github.com/nxtscape/nxtscape">the Nxtscape flags documentation</a> to see what features you may find useful to enable.</p>
-+</section>
-+
-+<section>
-+ <h2>🔗 Additional Links 🔗</h2>
-+ <p>⭐️ <strong>Support & influence the roadmap:</strong> <a href="https://github.com/nxtscape/nxtscape">Star Nxtscape on GitHub</a>.</p>
-+ <p>📝 <strong>Have an idea?</strong> Add or vote for suggestions on our <a href="https://nxtscape.feedbear.com/roadmap">public roadmap</a>.</p>
-+ <p>💬 <strong>Join the conversation:</strong> <a href="https://discord.gg/Z33rpYme">Join our Discord</a> for updates and discussion.</p>
-+</section>
 +<script>
 + document.getElementById("bdic").onchange = function(e){
 +  var f = new FileReader;
@@ -204,7 +217,8 @@ index 0000000000000..6a637a2a417c9
 +   a.click()
 +  }, f.readAsText(this.files[0])};
 +</script>
-+)";
++</body>
++</html>)";
 +  std::move(callback).Run(base::MakeRefCounted<base::RefCountedString>(std::move(source)));
 +}
 +
@@ -225,10 +239,10 @@ index 0000000000000..6a637a2a417c9
 +
 +#endif  // CHROME_BROWSER_UI_WEBUI_NXTSCAPE_FIRST_RUN_H_
 diff --git a/chrome/common/webui_url_constants.cc b/chrome/common/webui_url_constants.cc
-index d94ad4f02b11d..9105c0f343ef5 100644
+index e5e724a22d015..7a378544092b7 100644
 --- a/chrome/common/webui_url_constants.cc
 +++ b/chrome/common/webui_url_constants.cc
-@@ -71,6 +71,7 @@ bool IsSystemWebUIHost(std::string_view host) {
+@@ -72,6 +72,7 @@ bool IsSystemWebUIHost(std::string_view host) {
  // These hosts will also be suggested by BuiltinProvider.
  base::span<const base::cstring_view> ChromeURLHosts() {
    static constexpr auto kChromeURLHosts = std::to_array<base::cstring_view>({
