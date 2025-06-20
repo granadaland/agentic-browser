@@ -1,6 +1,6 @@
 <div align="center">
 
-# Nxtscape <img src="resources/backed-by-yc.png" alt="backed-by-yc" width="120px" style="vertical-align: middle; margin-left: 10px;">
+# Nxtscape Browser
 
 ### Your browser, with AI superpowers 🚀
 
@@ -10,6 +10,9 @@
 <a href="https://bit.ly/4k0gjsD">
   <img src="https://img.shields.io/badge/Download-macOS-black?style=flat&logo=apple&logoColor=white" alt="Download for macOS" />
 </a>
+
+<br />
+<img src="resources/backed-by-yc.png" alt="backed-by-yc" width="140px">
 
 </div>
 
