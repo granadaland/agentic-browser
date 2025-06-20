@@ -48,6 +48,12 @@ We saw how tools like Cursor gave developers a 10x productivity boost, yet the b
 
 </div>
 
+## Get Involved! 🙌
+Nxtscape is open source! We believe in building _with_ our community. Let us know what features you want!
+
+- 💬  Join our [Discord](https://discord.gg/YKwjt5vuKr)
+- 🐦  Follow us on [Twitter/X](https://twitter.com/nxtscape)
+- 🗺️  Roadmap: [link](https://nxtscape.feedbear.com/roadmap)
 
 ## ✨ What Makes Nxtscape Different?
 We know there are other browsers. Here's why Nxtscape stands out:
@@ -64,11 +70,6 @@ Many loved Arc, but it was closed source. When the company abandoned it, users w
 ### Nxtscape vs Perplexity Comet
 Perplexity is a search company. Your browser history will likely be used for ad targeting eventually. We are **NOT** a search company. If you're switching from Chrome, choose a truly privacy-first browser instead of another data collector. Choose Nxtscape.
 
-## Get Involved! 🙌
-Nxtscape is open source! We believe in building _with_ our community. Let us know what features you want!
-
-- 💬  Join our [Discord](https://discord.gg/YKwjt5vuKr)
-- 🐦  Follow us on [Twitter/X](https://twitter.com/nxtscape)
 
 ## Acknowledgments 🙏
 
