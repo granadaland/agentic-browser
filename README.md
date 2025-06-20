@@ -43,7 +43,7 @@
 
 ## Demos
 
-### 🤖 AI Agents in Action ([watch video](https://storage.googleapis.com/felafax-public/nxtscape/nxtscape-agent.mp4))
+### 🤖 AI Agents in Action ([watch video](https://storage.googleapis.com/felafax-public/nxtscape/nxtscape-agent-demo.mp4))
 <div align="center">
 <img src="resources/nxtscape-agent.gif" alt="AI Agents in Action" width="80%">
 </div>
