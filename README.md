@@ -3,7 +3,11 @@
 # The Open-source Agentic Browser.
 Nxtscape ("next-scape") is an open-source **agentic browser** – your privacy-first alternative to closed-source browsers (like Arc, Dia, Perplexity Comet). Built on Chromium, Nxtscape lets you run **Manus like agents** locally and boost your productivity with an AI-sidekick.
 
-### $${\color{red}Download}$$ [link](https://bit.ly/4k0gjsD) for macOS
+<p align="center">
+  <a href="https://bit.ly/4k0gjsD">
+    <img src="https://img.shields.io/badge/Download%20Nxtscape-macOS-blue?style=for-the-badge&logo=apple&logoColor=white" alt="Download for macOS" />
+  </a>
+</p>
 
 We'd love to hear what problems you'd like to see solved! Share your ideas through our [anonymous form](https://dub.sh/nxtscape-feature-request).
 
