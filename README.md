@@ -17,31 +17,29 @@ We'd love to hear what problems you'd like to see solved! Share your ideas throu
 We believe the future is AI agents automating your work, and we want to be the **_open source browser_** that can do it **_locally and securely_** instead of sending your data to a search or ad company. 
 
 ## The Vision: A Browser That Works For You 💡
-We spend half our lives in browsers, but they haven't really evolved. We're drowning in tabs, doing the same tasks over and over, and losing track of what we've seen. Nxtscape changes that. Imagine a browser that:
+For the first time since Netscape in 1994, it feels like we can reimagine browsers from scratch. The browser of tomorrow might not look like what we have today! That's why we're building Nxtscape - an open-source, agentic browser for the next era.
 
+We saw how tools like Cursor gave developers a 10x productivity boost, yet the browser—where we spend our entire day—feels stuck and we're constantly fighting it. I constantly have 70+ tabs open and lose track of them. Can't AI help group or close them? Simple workflows, like "order Tide Pods from my Amazon order history," should just work with agents right now. And form-filling is another huge pain that AI should be able to solve.
+
+Imagine a browser that:
 - Manages your tabs with AI - groups them, closes the old ones, keeps you organized
 - Finds anything you've seen before instantly ("that article about AI I read last week")
 - Automates repetitive tasks - let agents do the boring stuff while you focus on what matters
 - Guards your privacy like a watchdog - your data stays yours, always
 
-That's not just a vision. That's what we're building with Nxtscape. Join [our waitlist](https://nxtscape.ai), we'll send you the download link soon!
+Drop your email [here](https://nxtscape.ai), we'll send you the download link!
 
 
 ## Features 🎁
 - 🏠 Feels like home - works with all your Chrome extensions
-- 🤖 AI agents that run locally - tell them what you want done and they'll browse for you (your data never leaves your machine)
-- 💬 Chat with AI right in the sidebar using local models - keep your private stuff private
-- 🔍 Smart search that understands what you're looking for in your history and saved highlights
-- 🤝 Works with MCP tools right out of the box
-- 🔓 Open source and community driven - see exactly what's happening under the hood
-- 🔒 Your browsing history stays on your computer, not in the cloud
-- 🛡️ Built-in AI ad blocker that actually works
+- 🤖 AI agents that run on YOUR browser, not in the cloud
+- 🔒 Privacy first - bring your own keys or use local models with Ollama. Your browsing history stays on your computer
+- 🚀 Open source and community driven - see exactly what's happening under the hood
+- 🤝 (coming soon) MCP store to one-click install popular MCPs and use them directly in the browser bar
+- 🛡️ (coming soon) Built-in AI ad blocker that works across more scenarios!
 
 ## 🤔 Why a new Browser, Not Just an Extension?
-Extensions are great, but they hit walls. To build the future we imagine, we need more control:
-
-1. **Real Automation Needs Real Control:** Browser extensions are limited. To _truly_ let you automate tasks powerfully (think agentic automation), we need control over the browser's core. 
-2. **A Truly Ad-Free, Private Web:** We want a web without annoying ads and trackers. Google is making this harder on Chrome with changes like Manifest V3, which hurt great ad blockers like uBlock Origin. By building our own browser, we can bake in **strong ad-blocking** from the start and ensure your browsing stays private. Your history stays local, on your machine.
+Simply put: more control. It's a similar reason to why Cursor forked. For example, Chrome has something called the Accessibility Tree - a cleaner, more semantic version of a webpage's DOM that screen readers use. This is perfect for AI agents to understand pages, but you can't access it through Chrome's extension APIs. There are many similar limitations that made forking a better choice than building an extension.
 
 
 ## ✨ What Makes Nxtscape Different?
@@ -82,9 +80,10 @@ Nxtscape is open source! We believe in building _with_ our community. Let us kno
 
 ## Acknowledgments 🙏
 
-We couldn't have built Nxtscape without these amazing open-source projects: [Chromium](https://github.com/chromium/chromium), [browser-use](https://github.com/browser-use/browser-use), [Nanobrowser](https://github.com/nanobrowser/nanobrowser), and [Stagehand](https://github.com/browserbase/stagehand). Huge thanks to all the contributors!
+Nxtscape is inspired by these amazing open-source projects: [browser-use](https://github.com/browser-use/browser-use), [Nanobrowser](https://github.com/nanobrowser/nanobrowser), and [Stagehand](https://github.com/browserbase/stagehand) and of course wouldn't have been possible without [Chromium](https://github.com/chromium/chromium). Grateful to the open-source community!
+
 ## License 📜
-Nxtscape is licensed under MPL license. See the `LICENSE` file for details.
+Nxtscape is licensed under AGPL-3.0 license. See the `LICENSE` file for details.
 
 <div align="center">
 <br />
