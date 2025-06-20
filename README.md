@@ -21,14 +21,6 @@ For the first time since Netscape in 1994, it feels like we can reimagine browse
 
 We saw how tools like Cursor gave developers a 10x productivity boost, yet the browser—where we spend our entire day—feels stuck and we're constantly fighting it. I constantly have 70+ tabs open and lose track of them. Can't AI help group or close them? Simple workflows, like "order Tide Pods from my Amazon order history," should just work with agents right now. And form-filling is another huge pain that AI should be able to solve.
 
-Imagine a browser that:
-- Manages your tabs with AI - groups them, closes the old ones, keeps you organized
-- Finds anything you've seen before instantly ("that article about AI I read last week")
-- Automates repetitive tasks - let agents do the boring stuff while you focus on what matters
-- Guards your privacy like a watchdog - your data stays yours, always
-
-Drop your email [here](https://nxtscape.ai), we'll send you the download link!
-
 
 ## Features 🎁
 - 🏠 Feels like home - works with all your Chrome extensions
@@ -38,8 +30,21 @@ Drop your email [here](https://nxtscape.ai), we'll send you the download link!
 - 🤝 (coming soon) MCP store to one-click install popular MCPs and use them directly in the browser bar
 - 🛡️ (coming soon) Built-in AI ad blocker that works across more scenarios!
 
-## 🤔 Why a new Browser, Not Just an Extension?
-Simply put: more control. It's a similar reason to why Cursor forked. For example, Chrome has something called the Accessibility Tree - a cleaner, more semantic version of a webpage's DOM that screen readers use. This is perfect for AI agents to understand pages, but you can't access it through Chrome's extension APIs. There are many similar limitations that made forking a better choice than building an extension.
+
+## Demos
+
+<div align="center">
+
+### 🤖 AI Agents in Action (<a href="https://storage.googleapis.com/felafax-public/nxtscape/nxtscape-agent.mp4" target="_blank">video</a>)
+<img src="resources/nxtscape-agent.gif" alt="AI Agents in Action" width="80%">
+
+### 💬 Local AI Chat (<a href="https://storage.googleapis.com/felafax-public/nxtscape/nxtscape-chat.mp4" target="_blank">video</a>)
+<img src="resources/nxtscape-chat.gif" alt="Local AI Chat" width="80%">
+
+### ⚡ Productivity (<a href="https://storage.googleapis.com/felafax-public/nxtscape/nxtscape-productivity.mp4" target="_blank">video</a>)
+<img src="resources/nxtscape-productivity.gif" alt="Productivity" width="80%">
+
+</div>
 
 
 ## ✨ What Makes Nxtscape Different?
@@ -56,21 +61,6 @@ Many loved Arc, but it was closed source. When the company abandoned it, users w
 
 ### Nxtscape vs Perplexity Comet
 Perplexity is a search company. Your browser history will likely be used for ad targeting eventually. We are **NOT** a search company. If you're switching from Chrome, choose a truly privacy-first browser instead of another data collector. Choose Nxtscape.
-
-## Demos
-
-<div align="center">
-
-### 🤖 AI Agents in Action (<a href="https://storage.googleapis.com/felafax-public/nxtscape/nxtscape-agent.mp4" target="_blank">video</a>)
-<img src="resources/nxtscape-agent.gif" alt="AI Agents in Action" width="80%">
-
-### 💬 Local AI Chat (<a href="https://storage.googleapis.com/felafax-public/nxtscape/nxtscape-chat.mp4" target="_blank">video</a>)
-<img src="resources/nxtscape-chat.gif" alt="Local AI Chat" width="80%">
-
-### ⚡ Productivity (<a href="https://storage.googleapis.com/felafax-public/nxtscape/nxtscape-productivity.mp4" target="_blank">video</a>)
-<img src="resources/nxtscape-productivity.gif" alt="Productivity" width="80%">
-
-</div>
 
 ## Get Involved! 🙌
 Nxtscape is open source! We believe in building _with_ our community. Let us know what features you want!
