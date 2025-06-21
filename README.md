@@ -16,11 +16,11 @@
 
 </div>
 
-🌐 Nxtscape is the open-source agentic browser that runs AI locally. Your privacy-first alternative to Arc, Dia, and Perplexity Comet.
-
-💡 Join our [Discord](https://discord.gg/YKwjt5vuKr) and help us build! Have feature requests? [Suggest here](https://dub.sh/nxtscape-feature-request).
+🌐 Nxtscape is an open-source agentic browser that runs AI locally. Your privacy-first alternative to Arc, Dia, and Perplexity Comet.
 
 🔒 Privacy first - use your own API keys or run local models with Ollama. Your data stays on your computer.
+
+💡 Join our [Discord](https://discord.gg/YKwjt5vuKr) and help us build! Have feature requests? [Suggest anonymously here](https://dub.sh/nxtscape-feature-request).
 
 ## Quick start
 
