@@ -37,7 +37,7 @@
 
 ## Features
 
-- 🏠 Feels like home - works with all your Chrome extensions
+- 🏠 Feels like home - same familiar interface as Google Chrome, works with all your extensions
 - 🤖 AI agents that run on YOUR browser, not in the cloud
 - 🔒 Privacy first - bring your own keys or use local models with Ollama. Your browsing history stays on your computer
 - 🚀 Open source and community driven - see exactly what's happening under the hood
@@ -74,7 +74,7 @@ We believe AI agents should automate your work locally and securely, not send yo
 <details>
 <summary><b>vs Chrome</b></summary>
 <br>
-While we're grateful for Google open-sourcing Chromium, Chrome hasn't evolved much in 10 years. No AI features, no automation, no MCP support.
+While we're grateful for Google open-sourcing Chromium, but Chrome hasn't evolved much in 10 years. No AI features, no automation, no MCP support.
 </details>
 
 <details>
