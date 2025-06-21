@@ -1,7 +1,7 @@
-From 7d470e5d70464f2d40bb31140fbb151e5779f73f Mon Sep 17 00:00:00 2001
+From d2867d423b13ec09c70846506d4998f0e12d5e11 Mon Sep 17 00:00:00 2001
 From: Nikhil Sonti <nikhilsv92@gmail.com>
-Date: Thu, 8 May 2025 08:00:15 +0100
-Subject: [PATCH] add importer supporter for chrome
+Date: Sat, 21 Jun 2025 15:24:04 -0700
+Subject: [PATCH] nxtscape importer
 
 ---
  chrome/app/generated_resources.grd            |   3 +
@@ -27,21 +27,21 @@ Subject: [PATCH] add importer supporter for chrome
  ...ofile_import_process_param_traits_macros.h |   4 +-
  chrome/common/pref_names.h                    |   2 +
  chrome/utility/BUILD.gn                       |   2 +
- chrome/utility/importer/chrome_importer.cc    | 735 ++++++++++++++++++
+ chrome/utility/importer/chrome_importer.cc    | 736 ++++++++++++++++++
  chrome/utility/importer/chrome_importer.h     |  91 +++
  .../external_process_importer_bridge.cc       |   7 +
  .../external_process_importer_bridge.h        |   2 +
  chrome/utility/importer/importer_creator.cc   |   3 +
  .../histograms/metadata/sql/histograms.xml    |   1 +
- 29 files changed, 1267 insertions(+), 3 deletions(-)
+ 29 files changed, 1268 insertions(+), 3 deletions(-)
  create mode 100644 chrome/utility/importer/chrome_importer.cc
  create mode 100644 chrome/utility/importer/chrome_importer.h
 
 diff --git a/chrome/app/generated_resources.grd b/chrome/app/generated_resources.grd
-index ef9bb3342126f..de01700e5da8c 100644
+index 186d94b83cb9c..a7e94095c4dc5 100644
 --- a/chrome/app/generated_resources.grd
 +++ b/chrome/app/generated_resources.grd
-@@ -10788,6 +10788,9 @@ Check your passwords anytime in <ph name="GOOGLE_PASSWORD_MANAGER">$1<ex>Google
+@@ -10882,6 +10882,9 @@ Check your passwords anytime in <ph name="GOOGLE_PASSWORD_MANAGER">$1<ex>Google
          <message name="IDS_IMPORT_FROM_FIREFOX" desc="browser combo box: Mozilla Firefox">
            Mozilla Firefox
          </message>
@@ -52,10 +52,10 @@ index ef9bb3342126f..de01700e5da8c 100644
          <message name="IDS_IMPORT_FROM_ICEWEASEL" desc="browser combo box: Iceweasel">
            Iceweasel
 diff --git a/chrome/app/settings_strings.grdp b/chrome/app/settings_strings.grdp
-index cda1a91201e69..962f60583f851 100644
+index 8d41891d1717b..8064a065bbb54 100644
 --- a/chrome/app/settings_strings.grdp
 +++ b/chrome/app/settings_strings.grdp
-@@ -3884,6 +3884,9 @@
+@@ -3935,6 +3935,9 @@
      <message name="IDS_SETTINGS_IMPORT_AUTOFILL_FORM_DATA_CHECKBOX" desc="Checkbox for importing form data for autofill">
        Autofill form data
      </message>
@@ -66,10 +66,10 @@ index cda1a91201e69..962f60583f851 100644
      <message name="IDS_SETTINGS_IMPORT_CHOOSE_FILE" desc="Text for the Choose File on dialog">
        Choose File
 diff --git a/chrome/browser/extensions/api/settings_private/prefs_util.cc b/chrome/browser/extensions/api/settings_private/prefs_util.cc
-index fb466ebe55975..10523443138eb 100644
+index 619a42dd9fc50..731af3681346c 100644
 --- a/chrome/browser/extensions/api/settings_private/prefs_util.cc
 +++ b/chrome/browser/extensions/api/settings_private/prefs_util.cc
-@@ -1152,6 +1152,8 @@ const PrefsUtil::TypedPrefMap& PrefsUtil::GetAllowlistedKeys() {
+@@ -1183,6 +1183,8 @@ const PrefsUtil::TypedPrefMap& PrefsUtil::GetAllowlistedKeys() {
        settings_api::PrefType::kBoolean;
    (*s_allowlist)[::prefs::kImportDialogSearchEngine] =
        settings_api::PrefType::kBoolean;
@@ -111,7 +111,7 @@ index 6d38b92400bbf..c6f6cfac5049c 100644
   protected:
    ~ExternalProcessImporterClient() override;
 diff --git a/chrome/browser/importer/importer_list.cc b/chrome/browser/importer/importer_list.cc
-index 5898c273ff443..5b6add28c0f31 100644
+index 5898c273ff443..45d0758ef98e9 100644
 --- a/chrome/browser/importer/importer_list.cc
 +++ b/chrome/browser/importer/importer_list.cc
 @@ -17,9 +17,14 @@
@@ -152,66 +152,66 @@ index 5898c273ff443..5b6add28c0f31 100644
 +bool ChromeImporterCanImport(const base::FilePath& profile_path, uint16_t* services) {
 +  DCHECK(services);
 +  *services = importer::NONE;
-+  
++
 +  if (!base::PathExists(profile_path))
 +    return false;
-+  
++
 +  base::FilePath bookmarks_path = profile_path.Append("Bookmarks");
 +  base::FilePath history_path = profile_path.Append("History");
 +  base::FilePath passwords_path = profile_path.Append("Login Data");
 +  base::FilePath preferences_path = profile_path.Append("Preferences");
 +  base::FilePath secure_preferences_path = profile_path.Append("Secure Preferences");
-+  
++
 +  if (base::PathExists(bookmarks_path))
 +    *services |= importer::FAVORITES;
-+  
++
 +  if (base::PathExists(history_path))
 +    *services |= importer::HISTORY;
-+  
++
 +  if (base::PathExists(passwords_path))
 +    *services |= importer::PASSWORDS;
-+  
++
 +  if (base::PathExists(preferences_path)) {
 +    *services |= importer::AUTOFILL_FORM_DATA;
 +    *services |= importer::SEARCH_ENGINES;
-+    
++
 +    // Check for extensions in preferences
-+    if (HasExtensionsToImport(preferences_path) || 
-+        (base::PathExists(secure_preferences_path) && 
++    if (HasExtensionsToImport(preferences_path) ||
++        (base::PathExists(secure_preferences_path) &&
 +         HasExtensionsToImport(secure_preferences_path))) {
 +      *services |= importer::EXTENSIONS;
 +    }
 +  }
-+  
++
 +  return *services != importer::NONE;
 +}
 +
 +bool HasExtensionsToImport(const base::FilePath& preferences_path) {
 +  LOG(INFO) << "Checking for extensions in: " << preferences_path.AsUTF8Unsafe();
-+  
++
 +  std::string preferences_content;
 +  if (!base::ReadFileToString(preferences_path, &preferences_content)) {
 +    LOG(INFO) << "Failed to read preferences file: " << preferences_path.AsUTF8Unsafe();
 +    return false;
 +  }
-+  
-+  std::optional<base::Value::Dict> preferences = 
++
++  std::optional<base::Value::Dict> preferences =
 +      base::JSONReader::ReadDict(preferences_content);
 +  if (!preferences) {
 +    LOG(INFO) << "Failed to parse preferences file as JSON: " << preferences_path.AsUTF8Unsafe();
 +    return false;
 +  }
-+  
++
 +  // Extensions are stored in extensions.settings in Chrome preferences
-+  const base::Value::Dict* extensions_dict = 
++  const base::Value::Dict* extensions_dict =
 +      preferences->FindDictByDottedPath("extensions.settings");
 +  if (!extensions_dict) {
 +    LOG(INFO) << "No extensions.settings found in preferences file";
 +    return false;
 +  }
-+  
++
 +  LOG(INFO) << "Found extensions.settings with " << extensions_dict->size() << " entries";
-+  
++
 +  // Check for at least one valid extension
 +  int examined_extensions = 0;
 +  for (const auto [key, value] : *extensions_dict) {
@@ -219,32 +219,32 @@ index 5898c273ff443..5b6add28c0f31 100644
 +    if (!value.is_dict()) {
 +      continue;
 +    }
-+    
++
 +    const base::Value::Dict& dict = value.GetDict();
-+    
++
 +    // Only count if:
 +    // 1. It's from the Chrome Web Store
 +    // 2. It's not installed by default
 +    // 3. It's enabled
-+    
++
 +    if (dict.FindBool("was_installed_by_default").value_or(true)) {
 +      LOG(INFO) << "Extension " << key << " was installed by default, skipping";
 +      continue;  // Skip default extensions
 +    }
-+    
++
 +    // State 0 means disabled
 +    // int state = dict.FindInt("state").value_or(0);
 +    // if (!state) {
 +    //   LOG(INFO) << "Extension " << key << " is disabled (state=0), skipping";
 +    //   continue;  // Skip disabled extensions
 +    // }
-+    
++
 +    if (!dict.FindBool("from_webstore").value_or(false)) {
 +      LOG(INFO) << "Extension " << key << " is not from the web store, skipping";
 +      continue;  // Skip non-webstore extensions
 +    }
 +    return true;
-+    
++
 +    // Check if it's an extension (not a theme or app)
 +    // const base::Value::Dict* manifest = dict.FindDict("manifest");
 +    // if (manifest) {
@@ -254,20 +254,20 @@ index 5898c273ff443..5b6add28c0f31 100644
 +    //   LOG(INFO) << "Extension " << key << " has no manifest";
 +    // }
 +  }
-+  
++
 +  LOG(INFO) << "Examined " << examined_extensions << " extensions, none qualified for import";
 +  return false;
 +}
 +
 +base::Value::List GetChromeSourceProfiles(const base::FilePath& local_state_path) {
 +  base::Value::List profiles;
-+  
++
 +  if (base::PathExists(local_state_path)) {
 +    std::string local_state_content;
 +    if (base::ReadFileToString(local_state_path, &local_state_content)) {
-+      std::optional<base::Value::Dict> local_state_dict = 
++      std::optional<base::Value::Dict> local_state_dict =
 +          base::JSONReader::ReadDict(local_state_content);
-+      
++
 +      if (local_state_dict) {
 +        const auto* profile_dict = local_state_dict->FindDict("profile");
 +        if (profile_dict) {
@@ -277,11 +277,11 @@ index 5898c273ff443..5b6add28c0f31 100644
 +              const auto* profile = value.second.GetIfDict();
 +              if (!profile)
 +                continue;
-+              
++
 +              auto* name = profile->FindString("name");
 +              if (!name)
 +                continue;
-+              
++
 +              base::Value::Dict entry;
 +              entry.Set("id", value.first);
 +              entry.Set("name", *name);
@@ -292,7 +292,7 @@ index 5898c273ff443..5b6add28c0f31 100644
 +      }
 +    }
 +  }
-+  
++
 +  // If no profiles were found, add the default one
 +  if (profiles.empty()) {
 +    base::Value::Dict entry;
@@ -300,45 +300,45 @@ index 5898c273ff443..5b6add28c0f31 100644
 +    entry.Set("name", "Default");
 +    profiles.Append(std::move(entry));
 +  }
-+  
++
 +  return profiles;
 +}
 +
 +void DetectChromeProfiles(std::vector<importer::SourceProfile>* profiles) {
 +  base::ScopedBlockingCall scoped_blocking_call(FROM_HERE,
 +                                               base::BlockingType::MAY_BLOCK);
-+  
++
 +  base::FilePath chrome_path = GetChromeUserDataFolder();
 +  if (!base::PathExists(chrome_path))
 +    return;
-+  
++
 +  // Get the list of profiles from Local State
 +  base::FilePath local_state_path = chrome_path.Append("Local State");
 +  base::Value::List chrome_profiles = GetChromeSourceProfiles(local_state_path);
-+  
++
 +  // Add each profile
 +  for (const auto& value : chrome_profiles) {
 +    const auto* dict = value.GetIfDict();
 +    if (!dict)
 +      continue;
-+    
++
 +    const std::string* profile_id = dict->FindString("id");
 +    const std::string* name = dict->FindString("name");
-+    
++
 +    if (!profile_id || !name)
 +      continue;
-+    
++
 +    base::FilePath profile_folder = chrome_path.Append(*profile_id);
 +    uint16_t services = importer::NONE;
-+    
++
 +    if (!ChromeImporterCanImport(profile_folder, &services))
 +      continue;
-+    
++
 +    importer::SourceProfile chrome;
 +    if (*profile_id == "Default") {
 +      chrome.importer_name = l10n_util::GetStringUTF16(IDS_IMPORT_FROM_CHROME);
 +    } else {
-+      chrome.importer_name = l10n_util::GetStringUTF16(IDS_IMPORT_FROM_CHROME) + 
++      chrome.importer_name = l10n_util::GetStringUTF16(IDS_IMPORT_FROM_CHROME) +
 +                            u" - " + base::UTF8ToUTF16(*name);
 +    }
 +    chrome.importer_type = importer::TYPE_CHROME;
@@ -384,7 +384,7 @@ index 8ad0b5eb7ce08..0f62a7bf33194 100644
  
    // Note: This leaks memory, which is the expected behavior as the factory
 diff --git a/chrome/browser/importer/in_process_importer_bridge.cc b/chrome/browser/importer/in_process_importer_bridge.cc
-index ce876a21da88a..8131a0c21ed89 100644
+index ce876a21da88a..bc687cd5f9f4e 100644
 --- a/chrome/browser/importer/in_process_importer_bridge.cc
 +++ b/chrome/browser/importer/in_process_importer_bridge.cc
 @@ -26,6 +26,10 @@
@@ -392,7 +392,7 @@ index ce876a21da88a..8131a0c21ed89 100644
  namespace {
  
 +// Temporary definition, should be added to the history module
-+const history::VisitSource SOURCE_CHROME_IMPORTED = 
++const history::VisitSource SOURCE_CHROME_IMPORTED =
 +    static_cast<history::VisitSource>(4);
 +
  history::URLRows ConvertImporterURLRowsToHistoryURLRows(
@@ -413,9 +413,9 @@ index ce876a21da88a..8131a0c21ed89 100644
  
 +void InProcessImporterBridge::SetExtensions(
 +    const std::vector<std::string>& extension_ids) {
-+  LOG(INFO) << "InProcessImporterBridge: Received " << extension_ids.size() 
++  LOG(INFO) << "InProcessImporterBridge: Received " << extension_ids.size()
 +            << " extensions to import";
-+  
++
 +  // Pass the extension IDs to the profile writer to handle installation
 +  // This will be implemented in ProfileWriter
 +  writer_->AddExtensions(extension_ids);
@@ -438,7 +438,7 @@ index 49700b2f8a384..1a04f789e0fcc 100644
    void NotifyItemStarted(importer::ImportItem item) override;
    void NotifyItemEnded(importer::ImportItem item) override;
 diff --git a/chrome/browser/importer/profile_writer.cc b/chrome/browser/importer/profile_writer.cc
-index 7bb741920d9af..b88d4ad93285f 100644
+index 7bb741920d9af..3e64195089866 100644
 --- a/chrome/browser/importer/profile_writer.cc
 +++ b/chrome/browser/importer/profile_writer.cc
 @@ -36,6 +36,18 @@
@@ -493,42 +493,42 @@ index 7bb741920d9af..b88d4ad93285f 100644
 +  if (extension_ids.empty())
 +    return;
 +
-+  LOG(INFO) << "ProfileWriter: Installing " << extension_ids.size() 
++  LOG(INFO) << "ProfileWriter: Installing " << extension_ids.size()
 +            << " extensions from Chrome import";
-+  
++
 +  // Get the ExtensionService for the profile
-+  extensions::ExtensionSystem* extension_system = 
++  extensions::ExtensionSystem* extension_system =
 +      extensions::ExtensionSystem::Get(profile_);
 +  if (!extension_system) {
 +    LOG(ERROR) << "Failed to get extension system for profile";
 +    return;
 +  }
-+  
-+  extensions::ExtensionService* extension_service = 
++
++  extensions::ExtensionService* extension_service =
 +      extension_system->extension_service();
 +  if (!extension_service) {
 +    LOG(ERROR) << "Failed to get extension service for profile";
 +    return;
 +  }
-+  
++
 +  // Check which extensions are already installed
-+  extensions::ExtensionRegistry* registry = 
++  extensions::ExtensionRegistry* registry =
 +      extensions::ExtensionRegistry::Get(profile_);
-+  
++
 +  // Find an active WebContents to use (required by WebstoreInstallWithPrompt)
 +  content::WebContents* web_contents = nullptr;
-+  
++
 +  // Try to get a web contents from the active browser
 +  Browser* browser = chrome::FindBrowserWithProfile(profile_);
 +  if (browser && browser->tab_strip_model()) {
 +    web_contents = browser->tab_strip_model()->GetActiveWebContents();
 +  }
-+  
++
 +  if (!web_contents) {
 +    LOG(ERROR) << "Could not find an active WebContents. Extension import aborted.";
 +    return;
 +  }
-+  
++
 +  // Filter out already installed extensions
 +  std::vector<std::string> extensions_to_install;
 +  for (const auto& extension_id : extension_ids) {
@@ -544,14 +544,14 @@ index 7bb741920d9af..b88d4ad93285f 100644
 +    LOG(INFO) << "No new extensions to install.";
 +    return;
 +  }
-+  
++
 +  // The window/tab could be closed before all extensions are installed
 +  // Keep a reference to it in a new class
 +  class ExtensionInstallHelper : public base::RefCounted<ExtensionInstallHelper> {
 +   public:
-+    ExtensionInstallHelper(Profile* profile, content::WebContents* web_contents) 
++    ExtensionInstallHelper(Profile* profile, content::WebContents* web_contents)
 +        : profile_(profile), web_contents_(web_contents) {}
-+    
++
 +    void InstallExtension(const std::string& extension_id) {
 +      // Create the callback that handles installation results
 +      auto callback = base::BindOnce(
@@ -559,20 +559,20 @@ index 7bb741920d9af..b88d4ad93285f 100644
 +          // Need to capture this to ensure the object lives until callback is called
 +          base::WrapRefCounted(this),
 +          extension_id);
-+      
++
 +      installer_ = base::MakeRefCounted<SilentWebstoreInstaller>(
 +          extension_id,
 +          profile_,
 +          web_contents_->GetTopLevelNativeWindow(),
 +          std::move(callback));
-+      
++
 +      installer_->BeginInstall();
 +      LOG(INFO) << "Started installation for extension: " << extension_id;
 +    }
-+    
++
 +   private:
 +    friend class base::RefCounted<ExtensionInstallHelper>;
-+    
++
 +    // This callback matches the signature expected by WebstoreInstallWithPrompt
 +    void OnExtensionInstalled(
 +        const std::string& extension_id,
@@ -588,17 +588,17 @@ index 7bb741920d9af..b88d4ad93285f 100644
 +      // Clear installer to avoid memory leaks
 +      installer_ = nullptr;
 +    }
-+    
++
 +    ~ExtensionInstallHelper() = default;
-+    
++
 +    raw_ptr<Profile> profile_;
 +    raw_ptr<content::WebContents> web_contents_;
 +    scoped_refptr<SilentWebstoreInstaller> installer_;
 +  };
-+  
-+  scoped_refptr<ExtensionInstallHelper> helper = 
++
++  scoped_refptr<ExtensionInstallHelper> helper =
 +      base::MakeRefCounted<ExtensionInstallHelper>(profile_, web_contents);
-+  
++
 +  for (const auto& extension_id : extensions_to_install) {
 +    helper->InstallExtension(extension_id);
 +  }
@@ -670,10 +670,10 @@ index cecce41ac08ae..934a8a7f2f7c2 100644
      browser_profiles.Append(std::move(browser_profile));
    }
 diff --git a/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc b/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
-index 2df5b87bbace7..517ddb84c2fa1 100644
+index 5804f8e923a97..bfd565de8e873 100644
 --- a/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
 +++ b/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
-@@ -849,6 +849,7 @@ void AddImportDataStrings(content::WebUIDataSource* html_source) {
+@@ -888,6 +888,7 @@ void AddImportDataStrings(content::WebUIDataSource* html_source) {
        {"importCommit", IDS_SETTINGS_IMPORT_COMMIT},
        {"noProfileFound", IDS_SETTINGS_IMPORT_NO_PROFILE_FOUND},
        {"importSuccess", IDS_SETTINGS_IMPORT_SUCCESS},
@@ -682,10 +682,10 @@ index 2df5b87bbace7..517ddb84c2fa1 100644
    html_source->AddLocalizedStrings(kLocalizedStrings);
  }
 diff --git a/chrome/browser/ui/webui/settings/settings_ui.cc b/chrome/browser/ui/webui/settings/settings_ui.cc
-index 9f6e827a829db..ca622837ff80b 100644
+index ee6aaefb7fc82..83e3f47da279e 100644
 --- a/chrome/browser/ui/webui/settings/settings_ui.cc
 +++ b/chrome/browser/ui/webui/settings/settings_ui.cc
-@@ -206,6 +206,7 @@ void SettingsUI::RegisterProfilePrefs(
+@@ -214,6 +214,7 @@ void SettingsUI::RegisterProfilePrefs(
    registry->RegisterBooleanPref(prefs::kImportDialogHistory, true);
    registry->RegisterBooleanPref(prefs::kImportDialogSavedPasswords, true);
    registry->RegisterBooleanPref(prefs::kImportDialogSearchEngine, true);
@@ -771,10 +771,10 @@ index 4c37c6c749616..753fadff0f94a 100644
  
  IPC_ENUM_TRAITS_MIN_MAX_VALUE(importer::ImportItem,
 diff --git a/chrome/common/pref_names.h b/chrome/common/pref_names.h
-index 67beb7954b91e..41784b66d5739 100644
+index 0e898dc745b6e..12f83b0cc1ab5 100644
 --- a/chrome/common/pref_names.h
 +++ b/chrome/common/pref_names.h
-@@ -1581,6 +1581,8 @@ inline constexpr char kImportDialogSavedPasswords[] =
+@@ -1590,6 +1590,8 @@ inline constexpr char kImportDialogSavedPasswords[] =
      "import_dialog_saved_passwords";
  inline constexpr char kImportDialogSearchEngine[] =
      "import_dialog_search_engine";
@@ -784,10 +784,10 @@ index 67beb7954b91e..41784b66d5739 100644
  #if BUILDFLAG(IS_CHROMEOS)
  // Boolean controlling whether native client is force allowed by policy.
 diff --git a/chrome/utility/BUILD.gn b/chrome/utility/BUILD.gn
-index 185e70a1b7de0..610559189bbef 100644
+index aad8bc1ac7d4f..bd24de192a0ee 100644
 --- a/chrome/utility/BUILD.gn
 +++ b/chrome/utility/BUILD.gn
-@@ -108,6 +108,8 @@ static_library("utility") {
+@@ -107,6 +107,8 @@ static_library("utility") {
        sources += [
          "importer/firefox_importer.cc",
          "importer/firefox_importer.h",
@@ -798,10 +798,10 @@ index 185e70a1b7de0..610559189bbef 100644
      if (is_mac) {
 diff --git a/chrome/utility/importer/chrome_importer.cc b/chrome/utility/importer/chrome_importer.cc
 new file mode 100644
-index 0000000000000..6853e4ac92e14
+index 0000000000000..483b1ed3731cd
 --- /dev/null
 +++ b/chrome/utility/importer/chrome_importer.cc
-@@ -0,0 +1,735 @@
+@@ -0,0 +1,736 @@
 +// Copyright 2023 The Chromium Authors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
@@ -816,6 +816,7 @@ index 0000000000000..6853e4ac92e14
 +#include "base/json/json_reader.h"
 +#include "base/strings/string_util.h"
 +#include "base/strings/utf_string_conversions.h"
++#include "base/time/time.h"
 +#include "chrome/common/importer/imported_bookmark_entry.h"
 +#include "chrome/common/importer/importer_autofill_form_data_entry.h"
 +#include "chrome/common/importer/importer_bridge.h"
@@ -880,7 +881,7 @@ index 0000000000000..6853e4ac92e14
 +    ImportAutofillFormData();
 +    bridge_->NotifyItemEnded(importer::AUTOFILL_FORM_DATA);
 +  }
-+  
++
 +  if ((items & importer::EXTENSIONS) && !cancelled()) {
 +    bridge_->NotifyItemStarted(importer::EXTENSIONS);
 +    ImportExtensions();
@@ -893,7 +894,7 @@ index 0000000000000..6853e4ac92e14
 +void ChromeImporter::ImportHistory() {
 +  // Keep only essential logging for startup and completion
 +  LOG(INFO) << "ChromeImporter: Starting history import";
-+  
++
 +  base::FilePath history_path = source_path_.Append("History");
 +  if (!base::PathExists(history_path)) {
 +    LOG(ERROR) << "ChromeImporter: History file not found";
@@ -906,7 +907,7 @@ index 0000000000000..6853e4ac92e14
 +    LOG(ERROR) << "ChromeImporter: Failed to create temp directory";
 +    return;
 +  }
-+  
++
 +  base::FilePath temp_history_path = temp_directory.Append("History");
 +  if (!base::CopyFile(history_path, temp_history_path)) {
 +    LOG(ERROR) << "ChromeImporter: Failed to copy history file";
@@ -944,7 +945,7 @@ index 0000000000000..6853e4ac92e14
 +  s.BindInt64(4, ui::PAGE_TRANSITION_KEYWORD_GENERATED);
 +
 +  std::vector<ImporterURLRow> rows;
-+  
++
 +  while (s.Step() && !cancelled()) {
 +    GURL url(s.ColumnString(0));
 +
@@ -977,7 +978,7 @@ index 0000000000000..6853e4ac92e14
 +
 +void ChromeImporter::ImportBookmarks() {
 +  LOG(INFO) << "ChromeImporter: Starting bookmarks import";
-+  
++
 +  base::FilePath bookmarks_path = source_path_.Append("Bookmarks");
 +  if (!base::PathExists(bookmarks_path)) {
 +    LOG(ERROR) << "ChromeImporter: Bookmarks file not found";
@@ -990,7 +991,7 @@ index 0000000000000..6853e4ac92e14
 +    LOG(ERROR) << "ChromeImporter: Failed to create temp directory for bookmarks";
 +    return;
 +  }
-+  
++
 +  base::FilePath temp_bookmarks_path = temp_directory.Append("Bookmarks");
 +  if (!base::CopyFile(bookmarks_path, temp_bookmarks_path)) {
 +    LOG(ERROR) << "ChromeImporter: Failed to copy bookmarks file";
@@ -1024,7 +1025,7 @@ index 0000000000000..6853e4ac92e14
 +    base::DeletePathRecursively(temp_directory);
 +    return;
 +  }
-+  
++
 +  // Import bookmark bar
 +  const base::Value::Dict* bookmark_bar = roots_dict->FindDict("bookmark_bar");
 +  if (bookmark_bar) {
@@ -1137,10 +1138,10 @@ index 0000000000000..6853e4ac92e14
 +    const std::vector<std::u16string>& parent_path,
 +    bool is_in_toolbar,
 +    std::vector<ImportedBookmarkEntry>* bookmarks) {
-+  
++
 +  if (!folder)
 +    return;
-+    
++
 +  const base::Value::List* children = folder->FindList("children");
 +  if (!children)
 +    return;
@@ -1155,15 +1156,15 @@ index 0000000000000..6853e4ac92e14
 +
 +    const std::string* name = value.GetDict().FindString("name");
 +    std::u16string title = base::UTF8ToUTF16(name ? *name : std::string());
-+    
++
 +    const std::string* date_added = value.GetDict().FindString("date_added");
 +    int64_t date_added_val = date_added ? std::stoll(*date_added) : 0;
-+    
++
 +    if (*type == "folder") {
 +      // Process folder
 +      std::vector<std::u16string> path = parent_path;
 +      path.push_back(title);
-+      
++
 +      // Check if this is an empty folder to add it as an entry
 +      const base::Value::List* inner_children = value.GetDict().FindList("children");
 +      if (inner_children && inner_children->empty()) {
@@ -1176,7 +1177,7 @@ index 0000000000000..6853e4ac92e14
 +        entry.creation_time = ChromeTimeToBaseTime(date_added_val);
 +        bookmarks->push_back(entry);
 +      }
-+      
++
 +      // Process subfolders and entries
 +      RecursiveReadBookmarksFolder(&value.GetDict(), path, is_in_toolbar, bookmarks);
 +    } else if (*type == "url") {
@@ -1184,11 +1185,11 @@ index 0000000000000..6853e4ac92e14
 +      const std::string* url_str = value.GetDict().FindString("url");
 +      if (!url_str)
 +        continue;
-+        
++
 +      GURL url(*url_str);
 +      if (!CanImportURL(url))
 +        continue;
-+      
++
 +      ImportedBookmarkEntry entry;
 +      entry.is_folder = false;
 +      entry.in_toolbar = is_in_toolbar;
@@ -1196,7 +1197,7 @@ index 0000000000000..6853e4ac92e14
 +      entry.path = parent_path;
 +      entry.title = title;
 +      entry.creation_time = ChromeTimeToBaseTime(date_added_val);
-+      
++
 +      bookmarks->push_back(entry);
 +    }
 +  }
@@ -1204,13 +1205,13 @@ index 0000000000000..6853e4ac92e14
 +
 +base::Time ChromeImporter::ChromeTimeToBaseTime(int64_t time) {
 +  // Chrome time is microseconds since the Windows epoch (1601-01-01 UTC)
-+  // We need to convert this to time since the Unix epoch (1970-01-01 UTC)
-+  return base::Time::FromTimeT(time / 1000000);
++  // base::Time::FromDeltaSinceWindowsEpoch() handles the conversion properly
++  return base::Time::FromDeltaSinceWindowsEpoch(base::Microseconds(time));
 +}
 +
 +void ChromeImporter::ImportPasswords() {
 +  LOG(INFO) << "ChromeImporter: Starting passwords import";
-+  
++
 +  // Set up encryption keys for decrypting passwords
 +  base::FilePath source_path = source_path_;
 +#if BUILDFLAG(IS_WIN)
@@ -1223,13 +1224,13 @@ index 0000000000000..6853e4ac92e14
 +    LOG(ERROR) << "ChromeImporter: Failed to set encryption key for passwords";
 +    return;
 +  }
-+  
++
 +  // First try the main Login Data file
 +  ImportPasswordsFromFile(base::FilePath("Login Data"));
-+  
++
 +  // Then try the account-specific Login Data file if it exists
 +  ImportPasswordsFromFile(base::FilePath("Login Data For Account"));
-+  
++
 +  LOG(INFO) << "ChromeImporter: Passwords import complete";
 +}
 +
@@ -1239,7 +1240,7 @@ index 0000000000000..6853e4ac92e14
 +    LOG(INFO) << "ChromeImporter: " << password_filename.value() << " file not found";
 +    return;
 +  }
-+  
++
 +  // Create temporary directory for copying the database
 +  base::FilePath temp_directory;
 +  if (!base::CreateNewTempDirectory(base::FilePath::StringType(), &temp_directory)) {
@@ -1258,7 +1259,7 @@ index 0000000000000..6853e4ac92e14
 +  // Open the database using password manager's login database
 +  password_manager::LoginDatabase database(
 +      temp_passwords_path, password_manager::IsAccountStore(false));
-+  
++
 +  if (!database.Init(base::NullCallback(), nullptr)) {
 +    LOG(ERROR) << "ChromeImporter: Failed to initialize login database";
 +    base::DeletePathRecursively(temp_directory);
@@ -1324,13 +1325,13 @@ index 0000000000000..6853e4ac92e14
 +  imported_form.password_element = form.password_element;
 +  imported_form.password_value = form.password_value;
 +  imported_form.blocked_by_user = form.blocked_by_user;
-+  
++
 +  return true;
 +}
 +
 +void ChromeImporter::ImportAutofillFormData() {
 +  LOG(INFO) << "ChromeImporter: Starting autofill form data import";
-+  
++
 +  base::FilePath web_data_path = source_path_.DirName().Append("Web Data");
 +  if (!base::PathExists(web_data_path)) {
 +    LOG(ERROR) << "ChromeImporter: Web Data file not found";
@@ -1379,7 +1380,7 @@ index 0000000000000..6853e4ac92e14
 +    form_entry.times_used = s.ColumnInt(2);
 +    form_entry.first_used = ChromeTimeToBaseTime(s.ColumnInt64(3));
 +    form_entry.last_used = ChromeTimeToBaseTime(s.ColumnInt64(4));
-+    
++
 +    form_entries.push_back(form_entry);
 +  }
 +
@@ -1418,7 +1419,7 @@ index 0000000000000..6853e4ac92e14
 +    return false;
 +  }
 +
-+  std::optional<base::Value::Dict> local_state = 
++  std::optional<base::Value::Dict> local_state =
 +      base::JSONReader::ReadDict(local_state_content);
 +  if (!local_state) {
 +    LOG(ERROR) << "ChromeImporter: Failed to parse Local State JSON";
@@ -1436,95 +1437,95 @@ index 0000000000000..6853e4ac92e14
 +
 +void ChromeImporter::ImportExtensions() {
 +  LOG(INFO) << "ChromeImporter: Starting extensions import";
-+  
++
 +  // First, check the Preferences and Secure Preferences files to get the list of extensions
 +  base::FilePath preferences_path = source_path_.Append("Preferences");
 +  base::FilePath secure_preferences_path = source_path_.Append("Secure Preferences");
-+  
++
 +  if (!base::PathExists(preferences_path) && !base::PathExists(secure_preferences_path)) {
 +    LOG(ERROR) << "ChromeImporter: No preferences files found for extensions import";
 +    return;
 +  }
-+  
++
 +  // Start with extensions from Secure Preferences (if it exists)
 +  std::vector<std::string> extension_ids;
 +  if (base::PathExists(secure_preferences_path)) {
 +    extension_ids = GetExtensionsFromPreferencesFile(secure_preferences_path);
 +  }
-+  
++
 +  // Merge with extensions from regular Preferences (if it exists)
 +  if (base::PathExists(preferences_path)) {
 +    std::vector<std::string> pref_extension_ids = GetExtensionsFromPreferencesFile(preferences_path);
 +    extension_ids.insert(extension_ids.end(), pref_extension_ids.begin(), pref_extension_ids.end());
 +  }
-+  
++
 +  if (extension_ids.empty()) {
 +    LOG(INFO) << "ChromeImporter: No extensions found to import";
 +    return;
 +  }
-+  
++
 +  LOG(INFO) << "ChromeImporter: Found " << extension_ids.size() << " extensions to import";
-+  
++
 +  // Send the list of extension IDs to the bridge
 +  bridge_->SetExtensions(extension_ids);
-+  
++
 +  LOG(INFO) << "ChromeImporter: Extensions import complete";
 +}
 +
 +std::vector<std::string> ChromeImporter::GetExtensionsFromPreferencesFile(
 +    const base::FilePath& preferences_path) {
 +  std::vector<std::string> extension_ids;
-+  
++
 +  std::string preferences_content;
 +  if (!base::ReadFileToString(preferences_path, &preferences_content)) {
 +    LOG(ERROR) << "ChromeImporter: Failed to read " << preferences_path.value();
 +    return extension_ids;
 +  }
-+  
-+  std::optional<base::Value::Dict> preferences = 
++
++  std::optional<base::Value::Dict> preferences =
 +      base::JSONReader::ReadDict(preferences_content);
 +  if (!preferences) {
 +    LOG(ERROR) << "ChromeImporter: Failed to parse JSON from " << preferences_path.value();
 +    return extension_ids;
 +  }
-+  
++
 +  // Extensions are stored in extensions.settings in Chrome preferences
-+  const base::Value::Dict* extensions_dict = 
++  const base::Value::Dict* extensions_dict =
 +      preferences->FindDictByDottedPath("extensions.settings");
 +  if (!extensions_dict) {
 +    LOG(INFO) << "ChromeImporter: No extensions found in " << preferences_path.value();
 +    return extension_ids;
 +  }
-+  
++
 +  // Iterate through the extensions dictionary
 +  for (const auto [key, value] : *extensions_dict) {
 +    if (!value.is_dict()) {
 +      continue;
 +    }
-+    
++
 +    const base::Value::Dict& dict = value.GetDict();
-+    
++
 +    // Only import if:
 +    // 1. It's from the Chrome Web Store
 +    // 2. It's not installed by default
 +    // 3. It's enabled
-+    
++
 +    if (dict.FindBool("was_installed_by_default").value_or(true)) {
 +      continue;  // Skip default extensions
 +    }
-+    
++
 +    //TODO: nikhil - fix state and other filters
 +    // State 0 means disabled
 +    // if (!dict.FindInt("state").value_or(0)) {
 +    //   continue;  // Skip disabled extensions
 +    // }
-+    
++
 +    if (!dict.FindBool("from_webstore").value_or(false)) {
 +      continue;  // Skip non-webstore extensions
 +    }
 +
 +    extension_ids.push_back(key);  // Add the extension ID to our list
-+    
++
 +    // Check if it's an extension (not a theme or app)
 +    // const base::Value::Dict* manifest = dict.FindDict("manifest");
 +    // if (manifest) {
@@ -1534,13 +1535,13 @@ index 0000000000000..6853e4ac92e14
 +    //   }
 +    // }
 +  }
-+  
++
 +  return extension_ids;
-+} 
++}
 \ No newline at end of file
 diff --git a/chrome/utility/importer/chrome_importer.h b/chrome/utility/importer/chrome_importer.h
 new file mode 100644
-index 0000000000000..aa5b90a06ddce
+index 0000000000000..06317c522d5d0
 --- /dev/null
 +++ b/chrome/utility/importer/chrome_importer.h
 @@ -0,0 +1,91 @@
@@ -1634,7 +1635,7 @@ index 0000000000000..aa5b90a06ddce
 +  base::FilePath source_path_;
 +};
 +
-+#endif  // CHROME_UTILITY_IMPORTER_CHROME_IMPORTER_H_ 
++#endif  // CHROME_UTILITY_IMPORTER_CHROME_IMPORTER_H_
 \ No newline at end of file
 diff --git a/chrome/utility/importer/external_process_importer_bridge.cc b/chrome/utility/importer/external_process_importer_bridge.cc
 index 0f98b3d1da6e7..9b169aab54fd9 100644
@@ -1689,10 +1690,10 @@ index bca57d332db1f..dc0e8c3f4e756 100644
  #if BUILDFLAG(IS_MAC)
      case TYPE_SAFARI:
 diff --git a/tools/metrics/histograms/metadata/sql/histograms.xml b/tools/metrics/histograms/metadata/sql/histograms.xml
-index e7dc5b47683d7..927af32d6d49c 100644
+index f6d78f41135ad..0a13eb99f91cf 100644
 --- a/tools/metrics/histograms/metadata/sql/histograms.xml
 +++ b/tools/metrics/histograms/metadata/sql/histograms.xml
-@@ -40,6 +40,7 @@ chromium-metrics-reviews@google.com.
+@@ -41,6 +41,7 @@ chromium-metrics-reviews@google.com.
    <variant name="DIPS" summary="DIPS"/>
    <variant name="FileIndexService" summary="FileIndexService"/>
    <variant name="FirefoxImporter" summary="FirefoxImporter"/>
