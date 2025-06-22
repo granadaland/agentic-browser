@@ -1,0 +1,22 @@
+From 382444f86cd94702a1327b95ff0801f1123d859a Mon Sep 17 00:00:00 2001
+From: Nikhil Sonti <nikhilsv92@gmail.com>
+Date: Sat, 21 Jun 2025 18:21:04 -0700
+Subject: [PATCH 4/4] nxtscape build update
+
+---
+ chrome/VERSION | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/chrome/VERSION b/chrome/VERSION
+index cdbed925f47c1..1d0238305823c 100644
+--- a/chrome/VERSION
++++ b/chrome/VERSION
+@@ -1,4 +1,4 @@
+ MAJOR=137
+ MINOR=0
+-BUILD=7151
++BUILD=7152
+ PATCH=69
+-- 
+2.49.0
+
