@@ -11,9 +11,11 @@
     <item>
       <title>Nxtscape - 0.1.0</title>
       <description>
-        • Updates to AI agent to perform better on navigation tasks.
-        • Improves to MacOS updater.
-        • Fixing history import bug.
+        <ul>
+          <li>Updates to AI agent to perform better on navigation tasks</li>
+          <li>Improves to MacOS updater</li>
+          <li>Fixing history import bug</li>
+        </ul>
       </description>
       <sparkle:version>7151.139</sparkle:version>
       <sparkle:shortVersionString>0.1.0</sparkle:shortVersionString>
