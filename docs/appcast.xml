@@ -1,15 +1,31 @@
 <?xml version="1.0" encoding="utf-8"?>
 <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle"
-     xmlns:dc="http://purl.org/dc/elements/1.1/">
+  xmlns:dc="http://purl.org/dc/elements/1.1/">
   <channel>
     <title>Nxtscape Browser</title>
     <link>https://nxtscape.github.io/nxtscape/appcast.xml</link>
     <description>Most recent changes with links to updates.</description>
     <language>en</language>
-    
+
     <!-- Updates -->
     <item>
+      <title>Nxtscape - 0.1.0</title>
+      <description>
+        • Updates to AI agent to perform better on navigation tasks.
+        • Improves to MacOS updater.
+        • Fixing history import bug.
+      </description>
+      <sparkle:version>7151.139</sparkle:version>
+      <sparkle:shortVersionString>0.1.0</sparkle:shortVersionString>
+      <pubDate>Mon, 23 Jun 2025 00:00:00 +0000</pubDate>
+      <link>https://nxtscape.ai</link>
+      <enclosure
+        url="https://github.com/nxtscape/nxtscape/releases/download/v0.1.0/Nxtscape_v0.1.0.dmg"
+        sparkle:edSignature="mPxpc/8SPEEOiCmiKE4haTGUaMRnUQRJ8SK8w3sWek/5oZD0dg/DQFg/HxbhHjt2mtFUI8VD5iUi4+uIBWr4Dg=="
+        length="127005947"
+        type="application/octet-stream" />
+      <sparkle:minimumSystemVersion>10.15</sparkle:minimumSystemVersion>
     </item>
-    
+
   </channel>
 </rss>
