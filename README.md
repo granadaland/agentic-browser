@@ -1,7 +1,7 @@
 <div align="center">
 
 # 
-<img src="https://pub-2a22685ef49b4deca0f3da6201149bdf.r2.dev/nxtscape-banner.png" alt="backed-by-yc" >
+<img src="https://storage.googleapis.com/nxtscape/resources/new-nxtscape-banner.png" alt="backed-by-yc" >
 
 ### Your browser, with AI superpowers 🚀
 
