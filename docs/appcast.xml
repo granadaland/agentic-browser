@@ -17,14 +17,14 @@
           <li>Improved tool calling in Browser Agent</li>
         </ul>
       </description>
-      <sparkle:version>7151.83</sparkle:version>
+      <sparkle:version>7154.84</sparkle:version>
       <sparkle:shortVersionString>0.2.0</sparkle:shortVersionString>
       <pubDate>Wed, 25 Jun 2025 14:15:31 -0700</pubDate>
       <link>https://nxtscape.ai</link>
       <enclosure
         url="https://storage.googleapis.com/nxtscape/nxtscape-v0.2.0-arm64.dmg"
-        sparkle:edSignature="Mia2GIgpYy31/FWzdF6BBu7v069q0Le88UZDfWuaoSdXPSydSnsTgl6gPyYY7YiA0OobMfMb+Rs0qO66oIjkBw=="
-        length="126843869"
+        sparkle:edSignature="mj8TqQBTbfBY5OxiQXpJa/XD82BPx9udDqFV7p8SwQRgBwCTHdYWuswBunL7uW6IrgEytBAtyHKTse+vcZG3BA=="
+        length="126848485"
         type="application/octet-stream" />
       <sparkle:minimumSystemVersion>10.15</sparkle:minimumSystemVersion>
     </item>
