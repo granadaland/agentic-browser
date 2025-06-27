@@ -25,14 +25,15 @@ def setup_git(ctx: BuildContext) -> bool:
     
     # Verify tag exists before checkout
     result = subprocess.run(["git", "tag", "-l", ctx.chromium_version], 
-                           text=True, cwd=ctx.chromium_src)
-    if ctx.chromium_version not in result.stdout:
+                           text=True, capture_output=True, cwd=ctx.chromium_src)
+    if not result.stdout or ctx.chromium_version not in result.stdout:
         log_error(f"Tag {ctx.chromium_version} not found!")
         log_info("Available tags (last 10):")
         list_result = subprocess.run(["git", "tag", "-l", "--sort=-version:refname"], 
-                                   text=True, cwd=ctx.chromium_src)
-        for tag in list_result.stdout.strip().split('\n')[:10]:
-            log_info(f"  {tag}")
+                                   text=True, capture_output=True, cwd=ctx.chromium_src)
+        if list_result.stdout:
+            for tag in list_result.stdout.strip().split('\n')[:10]:
+                log_info(f"  {tag}")
         raise ValueError(f"Git tag {ctx.chromium_version} not found")
     
     log_info(f"🔀 Checking out tag: {ctx.chromium_version}")

@@ -94,7 +94,7 @@ def apply_single_patch(patch_path: Path, tree_path: Path, patch_bin: Path,
     
     log_info(f"  * Applying {patch_path.name} ({current_num}/{total})")
     
-    result = subprocess.run(cmd, text=True)
+    result = subprocess.run(cmd, text=True, capture_output=True)
     
     if result.returncode == 0:
         return True
