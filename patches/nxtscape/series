@@ -1,0 +1,9 @@
+branding.patch
+first-run-nxtscape.patch
+disable-user-gesture-restriction-on-sidepanel.patch
+ai-chat-extension.patch
+add-importer-supporter-for-chrome.patch
+disable-info-bar-in-cdp.patch
+pin-nxtscape-ai-chat.patch
+nxtscape-settings-ui.patch
+nxtscape-updater-sparkle.patch

@@ -1,8 +1,7 @@
 **/.DS_Store
 .gcs_entries
-build/
-dmg/
-scripts/__pycache__/
-scripts/patches/__pycache__/
-releases/
-.vscode/
+**/dmg
+**/env
+**/logs
+**/old-scripts
+**/__pycache__/**

@@ -1,0 +1,66 @@
+# Copy resources configuration for Nxtscape build
+# This file defines all copy operations for resources during the build process
+#
+# Build Type Conditional Operations:
+# - Use 'build_type' field to specify when an operation should run
+# - Supported build types: debug, release, dev, prod
+# - Operations without build_type run for all builds
+# - debug/dev = development builds, release/prod = production builds
+
+copy_operations:
+  # Extensions
+  - name: "AI Side Panel Extension"
+    source: "resources/files/ai_side_panel"
+    destination: "chrome/browser/resources/ai_side_panel"
+    type: "directory"
+
+  # Branding - Build Type Conditional
+  - name: "Development Branding"
+    source: "resources/branding/BRANDING.dev"
+    destination: "chrome/app/theme/chromium/BRANDING"
+    type: "file"
+    build_type: "debug"
+
+  - name: "Release Branding"
+    source: "resources/branding/BRANDING.release"
+    destination: "chrome/app/theme/chromium/BRANDING"
+    type: "file"
+    build_type: "release"
+
+  # Icons - General
+  - name: "Product Logo Icons"
+    source: "resources/icons/*.png"
+    destination: "chrome/app/theme/chromium/"
+    type: "files"
+
+  - name: "Product Logo AI Files"
+    source: "resources/icons/*.ai"
+    destination: "chrome/app/theme/chromium/"
+    type: "files"
+
+  - name: "Product Logo SVG Files"
+    source: "resources/icons/*.svg"
+    destination: "chrome/app/theme/chromium/"
+    type: "files"
+
+  # Icons - Platform specific
+  - name: "ChromeOS Icons"
+    source: "resources/icons/chromeos"
+    destination: "chrome/app/theme/chromium/chromeos"
+    type: "directory"
+
+  - name: "Linux Icons"
+    source: "resources/icons/linux"
+    destination: "chrome/app/theme/chromium/linux"
+    type: "directory"
+
+  - name: "Mac Icons"
+    source: "resources/icons/mac"
+    destination: "chrome/app/theme/chromium/mac"
+    type: "directory"
+
+  - name: "Windows Icons"
+    source: "resources/icons/win"
+    destination: "chrome/app/theme/chromium/win"
+    type: "directory"
+

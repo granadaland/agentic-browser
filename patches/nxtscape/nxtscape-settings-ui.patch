@@ -1,30 +1,30 @@
-From 7e13afaa0b31a717cbedd9fe73419642a9fc0336 Mon Sep 17 00:00:00 2001
+From 14803ff06ab7e30278bcae062737f6a3dbb807e5 Mon Sep 17 00:00:00 2001
 From: Nikhil Sonti <nikhilsv92@gmail.com>
 Date: Fri, 13 Jun 2025 16:00:31 -0700
-Subject: [PATCH] Nxtscape Settings UI for BYOK
+Subject: [PATCH] settings ui for byok
 
 ---
- .../api/settings_private/prefs_util.cc        |  19 +
- chrome/browser/prefs/browser_prefs.cc         |  22 +
+ .../api/settings_private/prefs_util.cc        |  26 +
+ chrome/browser/prefs/browser_prefs.cc         |  29 +
  chrome/browser/prefs/browser_prefs.h          |   2 +
  chrome/browser/resources/settings/BUILD.gn    |   1 +
- .../settings/nxtscape_page/nxtscape_page.html | 560 ++++++++++++++++++
- .../settings/nxtscape_page/nxtscape_page.ts   | 202 +++++++
+ .../settings/nxtscape_page/nxtscape_page.html | 640 ++++++++++++++++++
+ .../settings/nxtscape_page/nxtscape_page.ts   | 267 ++++++++
  chrome/browser/resources/settings/route.ts    |   1 +
  chrome/browser/resources/settings/router.ts   |   1 +
  chrome/browser/resources/settings/settings.ts |   1 +
  .../settings/settings_main/settings_main.html |   6 +
  .../settings/settings_main/settings_main.ts   |  15 +-
  .../settings/settings_menu/settings_menu.html |   6 +
- 12 files changed, 832 insertions(+), 4 deletions(-)
+ 12 files changed, 991 insertions(+), 4 deletions(-)
  create mode 100644 chrome/browser/resources/settings/nxtscape_page/nxtscape_page.html
  create mode 100644 chrome/browser/resources/settings/nxtscape_page/nxtscape_page.ts
 
 diff --git a/chrome/browser/extensions/api/settings_private/prefs_util.cc b/chrome/browser/extensions/api/settings_private/prefs_util.cc
-index 97bb4be60af93..619a42dd9fc50 100644
+index 97bb4be60af93..1803d96b758e1 100644
 --- a/chrome/browser/extensions/api/settings_private/prefs_util.cc
 +++ b/chrome/browser/extensions/api/settings_private/prefs_util.cc
-@@ -580,6 +580,25 @@ const PrefsUtil::TypedPrefMap& PrefsUtil::GetAllowlistedKeys() {
+@@ -580,6 +580,32 @@ const PrefsUtil::TypedPrefMap& PrefsUtil::GetAllowlistedKeys() {
    (*s_allowlist)[::prefs::kCaretBrowsingEnabled] =
        settings_api::PrefType::kBoolean;
  
@@ -37,11 +37,18 @@ index 97bb4be60af93..619a42dd9fc50 100644
 +  // OpenAI provider settings
 +  (*s_allowlist)["nxtscape.openai_api_key"] = settings_api::PrefType::kString;
 +  (*s_allowlist)["nxtscape.openai_model"] = settings_api::PrefType::kString;
-+  
++  (*s_allowlist)["nxtscape.openai_base_url"] = settings_api::PrefType::kString;
++
 +  // Anthropic provider settings
 +  (*s_allowlist)["nxtscape.anthropic_api_key"] = settings_api::PrefType::kString;
 +  (*s_allowlist)["nxtscape.anthropic_model"] = settings_api::PrefType::kString;
-+  
++  (*s_allowlist)["nxtscape.anthropic_base_url"] = settings_api::PrefType::kString;
++
++  // Gemini provider settings
++  (*s_allowlist)["nxtscape.gemini_api_key"] = settings_api::PrefType::kString;
++  (*s_allowlist)["nxtscape.gemini_model"] = settings_api::PrefType::kString;
++  (*s_allowlist)["nxtscape.gemini_base_url"] = settings_api::PrefType::kString;
++
 +  // Ollama provider settings
 +  (*s_allowlist)["nxtscape.ollama_api_key"] = settings_api::PrefType::kString;
 +  (*s_allowlist)["nxtscape.ollama_base_url"] = settings_api::PrefType::kString;
@@ -51,7 +58,7 @@ index 97bb4be60af93..619a42dd9fc50 100644
    // Accounts / Users / People.
    (*s_allowlist)[ash::kAccountsPrefAllowGuest] =
 diff --git a/chrome/browser/prefs/browser_prefs.cc b/chrome/browser/prefs/browser_prefs.cc
-index 9a00400829ae1..bbbd6f5623a15 100644
+index 9a00400829ae1..e2593edee0b62 100644
 --- a/chrome/browser/prefs/browser_prefs.cc
 +++ b/chrome/browser/prefs/browser_prefs.cc
 @@ -1939,6 +1939,7 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry,
@@ -62,25 +69,32 @@ index 9a00400829ae1..bbbd6f5623a15 100644
    RegisterPrefersDefaultScrollbarStylesPrefs(registry);
    RegisterSafetyHubProfilePrefs(registry);
  #if BUILDFLAG(IS_CHROMEOS)
-@@ -2322,6 +2323,27 @@ void RegisterGeminiSettingsPrefs(user_prefs::PrefRegistrySyncable* registry) {
+@@ -2322,6 +2323,34 @@ void RegisterGeminiSettingsPrefs(user_prefs::PrefRegistrySyncable* registry) {
    registry->RegisterIntegerPref(prefs::kGeminiSettings, 0);
  }
  
 +void RegisterNxtscapePrefs(user_prefs::PrefRegistrySyncable* registry) {
 +  // Nxtscape AI provider preferences
 +  registry->RegisterStringPref("nxtscape.default_provider", "nxtscape");
-+  
++
 +  // Nxtscape provider settings
-+  registry->RegisterStringPref("nxtscape.nxtscape_model", "claude-3-5-sonnet-latest");
-+  
++  registry->RegisterStringPref("nxtscape.nxtscape_model", "claude-3-5-sonnet");
++
 +  // OpenAI provider settings
 +  registry->RegisterStringPref("nxtscape.openai_api_key", "");
 +  registry->RegisterStringPref("nxtscape.openai_model", "gpt-4o");
-+  
++  registry->RegisterStringPref("nxtscape.openai_base_url", "");
++
 +  // Anthropic provider settings
 +  registry->RegisterStringPref("nxtscape.anthropic_api_key", "");
 +  registry->RegisterStringPref("nxtscape.anthropic_model", "claude-3-5-sonnet-latest");
-+  
++  registry->RegisterStringPref("nxtscape.anthropic_base_url", "");
++
++  // Gemini provider settings
++  registry->RegisterStringPref("nxtscape.gemini_api_key", "");
++  registry->RegisterStringPref("nxtscape.gemini_model", "gemini-1.5-pro");
++  registry->RegisterStringPref("nxtscape.gemini_base_url", "");
++
 +  // Ollama provider settings
 +  registry->RegisterStringPref("nxtscape.ollama_api_key", "");
 +  registry->RegisterStringPref("nxtscape.ollama_base_url", "http://localhost:11434");
@@ -117,10 +131,10 @@ index 6eb2b37837e97..1a8cd69860514 100644
      "ai_page/ai_logging_info_bullet.ts",
 diff --git a/chrome/browser/resources/settings/nxtscape_page/nxtscape_page.html b/chrome/browser/resources/settings/nxtscape_page/nxtscape_page.html
 new file mode 100644
-index 0000000000000..fa521c5cb8a4e
+index 0000000000000..e4b35872710bf
 --- /dev/null
 +++ b/chrome/browser/resources/settings/nxtscape_page/nxtscape_page.html
-@@ -0,0 +1,560 @@
+@@ -0,0 +1,640 @@
 +    <link rel="import" href="../controls/settings_toggle_button.html">
 +    <style include="cr-shared-style settings-shared md-select">
 +      .provider-header-section {
@@ -238,6 +252,10 @@ index 0000000000000..fa521c5cb8a4e
 +
 +      #anthropicSection .provider-card-icon {
 +        background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
++      }
++
++      #geminiSection .provider-card-icon {
++        background: linear-gradient(135deg, #4285f4 0%, #1a73e8 100%);
 +      }
 +
 +      #ollamaSection .provider-card-icon {
@@ -479,6 +497,7 @@ index 0000000000000..fa521c5cb8a4e
 +          <option value="nxtscape">Nxtscape</option>
 +          <option value="openai">OpenAI</option>
 +          <option value="anthropic">Anthropic</option>
++          <option value="gemini">Gemini</option>
 +          <option value="ollama">Ollama</option>
 +        </select>
 +      </div>
@@ -521,8 +540,8 @@ index 0000000000000..fa521c5cb8a4e
 +            <select id="nxtscapeModel" class="form-field"
 +                    value="[[prefs.nxtscape.nxtscape_model.value]]"
 +                    on-change="onNxtscapeModelChange_">
-+              <option value="claude-3-5-sonnet">Claude Sonnet 3.5</option>
-+              <option value="claude-3-7-sonnet">Claude Sonnet 3.7</option>
++              <option value="claude-3-5-sonnet-latest">Claude Sonnet 3.5</option>
++              <option value="claude-3-7-sonnet-latest">Claude Sonnet 3.7</option>
 +              <option value="gpt-4o">GPT-4o</option>
 +            </select>
 +            <div class="form-helper">Select the model for Nxtscape AI operations</div>
@@ -556,6 +575,16 @@ index 0000000000000..fa521c5cb8a4e
 +                   placeholder="Enter your OpenAI API key"
 +                   required>
 +            <div class="form-helper">Your OpenAI API key (required)</div>
++          </div>
++          <div class="form-group">
++            <label class="form-label" for="openaiBaseUrl">Base URL (Optional)</label>
++            <input type="url"
++                   id="openaiBaseUrl"
++                   class="form-field"
++                   value="[[prefs.nxtscape.openai_base_url.value]]"
++                   on-input="onOpenAIBaseUrlChange_"
++                   placeholder="https://api.openai.com/v1">
++            <div class="form-helper">Override the OpenAI API base URL (leave empty for default)</div>
 +          </div>
 +          <div class="form-group">
 +            <label class="form-label" for="openaiModel">Model</label>
@@ -601,6 +630,16 @@ index 0000000000000..fa521c5cb8a4e
 +            <div class="form-helper">Your Anthropic API key (required)</div>
 +          </div>
 +          <div class="form-group">
++            <label class="form-label" for="anthropicBaseUrl">Base URL (Optional)</label>
++            <input type="url"
++                   id="anthropicBaseUrl"
++                   class="form-field"
++                   value="[[prefs.nxtscape.anthropic_base_url.value]]"
++                   on-input="onAnthropicBaseUrlChange_"
++                   placeholder="https://api.anthropic.com">
++            <div class="form-helper">Override the Anthropic API base URL (leave empty for default)</div>
++          </div>
++          <div class="form-group">
 +            <label class="form-label" for="anthropicModel">Model</label>
 +            <select id="anthropicModel" class="form-field"
 +                    value="[[prefs.nxtscape.anthropic_model.value]]"
@@ -611,6 +650,61 @@ index 0000000000000..fa521c5cb8a4e
 +              <option value="claude-3-5-sonnet-latest">Claude Sonnet 3.5</option>
 +            </select>
 +            <div class="form-helper">Choose your preferred Claude model</div>
++          </div>
++        </div>
++      </div>
++
++      <!-- Gemini Card -->
++      <div class="provider-card" id="geminiSection"
++           class$="[[getProviderCardClass_('gemini', prefs.nxtscape.default_provider.value)]]">
++        <div class="provider-card-header">
++          <div class="provider-card-icon">
++            <span>G</span>
++          </div>
++          <div class="provider-card-info">
++            <h3 class="provider-card-name">Google Gemini</h3>
++            <div class="provider-card-status">
++              <span class="status-dot"></span>
++              <span>[[getProviderStatus_('gemini', prefs.nxtscape.default_provider.value)]]</span>
++            </div>
++          </div>
++        </div>
++        <div class="provider-card-content">
++          <div class="form-group">
++            <label class="form-label" for="geminiApiKey">API Key</label>
++            <input type="password"
++                   id="geminiApiKey"
++                   class="form-field"
++                   value="[[prefs.nxtscape.gemini_api_key.value]]"
++                   on-input="onGeminiApiKeyChange_"
++                   placeholder="Enter your Google Gemini API key"
++                   required>
++            <div class="form-helper">Your Google Gemini API key (required)</div>
++          </div>
++          <div class="form-group">
++            <label class="form-label" for="geminiBaseUrl">Base URL (Optional)</label>
++            <input type="url"
++                   id="geminiBaseUrl"
++                   class="form-field"
++                   value="[[prefs.nxtscape.gemini_base_url.value]]"
++                   on-input="onGeminiBaseUrlChange_"
++                   placeholder="https://generativelanguage.googleapis.com">
++            <div class="form-helper">Override the Gemini API base URL (leave empty for default)</div>
++          </div>
++          <div class="form-group">
++            <label class="form-label" for="geminiModel">Model</label>
++            <select id="geminiModel" class="form-field"
++                    value="[[prefs.nxtscape.gemini_model.value]]"
++                    on-change="onGeminiModelChange_">
++              <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
++              <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
++              <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
++              <option value="gemini-2.0-flash-lite">Gemini 2.0 Flash-Lite</option>
++              <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
++              <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
++              <option value="gemini-1.5-flash-8b">Gemini 1.5 Flash-8B</option>
++            </select>
++            <div class="form-helper">Select the Gemini model to use for AI operations</div>
 +          </div>
 +        </div>
 +      </div>
@@ -684,10 +778,10 @@ index 0000000000000..fa521c5cb8a4e
 \ No newline at end of file
 diff --git a/chrome/browser/resources/settings/nxtscape_page/nxtscape_page.ts b/chrome/browser/resources/settings/nxtscape_page/nxtscape_page.ts
 new file mode 100644
-index 0000000000000..03a3ca208c8ef
+index 0000000000000..8c4421ef76e45
 --- /dev/null
 +++ b/chrome/browser/resources/settings/nxtscape_page/nxtscape_page.ts
-@@ -0,0 +1,202 @@
+@@ -0,0 +1,267 @@
 +// Copyright 2024 The Chromium Authors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
@@ -803,6 +897,19 @@ index 0000000000000..03a3ca208c8ef
 +  }
 +
 +  /**
++   * Handle OpenAI base URL change
++   */
++  private onOpenAIBaseUrlChange_(e: Event) {
++    const input = e.target as HTMLInputElement;
++    const value = input.value;
++
++    // Update the preference using PrefsMixin
++    // @ts-ignore: setPrefValue exists at runtime from PrefsMixin
++    this.setPrefValue('nxtscape.openai_base_url', value);
++    this.showStatusMessage_();
++  }
++
++  /**
 +   * Handle Anthropic model selection change
 +   */
 +  private onAnthropicModelChange_(e: Event) {
@@ -825,6 +932,58 @@ index 0000000000000..03a3ca208c8ef
 +    // Update the preference using PrefsMixin
 +    // @ts-ignore: setPrefValue exists at runtime from PrefsMixin
 +    this.setPrefValue('nxtscape.anthropic_api_key', value);
++    this.showStatusMessage_();
++  }
++
++  /**
++   * Handle Anthropic base URL change
++   */
++  private onAnthropicBaseUrlChange_(e: Event) {
++    const input = e.target as HTMLInputElement;
++    const value = input.value;
++
++    // Update the preference using PrefsMixin
++    // @ts-ignore: setPrefValue exists at runtime from PrefsMixin
++    this.setPrefValue('nxtscape.anthropic_base_url', value);
++    this.showStatusMessage_();
++  }
++
++  /**
++   * Handle Gemini model selection change
++   */
++  private onGeminiModelChange_(e: Event) {
++    const select = e.target as HTMLSelectElement;
++    const value = select.value;
++
++    // Update the preference using PrefsMixin
++    // @ts-ignore: setPrefValue exists at runtime from PrefsMixin
++    this.setPrefValue('nxtscape.gemini_model', value);
++    this.showStatusMessage_();
++  }
++
++  /**
++   * Handle Gemini API key change
++   */
++  private onGeminiApiKeyChange_(e: Event) {
++    const input = e.target as HTMLInputElement;
++    const value = input.value;
++
++    // Update the preference using PrefsMixin
++    // @ts-ignore: setPrefValue exists at runtime from PrefsMixin
++    this.setPrefValue('nxtscape.gemini_api_key', value);
++    this.showStatusMessage_();
++  }
++
++  /**
++   * Handle Gemini base URL change
++   */
++  private onGeminiBaseUrlChange_(e: Event) {
++    const input = e.target as HTMLInputElement;
++    const value = input.value;
++
++    // Update the preference using PrefsMixin
++    // @ts-ignore: setPrefValue exists at runtime from PrefsMixin
++    this.setPrefValue('nxtscape.gemini_base_url', value);
 +    this.showStatusMessage_();
 +  }
 +

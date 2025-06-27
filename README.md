@@ -13,7 +13,7 @@
 </a>
 
 <br />
-<img src="resources/backed-by-yc.png" alt="backed-by-yc" width="140px">
+<img src="resources/media/backed-by-yc.png" alt="backed-by-yc" width="140px">
 
 </div>
 
@@ -33,7 +33,7 @@
 ## What makes NXTscape special
 
 <div align="center">
-<img src="resources/example-use-cases.png" alt="example-use-cases" width="85%">
+<img src="resources/media/example-use-cases.png" alt="example-use-cases" width="85%">
 </div>
 
 ## Features
@@ -49,17 +49,17 @@
 
 ### 🤖 AI Agents in Action ([watch video](https://storage.googleapis.com/felafax-public/nxtscape/nxtscape-agent-demo.mp4))
 <div align="center">
-<img src="resources/nxtscape-agent.gif" alt="AI Agents in Action" width="80%">
+<img src="resources/media/nxtscape-agent.gif" alt="AI Agents in Action" width="80%">
 </div>
 
 ### 💬 Local AI Chat ([watch video](https://storage.googleapis.com/felafax-public/nxtscape/nxtscape-chat.mp4))
 <div align="center">
-<img src="resources/nxtscape-chat.gif" alt="Local AI Chat" width="80%">
+<img src="resources/media/nxtscape-chat.gif" alt="Local AI Chat" width="80%">
 </div>
 
 ### ⚡ Productivity Tools ([watch video](https://storage.googleapis.com/felafax-public/nxtscape/nxtscape-productivity.mp4))
 <div align="center">
-<img src="resources/nxtscape-productivity.gif" alt="Productivity" width="80%">
+<img src="resources/media/nxtscape-productivity.gif" alt="Productivity" width="80%">
 </div>
 
 ## Why we're building this

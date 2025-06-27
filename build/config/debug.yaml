@@ -1,0 +1,34 @@
+# Nxtscape Debug Build Configuration
+build:
+  type: debug
+  architecture: arm64
+  
+chromium:
+  version_file: build/config/versions/chromium_version.txt
+  
+nxtscape:
+  version_file: build/config/versions/nxtscape_version.txt
+  
+gn_flags:
+  file: build/config/gn/flags.macos.debug.gn
+
+steps:
+  clean: false
+  git_setup: true
+  apply_patches: true
+  build: true
+  sign: false
+  package: true
+
+paths:
+  root_dir: .
+  chromium_src: build/src
+  out_dir: out/Default
+
+# Environment-specific settings
+env:
+  PYTHONPATH: scripts
+
+# Notification settings
+notifications:
+  slack: false  # Set to true to enable Slack notifications for debug builds 
