@@ -9,6 +9,23 @@
 
     <!-- Updates -->
     <item>
+      <title>Nxtscape - 0.5.0</title>
+      <description sparkle:format="plain-text">
+- Improved Ollama support
+- Fixed the issue with unified agent
+      </description>
+      <sparkle:version>7157.87</sparkle:version>
+      <sparkle:shortVersionString>0.4.0</sparkle:shortVersionString>
+      <pubDate>Thu, 26 Jun 2025 17:42:44 -0700</pubDate>
+      <link>https://nxtscape.ai</link>
+      <enclosure
+        url="https://storage.googleapis.com/nxtscape/nxtscape-v0.4.0-arm64.dmg"
+        sparkle:edSignature="m3ALnVjkN5FE59Kh9VoXFBc8Dhz6GWgybAh6rKvv7b38EaEnFw8JI0hnC2pmB7e8QIJwFsPJCfE2OKOJf+OxAw==" 
+        length="126848776"
+        type="application/octet-stream" />
+      <sparkle:minimumSystemVersion>10.15</sparkle:minimumSystemVersion>
+    </item>
+    <item>
       <title>Nxtscape - 0.4.0</title>
       <description sparkle:format="plain-text">
 - [Fix] OTA updates were not working correctly for some users; fixing it.
