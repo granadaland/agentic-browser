@@ -34,12 +34,18 @@ Once you have Chromium checked out, the Nxtscape patches need to be applied to c
 
 ### Step 3: Build Nxtscape
 
-Nxtscape provides a build script that handles the compilation process.
+Nxtscape provides a Python build script that handles the compilation process.
 
 #### For Debug Build:
 ```bash
-./build.sh -n
+python build/build.py --build --build-type debug
 ```
+
+#### For Release Build:
+```bash
+python build/build.py --build --build-type release
+```
+
 **Note:** The build process typically takes around 3 hours on an M4 Max laptop. Build times may vary based on your hardware specifications.
 
 ### Step 4: Run Nxtscape
