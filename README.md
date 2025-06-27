@@ -9,7 +9,7 @@
 [![Twitter](https://img.shields.io/twitter/follow/nxtscape?style=social)](https://twitter.com/nxtscape)
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)
 <a href="https://bit.ly/nxtscape">
-  <img src="https://img.shields.io/badge/Download-macOS-black?style=flat&logo=apple&logoColor=white" alt="Download for macOS" />
+  <img src="https://img.shields.io/badge/Download-macOS-black?style=flat&logo=apple&logoColor=white" alt="Download for macOS (beta)" />
 </a>
 
 <br />
