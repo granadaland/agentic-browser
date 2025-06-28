@@ -27,7 +27,7 @@ from modules.slack import (
     notify_build_step,
     notify_build_success,
     notify_build_failure,
-    notify_build_interrupted
+    notify_build_interrupted,
 )
 
 
@@ -61,6 +61,15 @@ def build_main(
             log_warning(f"Provided path does not exist: {chromium_src_dir}")
             log_info(f"📁 Using default: {chromium_src}")
 
+        # Check if the default path exists
+        if not chromium_src.exists():
+            log_error(
+                f"Default Chromium source directory does not exist: {chromium_src}"
+            )
+            raise FileNotFoundError(
+                f"Chromium source directory not found at {chromium_src}"
+            )
+
     # Load config if provided
     config = None
     gn_flags_file = None
@@ -88,10 +97,12 @@ def build_main(
             build_flag = config["steps"].get("build", build_flag)
             sign_flag = config["steps"].get("sign", sign_flag)
             package_flag = config["steps"].get("package", package_flag)
-        
+
         # Override slack notifications from config if not explicitly set via CLI
         if "notifications" in config:
-            slack_notifications = config["notifications"].get("slack", slack_notifications)
+            slack_notifications = config["notifications"].get(
+                "slack", slack_notifications
+            )
 
         if "gn_flags" in config and "file" in config["gn_flags"]:
             gn_flags_file = Path(config["gn_flags"]["file"])
@@ -109,10 +120,10 @@ def build_main(
     log_info(f"📍 Architectures: {architectures}")
     log_info(f"📍 Universal build: {universal}")
     log_info(f"📍 Build type: {build_type}")
-    
+
     # Start time for overall build
     start_time = time.time()
-    
+
     # Notify build started (if enabled)
     if slack_notifications:
         notify_build_started(build_type, str(architectures))
@@ -120,13 +131,13 @@ def build_main(
     # Run build steps
     try:
         built_contexts = []
-        
+
         # Build each architecture separately
         for arch_name in architectures:
             log_info(f"\n{'='*60}")
             log_info(f"🏗️  Building for architecture: {arch_name}")
             log_info(f"{'='*60}")
-            
+
             ctx = BuildContext(
                 root_dir=root_dir,
                 chromium_src=chromium_src,
@@ -137,7 +148,7 @@ def build_main(
                 package=package_flag,
                 build=build_flag,
             )
-            
+
             log_info(f"📍 Chromium: {ctx.chromium_version}")
             log_info(f"📍 Nxtscape: {ctx.nxtscape_version}")
             log_info(f"📍 Output directory: {ctx.out_dir}")
@@ -160,7 +171,9 @@ def build_main(
                 apply_patches(ctx)
                 copy_resources(ctx)
                 if slack_notifications:
-                    notify_build_step("Completed applying patches and copying resources")
+                    notify_build_step(
+                        "Completed applying patches and copying resources"
+                    )
 
             # Build for this architecture
             if build_flag:
@@ -168,21 +181,21 @@ def build_main(
                 build(ctx)
                 if slack_notifications:
                     notify_build_step(f"Completed building for {arch_name}")
-            
+
             built_contexts.append(ctx)
-        
+
         # Handle signing and packaging
         if len(architectures) > 1 and universal:
             # Universal build: merge first, then sign and package
             log_info(f"\n{'='*60}")
             log_info("🔄 Creating universal binary...")
             log_info(f"{'='*60}")
-            
+
             if sign_flag:
                 sign_universal(built_contexts)
                 if slack_notifications:
                     notify_build_step("Completed universal signing and notarization")
-            
+
             if package_flag:
                 package_universal(built_contexts)
                 if slack_notifications:
@@ -191,12 +204,12 @@ def build_main(
             # Regular builds: sign and package each architecture separately
             for ctx in built_contexts:
                 log_info(f"\n📦 Processing {ctx.architecture} build...")
-                
+
                 if sign_flag:
                     sign(ctx)
                     if slack_notifications:
                         notify_build_step(f"Completed signing {ctx.architecture}")
-                
+
                 if package_flag:
                     package(ctx)
                     if slack_notifications:
@@ -208,11 +221,13 @@ def build_main(
         secs = int(elapsed % 60)
 
         log_info("\n" + "=" * 60)
-        log_success(f"Build completed for {len(architectures)} architecture(s) in {mins}m {secs}s")
+        log_success(
+            f"Build completed for {len(architectures)} architecture(s) in {mins}m {secs}s"
+        )
         if universal and len(architectures) > 1:
             log_success("Universal binary created successfully!")
         log_info("=" * 60)
-        
+
         # Notify build success (if enabled)
         if slack_notifications:
             notify_build_success(mins, secs)
@@ -238,16 +253,22 @@ def build_main(
 )
 @click.option("--clean", "-C", is_flag=True, default=False, help="Clean before build")
 @click.option("--git-setup", "-g", is_flag=True, default=False, help="Git setup")
-@click.option("--apply-patches", "-p", is_flag=True, default=False, help="Apply patches")
-@click.option("--sign", "-s", is_flag=True, default=False, help="Sign and notarize the app")
 @click.option(
-    "--arch", "-a", 
-    type=click.Choice(["arm64", "x64"]), 
-    default="arm64", 
-    help="Architecture"
+    "--apply-patches", "-p", is_flag=True, default=False, help="Apply patches"
 )
 @click.option(
-    "--build-type", "-t",
+    "--sign", "-s", is_flag=True, default=False, help="Sign and notarize the app"
+)
+@click.option(
+    "--arch",
+    "-a",
+    type=click.Choice(["arm64", "x64"]),
+    default="arm64",
+    help="Architecture",
+)
+@click.option(
+    "--build-type",
+    "-t",
     type=click.Choice(["debug", "release"]),
     default="debug",
     help="Build type",
@@ -255,53 +276,66 @@ def build_main(
 @click.option("--package", "-P", is_flag=True, default=False, help="Create DMG package")
 @click.option("--build", "-b", is_flag=True, default=False, help="Build")
 @click.option(
-    "--chromium-src", "-S",
+    "--chromium-src",
+    "-S",
     type=click.Path(exists=False, path_type=Path),
     help="Path to Chromium source directory",
 )
 @click.option(
-    "--slack-notifications", "-n",
+    "--slack-notifications",
+    "-n",
     is_flag=True,
     default=False,
-    help="Enable Slack notifications"
+    help="Enable Slack notifications",
 )
 @click.option(
     "--merge",
     nargs=3,
     type=click.Path(path_type=Path),
     metavar="ARCH1_APP ARCH2_APP OUTPUT_APP",
-    help="Merge two architecture builds: --merge path/to/arch1.app path/to/arch2.app path/to/output.app"
+    help="Merge two architecture builds: --merge path/to/arch1.app path/to/arch2.app path/to/output.app",
 )
 def main(
-    config, clean, git_setup, apply_patches, sign, arch, build_type, package, build, chromium_src, slack_notifications, merge
+    config,
+    clean,
+    git_setup,
+    apply_patches,
+    sign,
+    arch,
+    build_type,
+    package,
+    build,
+    chromium_src,
+    slack_notifications,
+    merge,
 ):
     """Simple build system for Nxtscape Browser"""
-    
+
     # Handle merge command
     if merge:
         from modules.merge import merge_sign_package
-        
+
         arch1_path, arch2_path, output_path = merge
         log_info("🔄 Running merge command...")
         log_info(f"  Arch 1: {arch1_path}")
         log_info(f"  Arch 2: {arch2_path}")
         log_info(f"  Output: {output_path}")
-        
+
         success = merge_sign_package(
             arch1_path=arch1_path,
-            arch2_path=arch2_path, 
+            arch2_path=arch2_path,
             output_path=output_path,
             sign=sign,
-            package=package
+            package=package,
         )
-        
+
         if success:
             log_success("Merge command completed successfully!")
             sys.exit(0)
         else:
             log_error("Merge command failed!")
             sys.exit(1)
-    
+
     # Regular build workflow
     build_main(
         config_file=config,
@@ -320,4 +354,3 @@ def main(
 
 if __name__ == "__main__":
     main()
-
