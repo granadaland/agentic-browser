@@ -92,7 +92,11 @@ def build_main(
             gn_flags_file = Path(config["gn_flags"]["file"])
 
         # Get chromium_src from config (only if not provided via CLI)
-        if not chromium_src_dir and "paths" in config and "chromium_src" in config["paths"]:
+        if (
+            not chromium_src_dir
+            and "paths" in config
+            and "chromium_src" in config["paths"]
+        ):
             config_chromium_src = Path(config["paths"]["chromium_src"])
             chromium_src = config_chromium_src
             log_info(f"📁 Using Chromium source from config: {chromium_src}")
@@ -105,7 +109,9 @@ def build_main(
     # Enforce chromium_src requirement
     if not chromium_src:
         log_error("Chromium source directory is required!")
-        log_error("Provide it via --chromium-src CLI option or paths.chromium_src in config YAML")
+        log_error(
+            "Provide it via --chromium-src CLI option or paths.chromium_src in config YAML"
+        )
         log_error("Example: python build.py --chromium-src /path/to/chromium/src")
         raise ValueError("chromium_src is required but not provided")
 
@@ -323,30 +329,36 @@ def main(
         log_info(f"  Output: {output_path}")
         log_info(f"  Sign: {sign}")
         log_info(f"  Package: {package}")
-        
+
         # Enforce chromium-src path requirement for merge operations
         if not chromium_src:
             log_error("Merge command requires --chromium-src to be specified")
-            log_error("Example: python build.py --merge app1.app app2.app output.app --chromium-src /path/to/chromium/src")
+            log_error(
+                "Example: python build.py --merge app1.app app2.app output.app --chromium-src /path/to/chromium/src"
+            )
             sys.exit(1)
-        
+
         # Validate chromium_src path exists
         if not chromium_src.exists():
             log_error(f"Chromium source directory does not exist: {chromium_src}")
             log_error("Please provide a valid --chromium-src path")
             sys.exit(1)
-            
+
         chromium_src_path = chromium_src
         log_info(f"📁 Using Chromium source: {chromium_src_path}")
-        
+
         # Validate input paths exist
         if not arch1_path.exists():
             log_error(f"Architecture 1 app not found: {arch1_path}")
             sys.exit(1)
-        
+
         if not arch2_path.exists():
             log_error(f"Architecture 2 app not found: {arch2_path}")
             sys.exit(1)
+
+        # Get root_dir from where the build.py is being run
+        root_dir = Path(__file__).parent.parent
+        log_info(f"📂 Using root directory: {root_dir}")
 
         try:
             success = merge_sign_package(
@@ -354,6 +366,7 @@ def main(
                 arch2_path=arch2_path,
                 output_path=output_path,
                 chromium_src=chromium_src_path,
+                root_dir=root_dir,
                 sign=sign,
                 package=package,
             )
@@ -367,6 +380,7 @@ def main(
         except Exception as e:
             log_error(f"Merge command failed with exception: {e}")
             import traceback
+
             traceback.print_exc()
             sys.exit(1)
 

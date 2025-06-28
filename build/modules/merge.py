@@ -91,11 +91,9 @@ def merge_architectures(
         return False
 
 
-def create_minimal_context(app_path: Path, chromium_src: Path, architecture: str = "universal") -> BuildContext:
+def create_minimal_context(app_path: Path, chromium_src: Path, root_dir: Path, architecture: str = "universal") -> BuildContext:
     """Create a minimal BuildContext for signing/packaging operations"""
     
-    # Use provided chromium_src path
-    root_dir = chromium_src.parent  # project root
     out_dir_path = app_path.parent  # out/Default_universal
     
     log_info(f"Creating context from app path: {app_path}")
@@ -128,6 +126,7 @@ def merge_sign_package(
     arch2_path: Path,
     output_path: Path,
     chromium_src: Path,
+    root_dir: Path,
     sign: bool = True,
     package: bool = True,
     universalizer_script: Path = None
@@ -140,6 +139,7 @@ def merge_sign_package(
         arch2_path: Path to second architecture .app bundle
         output_path: Path where universal .app bundle should be created
         chromium_src: Path to chromium source directory
+        root_dir: Path to project root directory
         sign: Whether to sign the universal binary
         package: Whether to create DMG package
         universalizer_script: Path to universalizer script (optional)
@@ -164,7 +164,7 @@ def merge_sign_package(
         try:
             from modules.sign import sign_app
             
-            ctx = create_minimal_context(output_path, chromium_src)
+            ctx = create_minimal_context(output_path, chromium_src, root_dir)
             if not sign_app(ctx, create_dmg=False):
                 log_error("Failed to sign universal binary")
                 return False
@@ -187,7 +187,7 @@ def merge_sign_package(
         try:
             from modules.package import create_dmg
             
-            ctx = create_minimal_context(output_path, chromium_src)
+            ctx = create_minimal_context(output_path, chromium_src, root_dir)
             
             # Create DMG in parent directory
             dmg_dir = ctx.root_dir / "dmg"
