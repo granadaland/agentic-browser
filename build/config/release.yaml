@@ -18,7 +18,7 @@ steps:
 
 paths:
   root_dir: .
-  chromium_src: build/src
+  # chromium_src: ../chromium-src
 
 # Environment-specific settings
 env:

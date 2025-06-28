@@ -91,14 +91,17 @@ def merge_architectures(
         return False
 
 
-def create_minimal_context(app_path: Path, architecture: str = "universal") -> BuildContext:
+def create_minimal_context(app_path: Path, chromium_src: Path, architecture: str = "universal") -> BuildContext:
     """Create a minimal BuildContext for signing/packaging operations"""
     
-    # Determine paths from app location
-    # app_path should be like: /path/to/build/src/out/Default_universal/Nxtscape.app
+    # Use provided chromium_src path
+    root_dir = chromium_src.parent  # project root
     out_dir_path = app_path.parent  # out/Default_universal
-    chromium_src = out_dir_path.parent.parent  # build/src
-    root_dir = chromium_src.parent  # build parent
+    
+    log_info(f"Creating context from app path: {app_path}")
+    log_info(f"  Out dir: {out_dir_path}")
+    log_info(f"  Chromium src: {chromium_src}")
+    log_info(f"  Root dir: {root_dir}")
     
     ctx = BuildContext(
         root_dir=root_dir,
@@ -114,6 +117,9 @@ def create_minimal_context(app_path: Path, architecture: str = "universal") -> B
     # Override out_dir to match the actual location
     ctx.out_dir = out_dir_path.name
     
+    log_info(f"Context created with out_dir: {ctx.out_dir}")
+    log_info(f"PKG-DMG path: {ctx.get_pkg_dmg_path()}")
+    
     return ctx
 
 
@@ -121,6 +127,7 @@ def merge_sign_package(
     arch1_path: Path,
     arch2_path: Path,
     output_path: Path,
+    chromium_src: Path,
     sign: bool = True,
     package: bool = True,
     universalizer_script: Path = None
@@ -132,6 +139,7 @@ def merge_sign_package(
         arch1_path: Path to first architecture .app bundle
         arch2_path: Path to second architecture .app bundle
         output_path: Path where universal .app bundle should be created
+        chromium_src: Path to chromium source directory
         sign: Whether to sign the universal binary
         package: Whether to create DMG package
         universalizer_script: Path to universalizer script (optional)
@@ -156,7 +164,7 @@ def merge_sign_package(
         try:
             from modules.sign import sign_app
             
-            ctx = create_minimal_context(output_path)
+            ctx = create_minimal_context(output_path, chromium_src)
             if not sign_app(ctx, create_dmg=False):
                 log_error("Failed to sign universal binary")
                 return False
@@ -179,7 +187,7 @@ def merge_sign_package(
         try:
             from modules.package import create_dmg
             
-            ctx = create_minimal_context(output_path)
+            ctx = create_minimal_context(output_path, chromium_src)
             
             # Create DMG in parent directory
             dmg_dir = ctx.root_dir / "dmg"
@@ -189,6 +197,12 @@ def merge_sign_package(
             
             dmg_path = dmg_dir / dmg_name
             pkg_dmg_path = ctx.get_pkg_dmg_path()
+            
+            # pkg-dmg should now be available since we enforce chromium-src path
+            if not pkg_dmg_path.exists():
+                log_error(f"Chromium pkg-dmg not found at: {pkg_dmg_path}")
+                log_error("Make sure you provided the correct --chromium-src path")
+                return False
             
             if create_dmg(output_path, dmg_path, "Nxtscape", pkg_dmg_path):
                 log_success(f"DMG created: {dmg_name}")
