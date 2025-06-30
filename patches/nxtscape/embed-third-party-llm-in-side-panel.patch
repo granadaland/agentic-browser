@@ -1,0 +1,1138 @@
+From 5a1aa855917c1155867b42845d2d15bbce7ffca0 Mon Sep 17 00:00:00 2001
+From: Nikhil Sonti <nikhilsv92@gmail.com>
+Date: Sat, 28 Jun 2025 16:38:45 -0700
+Subject: [PATCH] embed third party LLM in side panel
+
+---
+ chrome/app/chrome_command_ids.h               |   2 +
+ chrome/app/generated_resources.grd            |   5 +
+ .../browser/global_keyboard_shortcuts_mac.mm  |   2 +
+ chrome/browser/ui/actions/chrome_action_id.h  |   3 +-
+ chrome/browser/ui/browser_actions.cc          |  12 +
+ .../browser/ui/browser_command_controller.cc  |  20 +
+ .../browser/ui/toolbar/toolbar_pref_names.cc  |  11 +
+ chrome/browser/ui/ui_features.cc              |   4 +
+ chrome/browser/ui/ui_features.h               |   1 +
+ chrome/browser/ui/views/accelerator_table.cc  |   2 +
+ chrome/browser/ui/views/side_panel/BUILD.gn   |   2 +
+ .../ui/views/side_panel/side_panel_entry_id.h |   1 +
+ .../ui/views/side_panel/side_panel_prefs.cc   |   6 +
+ .../ui/views/side_panel/side_panel_util.cc    |   7 +
+ .../third_party_llm_panel_coordinator.cc      | 656 ++++++++++++++++++
+ .../third_party_llm_panel_coordinator.h       | 127 ++++
+ .../customize_toolbar/customize_toolbar.mojom |   1 +
+ .../customize_toolbar_handler.cc              |   6 +
+ 18 files changed, 867 insertions(+), 1 deletion(-)
+ create mode 100644 chrome/browser/ui/views/side_panel/third_party_llm/third_party_llm_panel_coordinator.cc
+ create mode 100644 chrome/browser/ui/views/side_panel/third_party_llm/third_party_llm_panel_coordinator.h
+
+diff --git a/chrome/app/chrome_command_ids.h b/chrome/app/chrome_command_ids.h
+index 7dbc937b376cc..91d055b22ce33 100644
+--- a/chrome/app/chrome_command_ids.h
++++ b/chrome/app/chrome_command_ids.h
+@@ -290,6 +290,8 @@
+ #define IDC_SHOW_HISTORY_SIDE_PANEL     40293
+ #define IDC_OPEN_GLIC                   40294
+ #define IDC_FIND_EXTENSIONS  40295
++#define IDC_SHOW_THIRD_PARTY_LLM_SIDE_PANEL  40296
++#define IDC_CYCLE_THIRD_PARTY_LLM_PROVIDER  40297
+ 
+ // Spell-check
+ // Insert any additional suggestions before _LAST; these have to be consecutive.
+diff --git a/chrome/app/generated_resources.grd b/chrome/app/generated_resources.grd
+index 186d94b83cb9c..7ffa604ba0c51 100644
+--- a/chrome/app/generated_resources.grd
++++ b/chrome/app/generated_resources.grd
+@@ -8835,6 +8835,11 @@ Keep your key file in a safe place. You will need it to create new versions of y
+           Reading List
+         </message>
+       </if>
++      <if expr="use_titlecase">
++        <message name="IDS_THIRD_PARTY_LLM_TITLE" desc="Title for 3rd party LLM side panel">
++          LLM sidekick
++        </message>
++      </if>
+       <if expr="not use_titlecase">
+         <message name="IDS_READ_LATER_TITLE" desc="Title of the Read later menu">
+           Reading list
+diff --git a/chrome/browser/global_keyboard_shortcuts_mac.mm b/chrome/browser/global_keyboard_shortcuts_mac.mm
+index cbc0d472d9476..262d771e6b568 100644
+--- a/chrome/browser/global_keyboard_shortcuts_mac.mm
++++ b/chrome/browser/global_keyboard_shortcuts_mac.mm
+@@ -145,6 +145,8 @@ const std::vector<KeyboardShortcutData>& GetShortcutsNotPresentInMainMenu() {
+ 
+       {true,  true,  false, false, kVK_ANSI_M,            IDC_SHOW_AVATAR_MENU},
+       {true,  false, false, true,  kVK_ANSI_L,            IDC_SHOW_DOWNLOADS},
++      {true,  true,  false, false, kVK_ANSI_L,            IDC_SHOW_THIRD_PARTY_LLM_SIDE_PANEL},
++      {true,  true,  false, false, kVK_ANSI_Semicolon,   IDC_CYCLE_THIRD_PARTY_LLM_PROVIDER},
+       {true,  true,  false, false, kVK_ANSI_C,            IDC_DEV_TOOLS_INSPECT},
+       {true,  false, false, true,  kVK_ANSI_C,            IDC_DEV_TOOLS_INSPECT},
+       {true,  false, false, true,  kVK_DownArrow,         IDC_FOCUS_NEXT_PANE},
+diff --git a/chrome/browser/ui/actions/chrome_action_id.h b/chrome/browser/ui/actions/chrome_action_id.h
+index b79f667f412a8..15585a7886bdb 100644
+--- a/chrome/browser/ui/actions/chrome_action_id.h
++++ b/chrome/browser/ui/actions/chrome_action_id.h
+@@ -539,7 +539,8 @@
+   E(kActionSidePanelShowShoppingInsights) \
+   E(kActionSidePanelShowSideSearch) \
+   E(kActionSidePanelShowUserNote) \
+-  E(kActionSidePanelShowMerchantTrust)
++  E(kActionSidePanelShowMerchantTrust) \
++  E(kActionSidePanelShowThirdPartyLlm)
+ 
+ #define TOOLBAR_PINNABLE_ACTION_IDS \
+   E(kActionHome, IDC_HOME) \
+diff --git a/chrome/browser/ui/browser_actions.cc b/chrome/browser/ui/browser_actions.cc
+index 38faf665d9d87..4a702d72d7b82 100644
+--- a/chrome/browser/ui/browser_actions.cc
++++ b/chrome/browser/ui/browser_actions.cc
+@@ -231,6 +231,18 @@ void BrowserActions::InitializeBrowserActions() {
+             .Build());
+   }
+ 
++  // Add third-party LLM panel if feature is enabled
++  if (base::FeatureList::IsEnabled(features::kThirdPartyLlmPanel)) {
++    root_action_item_->AddChild(
++        SidePanelAction(SidePanelEntryId::kThirdPartyLlm,
++                        IDS_THIRD_PARTY_LLM_TITLE,  // Using reading list name temporarily
++                        IDS_THIRD_PARTY_LLM_TITLE,
++                        vector_icons::kHandGestureIcon,
++                        kActionSidePanelShowThirdPartyLlm, browser,
++                        true)
++            .Build());
++  }
++
+   if (HistorySidePanelCoordinator::IsSupported()) {
+     root_action_item_->AddChild(
+         SidePanelAction(SidePanelEntryId::kHistory, IDS_HISTORY_TITLE,
+diff --git a/chrome/browser/ui/browser_command_controller.cc b/chrome/browser/ui/browser_command_controller.cc
+index 6f2feda3e7920..f0912a69e5c05 100644
+--- a/chrome/browser/ui/browser_command_controller.cc
++++ b/chrome/browser/ui/browser_command_controller.cc
+@@ -68,6 +68,7 @@
+ #include "chrome/browser/ui/views/side_panel/side_panel_entry_id.h"
+ #include "chrome/browser/ui/views/side_panel/side_panel_enums.h"
+ #include "chrome/browser/ui/views/side_panel/side_panel_ui.h"
++#include "chrome/browser/ui/views/side_panel/third_party_llm/third_party_llm_panel_coordinator.h"
+ #include "chrome/browser/ui/web_applications/app_browser_controller.h"
+ #include "chrome/browser/ui/web_applications/web_app_dialog_utils.h"
+ #include "chrome/browser/ui/web_applications/web_app_launch_utils.h"
+@@ -912,6 +913,21 @@ bool BrowserCommandController::ExecuteCommandWithDisposition(
+       browser_->GetFeatures().side_panel_ui()->Show(
+           SidePanelEntryId::kBookmarks, SidePanelOpenTrigger::kAppMenu);
+       break;
++    case IDC_SHOW_THIRD_PARTY_LLM_SIDE_PANEL:
++      if (base::FeatureList::IsEnabled(features::kThirdPartyLlmPanel)) {
++        browser_->GetFeatures().side_panel_ui()->Toggle(
++            SidePanelEntry::Key(SidePanelEntryId::kThirdPartyLlm),
++            SidePanelOpenTrigger::kAppMenu);
++      }
++      break;
++    case IDC_CYCLE_THIRD_PARTY_LLM_PROVIDER:
++      if (base::FeatureList::IsEnabled(features::kThirdPartyLlmPanel)) {
++        if (ThirdPartyLlmPanelCoordinator* coordinator = 
++            ThirdPartyLlmPanelCoordinator::FromBrowser(browser_)) {
++          coordinator->CycleProvider();
++        }
++      }
++      break;
+     case IDC_SHOW_APP_MENU:
+       base::RecordAction(base::UserMetricsAction("Accel_Show_App_Menu"));
+       ShowAppMenu(browser_);
+@@ -1550,6 +1566,10 @@ void BrowserCommandController::InitCommandState() {
+   }
+ 
+   command_updater_.UpdateCommandEnabled(IDC_SHOW_BOOKMARK_SIDE_PANEL, true);
++  command_updater_.UpdateCommandEnabled(IDC_SHOW_THIRD_PARTY_LLM_SIDE_PANEL,
++                                        base::FeatureList::IsEnabled(features::kThirdPartyLlmPanel));
++  command_updater_.UpdateCommandEnabled(IDC_CYCLE_THIRD_PARTY_LLM_PROVIDER,
++                                        base::FeatureList::IsEnabled(features::kThirdPartyLlmPanel));
+ 
+   if (browser_->is_type_normal()) {
+     // Reading list commands.
+diff --git a/chrome/browser/ui/toolbar/toolbar_pref_names.cc b/chrome/browser/ui/toolbar/toolbar_pref_names.cc
+index 4dd749643041a..98a0d4b0db1ea 100644
+--- a/chrome/browser/ui/toolbar/toolbar_pref_names.cc
++++ b/chrome/browser/ui/toolbar/toolbar_pref_names.cc
+@@ -4,7 +4,9 @@
+ 
+ #include "chrome/browser/ui/toolbar/toolbar_pref_names.h"
+ 
++#include "base/feature_list.h"
+ #include "chrome/browser/ui/actions/chrome_action_id.h"
++#include "chrome/browser/ui/ui_features.h"
+ #include "chrome/common/chrome_features.h"
+ #include "components/pref_registry/pref_registry_syncable.h"
+ #include "components/prefs/pref_registry_simple.h"
+@@ -31,6 +33,15 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
+     }
+   }
+ 
++  // Add third-party LLM panel to default pinned actions
++  if (base::FeatureList::IsEnabled(features::kThirdPartyLlmPanel)) {
++    const std::optional<std::string>& third_party_llm_action =
++        actions::ActionIdMap::ActionIdToString(kActionSidePanelShowThirdPartyLlm);
++    if (third_party_llm_action.has_value()) {
++      default_pinned_actions.Append(third_party_llm_action.value());
++    }
++  }
++
+   registry->RegisterListPref(prefs::kPinnedActions,
+                              std::move(default_pinned_actions),
+                              user_prefs::PrefRegistrySyncable::SYNCABLE_PREF);
+diff --git a/chrome/browser/ui/ui_features.cc b/chrome/browser/ui/ui_features.cc
+index 6b7f69f033c66..f9c6087f5388e 100644
+--- a/chrome/browser/ui/ui_features.cc
++++ b/chrome/browser/ui/ui_features.cc
+@@ -137,6 +137,10 @@ BASE_FEATURE(kSidePanelResizing,
+              "SidePanelResizing",
+              base::FEATURE_DISABLED_BY_DEFAULT);
+ 
++BASE_FEATURE(kThirdPartyLlmPanel,
++             "ThirdPartyLlmPanel",
++             base::FEATURE_ENABLED_BY_DEFAULT);
++
+ BASE_FEATURE(kTabDuplicateMetrics,
+              "TabDuplicateMetrics",
+              base::FEATURE_ENABLED_BY_DEFAULT);
+diff --git a/chrome/browser/ui/ui_features.h b/chrome/browser/ui/ui_features.h
+index 6ebeab8624481..f4a829cc38c71 100644
+--- a/chrome/browser/ui/ui_features.h
++++ b/chrome/browser/ui/ui_features.h
+@@ -110,6 +110,7 @@ extern const char kTabScrollingButtonPositionParameterName[];
+ 
+ BASE_DECLARE_FEATURE(kSidePanelResizing);
+ BASE_DECLARE_FEATURE(kSidePanelSearchCompanion);
++BASE_DECLARE_FEATURE(kThirdPartyLlmPanel);
+ 
+ BASE_DECLARE_FEATURE(kTabGroupsCollapseFreezing);
+ 
+diff --git a/chrome/browser/ui/views/accelerator_table.cc b/chrome/browser/ui/views/accelerator_table.cc
+index 6db32fe196921..c22b9bd1d77ab 100644
+--- a/chrome/browser/ui/views/accelerator_table.cc
++++ b/chrome/browser/ui/views/accelerator_table.cc
+@@ -151,6 +151,8 @@ const AcceleratorMapping kAcceleratorMap[] = {
+     {ui::VKEY_F11, ui::EF_NONE, IDC_FULLSCREEN},
+     {ui::VKEY_M, ui::EF_SHIFT_DOWN | ui::EF_PLATFORM_ACCELERATOR,
+      IDC_SHOW_AVATAR_MENU},
++    {ui::VKEY_L, ui::EF_SHIFT_DOWN | ui::EF_PLATFORM_ACCELERATOR,
++     IDC_SHOW_THIRD_PARTY_LLM_SIDE_PANEL},
+ 
+ // Platform-specific key maps.
+ #if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+diff --git a/chrome/browser/ui/views/side_panel/BUILD.gn b/chrome/browser/ui/views/side_panel/BUILD.gn
+index 2af616e71a52a..f2c935cea00c3 100644
+--- a/chrome/browser/ui/views/side_panel/BUILD.gn
++++ b/chrome/browser/ui/views/side_panel/BUILD.gn
+@@ -88,6 +88,8 @@ source_set("side_panel") {
+     "side_panel_util.h",
+     "side_panel_web_ui_view.cc",
+     "side_panel_web_ui_view.h",
++    "third_party_llm/third_party_llm_panel_coordinator.cc",
++    "third_party_llm/third_party_llm_panel_coordinator.h",
+   ]
+   public_deps = [
+     "//base",
+diff --git a/chrome/browser/ui/views/side_panel/side_panel_entry_id.h b/chrome/browser/ui/views/side_panel/side_panel_entry_id.h
+index a9232eaa871f2..9e159f5ad7a6d 100644
+--- a/chrome/browser/ui/views/side_panel/side_panel_entry_id.h
++++ b/chrome/browser/ui/views/side_panel/side_panel_entry_id.h
+@@ -39,6 +39,7 @@
+   V(kLensOverlayResults, kActionSidePanelShowLensOverlayResults,              \
+     "LensOverlayResults")                                                     \
+   V(kMerchantTrust, kActionSidePanelShowMerchantTrust, "MerchantTrust")       \
++  V(kThirdPartyLlm, kActionSidePanelShowThirdPartyLlm, "ThirdPartyLlm")      \
+   /* Extensions (nothing more should be added below here) */                  \
+   V(kExtension, std::nullopt, "Extension")
+ 
+diff --git a/chrome/browser/ui/views/side_panel/side_panel_prefs.cc b/chrome/browser/ui/views/side_panel/side_panel_prefs.cc
+index 2c6ba6c527498..f4e4296509222 100644
+--- a/chrome/browser/ui/views/side_panel/side_panel_prefs.cc
++++ b/chrome/browser/ui/views/side_panel/side_panel_prefs.cc
+@@ -7,6 +7,7 @@
+ #include "base/feature_list.h"
+ #include "base/i18n/rtl.h"
+ #include "chrome/browser/ui/ui_features.h"
++#include "chrome/browser/ui/views/side_panel/third_party_llm/third_party_llm_panel_coordinator.h"
+ #include "chrome/common/pref_names.h"
+ #include "components/pref_registry/pref_registry_syncable.h"
+ #include "components/prefs/pref_registry_simple.h"
+@@ -22,6 +23,11 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
+                                 !base::i18n::IsRTL());
+   registry->RegisterBooleanPref(prefs::kGoogleSearchSidePanelEnabled, true);
+   registry->RegisterDictionaryPref(prefs::kSidePanelIdToWidth);
++  
++  // Register third-party LLM panel preferences
++  if (base::FeatureList::IsEnabled(features::kThirdPartyLlmPanel)) {
++    ThirdPartyLlmPanelCoordinator::RegisterProfilePrefs(registry);
++  }
+ }
+ 
+ }  // namespace side_panel_prefs
+diff --git a/chrome/browser/ui/views/side_panel/side_panel_util.cc b/chrome/browser/ui/views/side_panel/side_panel_util.cc
+index f93a373cd9e96..cc55483ad32d7 100644
+--- a/chrome/browser/ui/views/side_panel/side_panel_util.cc
++++ b/chrome/browser/ui/views/side_panel/side_panel_util.cc
+@@ -20,6 +20,7 @@
+ #include "chrome/browser/ui/views/side_panel/history_clusters/history_clusters_side_panel_coordinator.h"
+ #include "chrome/browser/ui/views/side_panel/reading_list/reading_list_side_panel_coordinator.h"
+ #include "chrome/browser/ui/views/side_panel/side_panel_content_proxy.h"
++#include "chrome/browser/ui/views/side_panel/third_party_llm/third_party_llm_panel_coordinator.h"
+ #include "chrome/browser/ui/views/side_panel/side_panel_coordinator.h"
+ #include "chrome/browser/ui/views/side_panel/side_panel_registry.h"
+ #include "chrome/browser/ui/views/side_panel/side_panel_ui.h"
+@@ -54,6 +55,12 @@ void SidePanelUtil::PopulateGlobalEntries(Browser* browser,
+         ->history_side_panel_coordinator()
+         ->CreateAndRegisterEntry(window_registry);
+   }
++
++  // Add third-party LLM panel.
++  if (base::FeatureList::IsEnabled(features::kThirdPartyLlmPanel)) {
++    ThirdPartyLlmPanelCoordinator::GetOrCreateForBrowser(browser)
++        ->CreateAndRegisterEntry(window_registry);
++  }
+ }
+ 
+ SidePanelContentProxy* SidePanelUtil::GetSidePanelContentProxy(
+diff --git a/chrome/browser/ui/views/side_panel/third_party_llm/third_party_llm_panel_coordinator.cc b/chrome/browser/ui/views/side_panel/third_party_llm/third_party_llm_panel_coordinator.cc
+new file mode 100644
+index 0000000000000..9b60a66266fc5
+--- /dev/null
++++ b/chrome/browser/ui/views/side_panel/third_party_llm/third_party_llm_panel_coordinator.cc
+@@ -0,0 +1,656 @@
++// Copyright 2024 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "chrome/browser/ui/views/side_panel/third_party_llm/third_party_llm_panel_coordinator.h"
++
++#include <memory>
++#include <vector>
++
++#include "base/functional/callback.h"
++#include "base/strings/utf_string_conversions.h"
++#include "chrome/browser/profiles/profile.h"
++#include "chrome/browser/ui/browser.h"
++#include "chrome/browser/ui/browser_window.h"
++#include "chrome/browser/ui/browser_window/public/browser_window_features.h"
++#include "chrome/browser/ui/views/chrome_layout_provider.h"
++#include "chrome/browser/ui/views/side_panel/side_panel_entry.h"
++#include "chrome/browser/ui/views/side_panel/side_panel_entry_id.h"
++#include "chrome/browser/ui/views/side_panel/side_panel_registry.h"
++#include "chrome/browser/ui/views/side_panel/side_panel_ui.h"
++#include "chrome/grit/generated_resources.h"
++#include "content/public/browser/web_contents.h"
++#include "ui/base/l10n/l10n_util.h"
++#include "ui/base/models/combobox_model.h"
++#include "ui/views/controls/button/image_button.h"
++#include "ui/views/controls/button/label_button.h"
++#include "ui/views/controls/combobox/combobox.h"
++#include "ui/views/controls/label.h"
++#include "ui/views/controls/separator.h"
++#include "ui/views/controls/webview/webview.h"
++#include "ui/views/layout/box_layout.h"
++#include "ui/views/layout/flex_layout.h"
++#include "ui/views/vector_icons.h"
++#include "components/vector_icons/vector_icons.h"
++#include "components/prefs/pref_service.h"
++#include "components/user_prefs/user_prefs.h"
++#include "components/pref_registry/pref_registry_syncable.h"
++#include "chrome/browser/ui/browser_navigator.h"
++#include "chrome/browser/ui/browser_navigator_params.h"
++#include "chrome/browser/ui/tabs/tab_strip_model.h"
++#include "content/public/browser/browser_accessibility_state.h"
++#include "ui/accessibility/ax_node.h"
++#include "ui/accessibility/ax_node_data.h"
++#include "ui/accessibility/ax_enums.mojom.h"
++#include "ui/accessibility/ax_tree_update.h"
++#include "ui/base/clipboard/clipboard.h"
++#include "ui/base/clipboard/scoped_clipboard_writer.h"
++#include "chrome/browser/ui/browser_commands.h"
++#include "base/timer/timer.h"
++#include "base/task/sequenced_task_runner.h"
++#include "components/input/native_web_keyboard_event.h"
++
++namespace {
++
++// Preference name for storing selected LLM provider
++const char kThirdPartyLlmProviderPref[] = "third_party_llm.selected_provider";
++
++// ComboboxModel for LLM provider selection
++class LlmProviderComboboxModel : public ui::ComboboxModel {
++ public:
++  LlmProviderComboboxModel() = default;
++  ~LlmProviderComboboxModel() override = default;
++
++  // ui::ComboboxModel:
++  size_t GetItemCount() const override { return 4; }
++
++  std::u16string GetItemAt(size_t index) const override {
++    switch (index) {
++      case 0:
++        return u"ChatGPT";
++      case 1:
++        return u"Claude";
++      case 2:
++        return u"Gemini";
++      case 3:
++        return u"Perplexity";
++      default:
++        NOTREACHED();
++    }
++  }
++};
++
++}  // namespace
++
++ThirdPartyLlmPanelCoordinator::ThirdPartyLlmPanelCoordinator(Browser* browser)
++    : BrowserUserData<ThirdPartyLlmPanelCoordinator>(*browser),
++      feedback_timer_(std::make_unique<base::OneShotTimer>()) {
++  // Load saved provider preference
++  PrefService* prefs = browser->profile()->GetPrefs();
++  if (prefs->HasPrefPath(kThirdPartyLlmProviderPref)) {
++    int provider_value = prefs->GetInteger(kThirdPartyLlmProviderPref);
++    if (provider_value >= 0 && provider_value <= 3) {
++      current_provider_ = static_cast<LlmProvider>(provider_value);
++    }
++  }
++}
++
++ThirdPartyLlmPanelCoordinator::~ThirdPartyLlmPanelCoordinator() = default;
++
++void ThirdPartyLlmPanelCoordinator::CreateAndRegisterEntry(
++    SidePanelRegistry* global_registry) {
++  global_registry->Register(std::make_unique<SidePanelEntry>(
++      SidePanelEntry::Id::kThirdPartyLlm,
++      base::BindRepeating(
++          &ThirdPartyLlmPanelCoordinator::CreateThirdPartyLlmWebView,
++          base::Unretained(this))));
++}
++
++std::unique_ptr<views::View>
++ThirdPartyLlmPanelCoordinator::CreateThirdPartyLlmWebView(
++    SidePanelEntryScope& scope) {
++  // Create the main container
++  auto container = std::make_unique<views::View>();
++  auto* container_layout = container->SetLayoutManager(std::make_unique<views::FlexLayout>());
++  container_layout->SetOrientation(views::LayoutOrientation::kVertical)
++      .SetMainAxisAlignment(views::LayoutAlignment::kStart)
++      .SetCrossAxisAlignment(views::LayoutAlignment::kStretch);
++  
++  // Create header container with vertical layout for dropdown and feedback
++  auto* header_container = container->AddChildView(std::make_unique<views::View>());
++  header_container->SetLayoutManager(std::make_unique<views::BoxLayout>(
++      views::BoxLayout::Orientation::kVertical, 
++      gfx::Insets::TLBR(8, 12, 4, 12), 
++      4));
++  
++  // Create header row with dropdown and buttons
++  auto* header = header_container->AddChildView(std::make_unique<views::View>());
++  header->SetLayoutManager(std::make_unique<views::BoxLayout>(
++      views::BoxLayout::Orientation::kHorizontal, 
++      gfx::Insets(), 
++      8));
++  
++  // Add dropdown
++  auto provider_model = std::make_unique<LlmProviderComboboxModel>();
++  provider_selector_ = header->AddChildView(
++      std::make_unique<views::Combobox>(std::move(provider_model)));
++  provider_selector_->SetSelectedIndex(static_cast<size_t>(current_provider_));
++  provider_selector_->SetCallback(base::BindRepeating(
++      &ThirdPartyLlmPanelCoordinator::OnProviderChanged,
++      base::Unretained(this)));
++  provider_selector_->SetAccessibleName(u"LLM Provider Selection");
++  
++  // Add feedback label below dropdown (initially hidden)
++  copy_feedback_label_ = header_container->AddChildView(
++      std::make_unique<views::Label>(u""));
++  copy_feedback_label_->SetVisible(false);
++  copy_feedback_label_->SetEnabledColor(ui::kColorLabelForegroundSecondary);
++  copy_feedback_label_->SetFontList(
++      copy_feedback_label_->font_list().DeriveWithSizeDelta(-1));
++  
++  // Add flexible spacer
++  views::BoxLayout* box_layout = static_cast<views::BoxLayout*>(header->GetLayoutManager());
++  box_layout->SetFlexForView(header->AddChildView(std::make_unique<views::View>()), 1);
++  
++  // Add copy content button
++  auto* copy_button = header->AddChildView(
++      std::make_unique<views::ImageButton>(base::BindRepeating(
++          &ThirdPartyLlmPanelCoordinator::OnCopyContent,
++          base::Unretained(this))));
++  copy_button->SetImageModel(
++      views::Button::STATE_NORMAL,
++      ui::ImageModel::FromVectorIcon(vector_icons::kContentCopyIcon, ui::kColorIcon, 16));
++  copy_button->SetAccessibleName(u"Copy page content");
++  copy_button->SetTooltipText(u"Copy main page content to clipboard");
++  
++  // Add open in new tab button
++  auto* open_button = header->AddChildView(
++      std::make_unique<views::ImageButton>(base::BindRepeating(
++          &ThirdPartyLlmPanelCoordinator::OnOpenInNewTab,
++          base::Unretained(this))));
++  open_button->SetImageModel(
++      views::Button::STATE_NORMAL,
++      ui::ImageModel::FromVectorIcon(vector_icons::kLaunchIcon, ui::kColorIcon, 16));
++  open_button->SetAccessibleName(u"Open in new tab");
++  open_button->SetTooltipText(u"Open in new tab");
++  
++  // Add separator
++  container->AddChildView(std::make_unique<views::Separator>());
++  
++  // Create WebView
++  web_view_ = container->AddChildView(
++      std::make_unique<views::WebView>(GetBrowser().profile()));
++  web_view_->SetProperty(
++      views::kFlexBehaviorKey,
++      views::FlexSpecification(views::MinimumFlexSizeRule::kScaleToZero,
++                               views::MaximumFlexSizeRule::kUnbounded));
++  
++  // Create WebContents
++  content::WebContents::CreateParams params(GetBrowser().profile());
++  auto web_contents = content::WebContents::Create(params);
++  
++  // Set this as the delegate to handle keyboard events
++  web_contents->SetDelegate(this);
++  
++  // Observe the WebContents to know when pages finish loading
++  Observe(web_contents.get());
++  
++  // Navigate to initial provider (use last URL if available)
++  GURL provider_url;
++  auto it = last_urls_.find(current_provider_);
++  if (it != last_urls_.end() && it->second.is_valid()) {
++    provider_url = it->second;
++  } else {
++    provider_url = GetProviderUrl(current_provider_);
++  }
++  web_contents->GetController().LoadURL(
++      provider_url, 
++      content::Referrer(),
++      ui::PAGE_TRANSITION_AUTO_TOPLEVEL, 
++      std::string());
++  
++  // Set the WebContents in the WebView
++  web_view_->SetWebContents(web_contents.get());
++  web_view_->SetVisible(true);
++  
++  // Enable focus for the WebView to handle keyboard events properly
++  web_view_->SetFocusBehavior(views::View::FocusBehavior::ALWAYS);
++  
++  // Allow accelerators (keyboard shortcuts) to be processed
++  web_view_->set_allow_accelerators(true);
++  
++  // The WebView takes ownership of the WebContents
++  web_contents.release();
++  
++  // Add separator before footer
++  container->AddChildView(std::make_unique<views::Separator>());
++  
++  // Create footer with keyboard shortcuts
++  auto* footer = container->AddChildView(std::make_unique<views::View>());
++  footer->SetLayoutManager(std::make_unique<views::BoxLayout>(
++      views::BoxLayout::Orientation::kHorizontal,
++      gfx::Insets::TLBR(6, 12, 6, 12),
++      8));
++  
++  // Add keyboard icon
++  auto* keyboard_icon = footer->AddChildView(std::make_unique<views::Label>(u"⌨️"));
++  keyboard_icon->SetEnabledColor(ui::kColorLabelForegroundSecondary);
++  
++  // Add shortcut text
++  auto* shortcuts_label = footer->AddChildView(
++      std::make_unique<views::Label>(u"Toggle: ⌘⇧L  •  Switch: ⌘⇧;"));
++  shortcuts_label->SetEnabledColor(ui::kColorLabelForegroundSecondary);
++  shortcuts_label->SetFontList(
++      shortcuts_label->font_list().DeriveWithSizeDelta(-1));
++  
++  return container;
++}
++
++void ThirdPartyLlmPanelCoordinator::OnProviderChanged() {
++  if (!web_view_ || !web_view_->web_contents()) {
++    return;
++  }
++  
++  // Save the current URL for the previous provider
++  GURL current_url = web_view_->web_contents()->GetURL();
++  if (current_url.is_valid()) {
++    last_urls_[current_provider_] = current_url;
++  }
++  
++  // Get the new provider from the dropdown
++  LlmProvider new_provider = static_cast<LlmProvider>(provider_selector_->GetSelectedIndex().value());
++  
++  // Only proceed if the provider actually changed
++  if (new_provider == current_provider_) {
++    return;
++  }
++  
++  current_provider_ = new_provider;
++  
++  // Save preference
++  PrefService* prefs = GetBrowser().profile()->GetPrefs();
++  prefs->SetInteger(kThirdPartyLlmProviderPref, static_cast<int>(current_provider_));
++  
++  // Check if we have a saved URL for this provider
++  GURL provider_url;
++  auto it = last_urls_.find(current_provider_);
++  if (it != last_urls_.end() && it->second.is_valid()) {
++    provider_url = it->second;
++  } else {
++    provider_url = GetProviderUrl(current_provider_);
++  }
++  
++  web_view_->web_contents()->GetController().LoadURL(
++      provider_url,
++      content::Referrer(),
++      ui::PAGE_TRANSITION_AUTO_TOPLEVEL,
++      std::string());
++}
++
++GURL ThirdPartyLlmPanelCoordinator::GetProviderUrl(LlmProvider provider) const {
++  switch (provider) {
++    case LlmProvider::kChatGPT:
++      return GURL("https://chatgpt.com");
++    case LlmProvider::kClaude:
++      return GURL("https://claude.ai");
++    case LlmProvider::kGemini:
++      return GURL("https://gemini.google.com");
++    case LlmProvider::kPerplexity:
++      return GURL("https://www.perplexity.ai");
++  }
++}
++
++std::u16string ThirdPartyLlmPanelCoordinator::GetProviderName(LlmProvider provider) const {
++  switch (provider) {
++    case LlmProvider::kChatGPT:
++      return u"ChatGPT";
++    case LlmProvider::kClaude:
++      return u"Claude";
++    case LlmProvider::kGemini:
++      return u"Gemini";
++    case LlmProvider::kPerplexity:
++      return u"Perplexity";
++  }
++}
++
++void ThirdPartyLlmPanelCoordinator::OnOpenInNewTab() {
++  if (!web_view_ || !web_view_->web_contents()) {
++    return;
++  }
++  
++  GURL current_url = web_view_->web_contents()->GetURL();
++  if (!current_url.is_valid()) {
++    return;
++  }
++  
++  // Open the current URL in a new tab
++  NavigateParams params(&GetBrowser(), current_url, ui::PAGE_TRANSITION_LINK);
++  params.disposition = WindowOpenDisposition::NEW_FOREGROUND_TAB;
++  Navigate(&params);
++}
++
++void ThirdPartyLlmPanelCoordinator::OnCopyContent() {
++  // Get the active tab's web contents
++  content::WebContents* active_contents = GetBrowser().tab_strip_model()->GetActiveWebContents();
++  if (!active_contents) {
++    return;
++  }
++  
++  // Store the title and URL for later use
++  page_title_ = active_contents->GetTitle();
++  page_url_ = active_contents->GetVisibleURL();
++  
++  // Request accessibility tree snapshot
++  active_contents->RequestAXTreeSnapshot(
++      base::BindOnce(&ThirdPartyLlmPanelCoordinator::OnAccessibilityTreeReceived,
++                     weak_factory_.GetWeakPtr()),
++      ui::AXMode::kWebContents,  // Request web contents mode
++      0,  // max_nodes (0 = no limit)
++      base::Seconds(5),  // timeout
++      content::WebContents::AXTreeSnapshotPolicy::kSameOriginDirectDescendants);
++}
++
++void ThirdPartyLlmPanelCoordinator::OnAccessibilityTreeReceived(
++    ui::AXTreeUpdate& update) {
++  // Build a map of node IDs to node data for easy lookup
++  std::map<ui::AXNodeID, const ui::AXNodeData*> node_map;
++  for (const auto& node_data : update.nodes) {
++    node_map[node_data.id] = &node_data;
++  }
++  
++  // Find the root node
++  ui::AXNodeID root_id = update.root_id;
++  if (node_map.find(root_id) == node_map.end()) {
++    LOG(ERROR) << "Root node not found in tree update";
++    return;
++  }
++  
++  // Extract text from the accessibility tree recursively
++  std::u16string extracted_text;
++  ExtractTextFromNodeData(node_map[root_id], node_map, &extracted_text);
++  
++  // Clean up text - remove excessive whitespace
++  if (!extracted_text.empty()) {
++    // Simple cleanup of multiple spaces
++    size_t pos = 0;
++    while ((pos = extracted_text.find(u"  ", pos)) != std::u16string::npos) {
++      extracted_text.replace(pos, 2, u" ");
++    }
++    
++    // Format the final output
++    std::u16string formatted_output = u"----------- WEB PAGE -----------\n\n";
++    formatted_output += u"TITLE: " + page_title_ + u"\n\n";
++    formatted_output += u"URL: " + base::UTF8ToUTF16(page_url_.spec()) + u"\n\n";
++    formatted_output += u"CONTENT:\n\n" + extracted_text;
++    formatted_output += u" ------------------------------------\n\n";
++    formatted_output += u"USER PROMPT:\n\n";
++    
++    // Copy to clipboard
++    ui::ScopedClipboardWriter clipboard_writer(ui::ClipboardBuffer::kCopyPaste);
++    clipboard_writer.WriteText(formatted_output);
++    
++    // Show feedback message
++    if (copy_feedback_label_) {
++      copy_feedback_label_->SetText(u"Content copied to clipboard");
++      copy_feedback_label_->SetVisible(true);
++      
++      // Start timer to hide message after 2.5 seconds
++      feedback_timer_->Start(FROM_HERE, base::Seconds(2.5),
++          base::BindOnce([](base::WeakPtr<ThirdPartyLlmPanelCoordinator> coordinator) {
++            if (coordinator && coordinator->copy_feedback_label_) {
++              coordinator->copy_feedback_label_->SetVisible(false);
++            }
++          }, weak_factory_.GetWeakPtr()));
++    }
++    
++  }
++}
++
++void ThirdPartyLlmPanelCoordinator::ExtractTextFromNodeData(
++    const ui::AXNodeData* node,
++    const std::map<ui::AXNodeID, const ui::AXNodeData*>& node_map,
++    std::u16string* output) {
++  if (!node || !output) {
++    return;
++  }
++  
++  // Skip UI elements and navigation
++  if (node->role == ax::mojom::Role::kButton ||
++      node->role == ax::mojom::Role::kNavigation ||
++      node->role == ax::mojom::Role::kBanner ||
++      node->role == ax::mojom::Role::kComplementary ||
++      node->role == ax::mojom::Role::kContentInfo ||
++      node->role == ax::mojom::Role::kForm ||
++      node->role == ax::mojom::Role::kSearch ||
++      node->role == ax::mojom::Role::kMenu ||
++      node->role == ax::mojom::Role::kMenuBar ||
++      node->role == ax::mojom::Role::kMenuItem ||
++      node->role == ax::mojom::Role::kToolbar) {
++    // For these elements, still traverse children but don't extract their text
++    for (ui::AXNodeID child_id : node->child_ids) {
++      auto it = node_map.find(child_id);
++      if (it != node_map.end()) {
++        ExtractTextFromNodeData(it->second, node_map, output);
++      }
++    }
++    return;
++  }
++  
++  // Check if this is a text-containing element
++  bool is_text_element = (node->role == ax::mojom::Role::kStaticText ||
++                         node->role == ax::mojom::Role::kInlineTextBox);
++  
++  // Extract text if this is a text element
++  if (is_text_element) {
++    std::u16string text;
++    if (node->HasStringAttribute(ax::mojom::StringAttribute::kName)) {
++      text = node->GetString16Attribute(ax::mojom::StringAttribute::kName);
++    }
++    
++    if (text.empty() && node->HasStringAttribute(ax::mojom::StringAttribute::kValue)) {
++      text = node->GetString16Attribute(ax::mojom::StringAttribute::kValue);
++    }
++    
++    if (!text.empty()) {
++      // Add appropriate spacing
++      if (!output->empty() && output->back() != ' ' && output->back() != '\n') {
++        *output += u" ";
++      }
++      *output += text;
++    }
++  }
++  
++  // Handle line breaks
++  if (node->role == ax::mojom::Role::kLineBreak) {
++    *output += u"\n";
++  }
++  
++  // Add paragraph breaks for block-level elements
++  bool needs_paragraph_break = (node->role == ax::mojom::Role::kParagraph ||
++                               node->role == ax::mojom::Role::kHeading ||
++                               node->role == ax::mojom::Role::kListItem ||
++                               node->role == ax::mojom::Role::kBlockquote ||
++                               node->role == ax::mojom::Role::kArticle ||
++                               node->role == ax::mojom::Role::kSection);
++  
++  if (needs_paragraph_break && !output->empty() && output->back() != '\n') {
++    *output += u"\n\n";
++  }
++  
++  // Recursively process children for all elements
++  for (ui::AXNodeID child_id : node->child_ids) {
++    auto it = node_map.find(child_id);
++    if (it != node_map.end()) {
++      ExtractTextFromNodeData(it->second, node_map, output);
++    }
++  }
++  
++  // Add paragraph break after block-level elements if they had content
++  if (needs_paragraph_break && !output->empty() && output->back() != '\n') {
++    *output += u"\n\n";
++  }
++}
++
++bool ThirdPartyLlmPanelCoordinator::HandleKeyboardEvent(
++    content::WebContents* source,
++    const input::NativeWebKeyboardEvent& event) {
++  // Get the focused view - should be our WebView
++  if (!web_view_ || !web_view_->GetWidget())
++    return false;
++    
++  // Use the unhandled keyboard event handler to process the event
++  return unhandled_keyboard_event_handler_.HandleKeyboardEvent(
++      event, web_view_->GetFocusManager());
++}
++
++void ThirdPartyLlmPanelCoordinator::CycleProvider() {
++  // Check if the third-party LLM panel is open
++  auto* side_panel_ui = GetBrowser().GetFeatures().side_panel_ui();
++  if (!side_panel_ui || 
++      !side_panel_ui->IsSidePanelShowing() ||
++      side_panel_ui->GetCurrentEntryId() != SidePanelEntry::Id::kThirdPartyLlm) {
++    return;
++  }
++
++  // Calculate next provider (cycle through 0-3)
++  int next_provider = (static_cast<int>(current_provider_) + 1) % 4;
++  LlmProvider new_provider = static_cast<LlmProvider>(next_provider);
++  
++  // Update the provider selector if it exists
++  if (provider_selector_) {
++    provider_selector_->SetSelectedIndex(next_provider);
++    // Force the change if SetSelectedIndex doesn't trigger the callback
++    OnProviderChanged();
++  } else {
++    // If the UI isn't created yet, update everything manually
++    current_provider_ = new_provider;
++    
++    // Save preference
++    PrefService* prefs = GetBrowser().profile()->GetPrefs();
++    prefs->SetInteger(kThirdPartyLlmProviderPref, next_provider);
++    
++    // Navigate to the new provider URL if web_view_ exists
++    if (web_view_ && web_view_->web_contents()) {
++      GURL provider_url = GetProviderUrl(current_provider_);
++      web_view_->web_contents()->GetController().LoadURL(
++          provider_url,
++          content::Referrer(),
++          ui::PAGE_TRANSITION_AUTO_TOPLEVEL,
++          std::string());
++    }
++  }
++  
++  // Show a notification about the provider change
++  if (copy_feedback_label_) {
++    std::u16string provider_name = GetProviderName(new_provider);
++    copy_feedback_label_->SetText(u"Switched to " + provider_name);
++    copy_feedback_label_->SetVisible(true);
++    
++    // Start timer to hide message after 2 seconds
++    feedback_timer_->Start(FROM_HERE, base::Seconds(2),
++        base::BindOnce([](base::WeakPtr<ThirdPartyLlmPanelCoordinator> coordinator) {
++          if (coordinator && coordinator->copy_feedback_label_) {
++            coordinator->copy_feedback_label_->SetVisible(false);
++          }
++        }, weak_factory_.GetWeakPtr()));
++  }
++}
++
++void ThirdPartyLlmPanelCoordinator::DidFinishLoad(
++    content::RenderFrameHost* render_frame_host,
++    const GURL& validated_url) {
++  // Focus the input field when the page finishes loading
++  // Use a delayed task to ensure the page is fully ready
++  if (render_frame_host && render_frame_host->IsInPrimaryMainFrame()) {
++    base::SequencedTaskRunner::GetCurrentDefault()->PostDelayedTask(
++        FROM_HERE,
++        base::BindOnce(&ThirdPartyLlmPanelCoordinator::FocusInputField,
++                       weak_factory_.GetWeakPtr()),
++        base::Seconds(1));
++  }
++}
++
++void ThirdPartyLlmPanelCoordinator::FocusInputField() {
++  if (!web_view_ || !web_view_->web_contents()) {
++    return;
++  }
++  
++  // Get the main frame
++  content::RenderFrameHost* main_frame = 
++      web_view_->web_contents()->GetPrimaryMainFrame();
++  if (!main_frame || !main_frame->IsRenderFrameLive()) {
++    return;
++  }
++  
++  // JavaScript to focus the input field for each provider
++  std::string focus_script;
++  switch (current_provider_) {
++    case LlmProvider::kChatGPT:
++      // ChatGPT uses a textarea with id "prompt-textarea"
++      focus_script = R"(
++        setTimeout(() => {
++          const input = document.querySelector('#prompt-textarea');
++          if (input) {
++            input.focus();
++            input.click();
++          }
++        }, 500);
++      )";
++      break;
++      
++    case LlmProvider::kClaude:
++      // Claude uses a div with contenteditable
++      focus_script = R"(
++        setTimeout(() => {
++          const input = document.querySelector('div[contenteditable="true"]');
++          if (input) {
++            input.focus();
++            input.click();
++          }
++        }, 500);
++      )";
++      break;
++      
++    case LlmProvider::kGemini:
++      // Gemini uses a rich text editor
++      focus_script = R"(
++        setTimeout(() => {
++          const input = document.querySelector('.ql-editor, textarea, input[type="text"]');
++          if (input) {
++            input.focus();
++            input.click();
++          }
++        }, 500);
++      )";
++      break;
++      
++    case LlmProvider::kPerplexity:
++      // Perplexity uses a textarea
++      focus_script = R"(
++        setTimeout(() => {
++          const input = document.querySelector('textarea');
++          if (input) {
++            input.focus();
++            input.click();
++          }
++        }, 500);
++      )";
++      break;
++  }
++  
++  // Execute the JavaScript
++  if (!focus_script.empty()) {
++    main_frame->ExecuteJavaScriptForTests(
++        base::UTF8ToUTF16(focus_script),
++        base::NullCallback(),
++        /* has_user_gesture= */ true);
++  }
++}
++
++// static
++void ThirdPartyLlmPanelCoordinator::RegisterProfilePrefs(
++    user_prefs::PrefRegistrySyncable* registry) {
++  registry->RegisterIntegerPref(kThirdPartyLlmProviderPref, 0);  // Default to ChatGPT
++}
++
++BROWSER_USER_DATA_KEY_IMPL(ThirdPartyLlmPanelCoordinator);
+diff --git a/chrome/browser/ui/views/side_panel/third_party_llm/third_party_llm_panel_coordinator.h b/chrome/browser/ui/views/side_panel/third_party_llm/third_party_llm_panel_coordinator.h
+new file mode 100644
+index 0000000000000..207cbba9c3eaa
+--- /dev/null
++++ b/chrome/browser/ui/views/side_panel/third_party_llm/third_party_llm_panel_coordinator.h
+@@ -0,0 +1,127 @@
++// Copyright 2024 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef CHROME_BROWSER_UI_VIEWS_SIDE_PANEL_THIRD_PARTY_LLM_THIRD_PARTY_LLM_PANEL_COORDINATOR_H_
++#define CHROME_BROWSER_UI_VIEWS_SIDE_PANEL_THIRD_PARTY_LLM_THIRD_PARTY_LLM_PANEL_COORDINATOR_H_
++
++#include <map>
++#include <string>
++
++#include "base/memory/weak_ptr.h"
++#include "base/supports_user_data.h"
++#include "chrome/browser/ui/browser_user_data.h"
++#include "components/prefs/pref_change_registrar.h"
++#include "content/public/browser/web_contents_delegate.h"
++#include "content/public/browser/web_contents_observer.h"
++#include "ui/accessibility/ax_node_id_forward.h"
++#include "ui/views/controls/webview/unhandled_keyboard_event_handler.h"
++#include "url/gurl.h"
++
++class Browser;
++class SidePanelEntryScope;
++class SidePanelRegistry;
++
++namespace input {
++struct NativeWebKeyboardEvent;
++}  // namespace input
++
++namespace user_prefs {
++class PrefRegistrySyncable;
++}  // namespace user_prefs
++
++namespace content {
++class WebContents;
++}  // namespace content
++
++namespace ui {
++struct AXNodeData;
++struct AXTreeUpdate;
++}  // namespace ui
++
++namespace views {
++class Combobox;
++class Label;
++class View;
++class WebView;
++}  // namespace views
++
++// ThirdPartyLlmPanelCoordinator handles the creation and registration of the
++// third-party LLM SidePanelEntry.
++class ThirdPartyLlmPanelCoordinator
++    : public BrowserUserData<ThirdPartyLlmPanelCoordinator>,
++      public content::WebContentsDelegate,
++      public content::WebContentsObserver {
++ public:
++  explicit ThirdPartyLlmPanelCoordinator(Browser* browser);
++  ~ThirdPartyLlmPanelCoordinator() override;
++
++  void CreateAndRegisterEntry(SidePanelRegistry* global_registry);
++  
++  // Registers user preferences
++  static void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry);
++  
++  // Cycles to the next LLM provider
++  void CycleProvider();
++  
++  // content::WebContentsDelegate:
++  bool HandleKeyboardEvent(content::WebContents* source,
++                          const input::NativeWebKeyboardEvent& event) override;
++  
++  // content::WebContentsObserver:
++  void DidFinishLoad(content::RenderFrameHost* render_frame_host,
++                     const GURL& validated_url) override;
++
++ private:
++  friend class BrowserUserData<ThirdPartyLlmPanelCoordinator>;
++  
++  BROWSER_USER_DATA_KEY_DECL();
++
++  enum class LlmProvider {
++    kChatGPT = 0,
++    kClaude = 1,
++    kGemini = 2,
++    kPerplexity = 3,
++  };
++
++  std::unique_ptr<views::View> CreateThirdPartyLlmWebView(
++      SidePanelEntryScope& scope);
++  
++  void OnProviderChanged();
++  void OnOpenInNewTab();
++  void OnCopyContent();
++  void OnAccessibilityTreeReceived(ui::AXTreeUpdate& update);
++  void ExtractTextFromNodeData(
++      const ui::AXNodeData* node,
++      const std::map<ui::AXNodeID, const ui::AXNodeData*>& node_map,
++      std::u16string* output);
++  GURL GetProviderUrl(LlmProvider provider) const;
++  std::u16string GetProviderName(LlmProvider provider) const;
++  void FocusInputField();
++  
++  // Current provider selection
++  LlmProvider current_provider_ = LlmProvider::kChatGPT;
++  
++  // UI elements
++  raw_ptr<views::WebView> web_view_ = nullptr;
++  raw_ptr<views::Combobox> provider_selector_ = nullptr;
++  raw_ptr<views::Label> copy_feedback_label_ = nullptr;
++  
++  // Store the last URL for each provider to restore state
++  std::map<LlmProvider, GURL> last_urls_;
++  
++  // Timer for auto-hiding feedback messages
++  std::unique_ptr<base::OneShotTimer> feedback_timer_;
++  
++  // Temporary storage for page info during copy
++  std::u16string page_title_;
++  GURL page_url_;
++  
++  // Handler for unhandled keyboard events
++  views::UnhandledKeyboardEventHandler unhandled_keyboard_event_handler_;
++  
++  // Weak pointer factory for callbacks
++  base::WeakPtrFactory<ThirdPartyLlmPanelCoordinator> weak_factory_{this};
++};
++
++#endif  // CHROME_BROWSER_UI_VIEWS_SIDE_PANEL_THIRD_PARTY_LLM_THIRD_PARTY_LLM_PANEL_COORDINATOR_H_
+\ No newline at end of file
+diff --git a/chrome/browser/ui/webui/side_panel/customize_chrome/customize_toolbar/customize_toolbar.mojom b/chrome/browser/ui/webui/side_panel/customize_chrome/customize_toolbar/customize_toolbar.mojom
+index 8eec2ead88a8a..278acb75a3704 100644
+--- a/chrome/browser/ui/webui/side_panel/customize_chrome/customize_toolbar/customize_toolbar.mojom
++++ b/chrome/browser/ui/webui/side_panel/customize_chrome/customize_toolbar/customize_toolbar.mojom
+@@ -33,6 +33,7 @@ enum ActionId {
+   kCopyLink,
+   kTabSearch,
+   kSplitTab,
++  kShowThirdPartyLlm,
+ };
+ 
+ // Unique identifiers for categories the actions can belong to.
+diff --git a/chrome/browser/ui/webui/side_panel/customize_chrome/customize_toolbar/customize_toolbar_handler.cc b/chrome/browser/ui/webui/side_panel/customize_chrome/customize_toolbar/customize_toolbar_handler.cc
+index 52dddc0ddc518..a7915f812708a 100644
+--- a/chrome/browser/ui/webui/side_panel/customize_chrome/customize_toolbar/customize_toolbar_handler.cc
++++ b/chrome/browser/ui/webui/side_panel/customize_chrome/customize_toolbar/customize_toolbar_handler.cc
+@@ -85,6 +85,8 @@ MojoActionForChromeAction(actions::ActionId action_id) {
+       return side_panel::customize_chrome::mojom::ActionId::kTabSearch;
+     case kActionSplitTab:
+       return side_panel::customize_chrome::mojom::ActionId::kSplitTab;
++    case kActionSidePanelShowThirdPartyLlm:
++      return side_panel::customize_chrome::mojom::ActionId::kShowThirdPartyLlm;
+     default:
+       return std::nullopt;
+   }
+@@ -143,6 +145,8 @@ std::optional<actions::ActionId> ChromeActionForMojoAction(
+       return kActionTabSearch;
+     case side_panel::customize_chrome::mojom::ActionId::kSplitTab:
+       return kActionSplitTab;
++    case side_panel::customize_chrome::mojom::ActionId::kShowThirdPartyLlm:
++      return kActionSidePanelShowThirdPartyLlm;
+     default:
+       return std::nullopt;
+   }
+@@ -290,6 +294,8 @@ void CustomizeToolbarHandler::ListActions(ListActionsCallback callback) {
+              side_panel::customize_chrome::mojom::CategoryId::kYourChrome);
+   add_action(kActionSidePanelShowReadingList,
+              side_panel::customize_chrome::mojom::CategoryId::kYourChrome);
++  add_action(kActionSidePanelShowThirdPartyLlm,
++             side_panel::customize_chrome::mojom::CategoryId::kYourChrome);
+   add_action(kActionSidePanelShowHistoryCluster,
+              side_panel::customize_chrome::mojom::CategoryId::kYourChrome);
+   add_action(kActionShowDownloads,
+-- 
+2.49.0
+

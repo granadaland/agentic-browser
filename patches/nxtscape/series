@@ -7,3 +7,7 @@ disable-info-bar-in-cdp.patch
 pin-nxtscape-ai-chat.patch
 nxtscape-settings-ui.patch
 nxtscape-updater-sparkle.patch
+embed-third-party-llm-in-side-panel.patch
+UI-updating-About-string.patch
+disable-google-key-info-bar.patch
+
