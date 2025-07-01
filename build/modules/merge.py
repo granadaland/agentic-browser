@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
 """
 Universal binary merge module for Nxtscape Browser
-Provides CLI to merge two architecture builds into a universal binary
+Provides functions to merge two architecture builds into a universal binary
 """
 
 import os
 import sys
 import shutil
-import click
 from pathlib import Path
 from typing import List
 from context import BuildContext
@@ -229,83 +228,3 @@ def merge_sign_package(
     log_info("=" * 70)
     
     return True
-
-
-@click.command()
-@click.option(
-    "--arch1", "-1",
-    type=click.Path(exists=True, path_type=Path),
-    required=True,
-    help="Path to first architecture .app bundle"
-)
-@click.option(
-    "--arch2", "-2", 
-    type=click.Path(exists=True, path_type=Path),
-    required=True,
-    help="Path to second architecture .app bundle"
-)
-@click.option(
-    "--output", "-o",
-    type=click.Path(path_type=Path),
-    required=True,
-    help="Path where universal .app bundle should be created"
-)
-@click.option(
-    "--universalizer", "-u",
-    type=click.Path(exists=True, path_type=Path),
-    help="Path to universalizer script (auto-detected if not provided)"
-)
-@click.option(
-    "--sign/--no-sign", "-s/-S",
-    default=True,
-    help="Sign the universal binary (default: true)"
-)
-@click.option(
-    "--package/--no-package", "-p/-P",
-    default=True,
-    help="Create DMG package (default: true)"
-)
-@click.option(
-    "--merge-only", "-m",
-    is_flag=True,
-    default=False,
-    help="Only merge architectures, skip signing and packaging"
-)
-def main(arch1, arch2, output, universalizer, sign, package, merge_only):
-    """
-    Merge two architecture builds into a universal binary.
-    
-    This tool merges two single-architecture Nxtscape.app bundles into a single
-    universal binary, optionally signs it, and creates a DMG package.
-    
-    Examples:
-    
-    \b
-    # Merge, sign, and package (full workflow)
-    python -m modules.merge -1 out/Default_x86_64/Nxtscape.app -2 out/Default_arm64/Nxtscape.app -o out/Default_universal/Nxtscape.app
-    
-    \b
-    # Merge only, no signing or packaging
-    python -m modules.merge -1 out/Default_x86_64/Nxtscape.app -2 out/Default_arm64/Nxtscape.app -o out/Default_universal/Nxtscape.app --merge-only
-    
-    \b
-    # Merge and sign, but don't package
-    python -m modules.merge -1 out/Default_x86_64/Nxtscape.app -2 out/Default_arm64/Nxtscape.app -o out/Default_universal/Nxtscape.app --no-package
-    """
-    
-    if merge_only:
-        # Only merge, skip signing and packaging
-        success = merge_architectures(arch1, arch2, output, universalizer)
-    else:
-        # Full workflow
-        success = merge_sign_package(arch1, arch2, output, sign, package, universalizer)
-    
-    if not success:
-        log_error("Merge workflow failed!")
-        sys.exit(1)
-    else:
-        log_success("Merge workflow completed successfully!")
-
-
-if __name__ == "__main__":
-    main()
