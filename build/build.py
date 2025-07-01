@@ -184,6 +184,8 @@ def build_main(
 
             # Build for this architecture
             if build_flag:
+                if slack_notifications:
+                    notify_build_step(f"Started building for {arch_name}")
                 configure(ctx, gn_flags_file)
                 build(ctx)
                 if slack_notifications:
@@ -221,28 +223,36 @@ def build_main(
                 notify_build_step("Completed merging architectures into universal binary")
 
             if sign_flag:
+                if slack_notifications:
+                    notify_build_step("[Universal] Started signing and notarization")
                 sign_universal(built_contexts)
                 if slack_notifications:
-                    notify_build_step("Completed universal signing and notarization")
+                    notify_build_step("[Universal] Completed signing and notarization")
 
             if package_flag:
+                if slack_notifications:
+                    notify_build_step("[Universal] Started DMG package creation")
                 package_universal(built_contexts)
                 if slack_notifications:
-                    notify_build_step("Completed universal DMG package")
+                    notify_build_step("[Universal] Completed DMG package creation")
         else:
             # Regular builds: sign and package each architecture separately
             for ctx in built_contexts:
                 log_info(f"\n📦 Processing {ctx.architecture} build...")
 
                 if sign_flag:
+                    if slack_notifications:
+                        notify_build_step(f"[{ctx.architecture}] Started signing")
                     sign(ctx)
                     if slack_notifications:
-                        notify_build_step(f"Completed signing {ctx.architecture}")
+                        notify_build_step(f"[{ctx.architecture}] Completed signing")
 
                 if package_flag:
+                    if slack_notifications:
+                        notify_build_step(f"[{ctx.architecture}] Started DMG creation")
                     package(ctx)
                     if slack_notifications:
-                        notify_build_step(f"Completed DMG for {ctx.architecture}")
+                        notify_build_step(f"[{ctx.architecture}] Completed DMG creation")
 
         # Summary
         elapsed = time.time() - start_time
