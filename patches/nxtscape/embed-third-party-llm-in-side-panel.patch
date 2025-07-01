@@ -1,7 +1,7 @@
-From 5a1aa855917c1155867b42845d2d15bbce7ffca0 Mon Sep 17 00:00:00 2001
+From 504c6c5e73d46eb2d197bb393c4ddb07b4843c77 Mon Sep 17 00:00:00 2001
 From: Nikhil Sonti <nikhilsv92@gmail.com>
 Date: Sat, 28 Jun 2025 16:38:45 -0700
-Subject: [PATCH] embed third party LLM in side panel
+Subject: [PATCH 2/2] embed third party LLM in side panel
 
 ---
  chrome/app/chrome_command_ids.h               |   2 +
@@ -18,11 +18,11 @@ Subject: [PATCH] embed third party LLM in side panel
  .../ui/views/side_panel/side_panel_entry_id.h |   1 +
  .../ui/views/side_panel/side_panel_prefs.cc   |   6 +
  .../ui/views/side_panel/side_panel_util.cc    |   7 +
- .../third_party_llm_panel_coordinator.cc      | 656 ++++++++++++++++++
- .../third_party_llm_panel_coordinator.h       | 127 ++++
+ .../third_party_llm_panel_coordinator.cc      | 732 ++++++++++++++++++
+ .../third_party_llm_panel_coordinator.h       | 138 ++++
  .../customize_toolbar/customize_toolbar.mojom |   1 +
  .../customize_toolbar_handler.cc              |   6 +
- 18 files changed, 867 insertions(+), 1 deletion(-)
+ 18 files changed, 954 insertions(+), 1 deletion(-)
  create mode 100644 chrome/browser/ui/views/side_panel/third_party_llm/third_party_llm_panel_coordinator.cc
  create mode 100644 chrome/browser/ui/views/side_panel/third_party_llm/third_party_llm_panel_coordinator.h
 
@@ -296,10 +296,10 @@ index f93a373cd9e96..cc55483ad32d7 100644
  SidePanelContentProxy* SidePanelUtil::GetSidePanelContentProxy(
 diff --git a/chrome/browser/ui/views/side_panel/third_party_llm/third_party_llm_panel_coordinator.cc b/chrome/browser/ui/views/side_panel/third_party_llm/third_party_llm_panel_coordinator.cc
 new file mode 100644
-index 0000000000000..9b60a66266fc5
+index 0000000000000..49b31a6fbded1
 --- /dev/null
 +++ b/chrome/browser/ui/views/side_panel/third_party_llm/third_party_llm_panel_coordinator.cc
-@@ -0,0 +1,656 @@
+@@ -0,0 +1,732 @@
 +// Copyright 2024 The Chromium Authors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
@@ -348,6 +348,7 @@ index 0000000000000..9b60a66266fc5
 +#include "ui/base/clipboard/clipboard.h"
 +#include "ui/base/clipboard/scoped_clipboard_writer.h"
 +#include "chrome/browser/ui/browser_commands.h"
++#include "chrome/browser/ui/browser_tabstrip.h"
 +#include "base/timer/timer.h"
 +#include "base/task/sequenced_task_runner.h"
 +#include "components/input/native_web_keyboard_event.h"
@@ -397,7 +398,17 @@ index 0000000000000..9b60a66266fc5
 +  }
 +}
 +
-+ThirdPartyLlmPanelCoordinator::~ThirdPartyLlmPanelCoordinator() = default;
++ThirdPartyLlmPanelCoordinator::~ThirdPartyLlmPanelCoordinator() {
++  // Cancel any pending timer callbacks
++  if (feedback_timer_ && feedback_timer_->IsRunning()) {
++    feedback_timer_->Stop();
++  }
++
++  // Stop observing WebContents if we're still observing
++  if (web_contents()) {
++    Observe(nullptr);
++  }
++}
 +
 +void ThirdPartyLlmPanelCoordinator::CreateAndRegisterEntry(
 +    SidePanelRegistry* global_registry) {
@@ -411,6 +422,16 @@ index 0000000000000..9b60a66266fc5
 +std::unique_ptr<views::View>
 +ThirdPartyLlmPanelCoordinator::CreateThirdPartyLlmWebView(
 +    SidePanelEntryScope& scope) {
++  // Cancel any pending timer callbacks before resetting UI pointers
++  if (feedback_timer_ && feedback_timer_->IsRunning()) {
++    feedback_timer_->Stop();
++  }
++  
++  // Reset UI pointers when creating new view
++  web_view_ = nullptr;
++  provider_selector_ = nullptr;
++  copy_feedback_label_ = nullptr;
++
 +  // Create the main container
 +  auto container = std::make_unique<views::View>();
 +  auto* container_layout = container->SetLayoutManager(std::make_unique<views::FlexLayout>());
@@ -439,9 +460,9 @@ index 0000000000000..9b60a66266fc5
 +  provider_selector_->SetSelectedIndex(static_cast<size_t>(current_provider_));
 +  provider_selector_->SetCallback(base::BindRepeating(
 +      &ThirdPartyLlmPanelCoordinator::OnProviderChanged,
-+      base::Unretained(this)));
++      weak_factory_.GetWeakPtr()));
 +  provider_selector_->SetAccessibleName(u"LLM Provider Selection");
-+  
++
 +  // Add feedback label below dropdown (initially hidden)
 +  copy_feedback_label_ = header_container->AddChildView(
 +      std::make_unique<views::Label>(u""));
@@ -458,7 +479,7 @@ index 0000000000000..9b60a66266fc5
 +  auto* copy_button = header->AddChildView(
 +      std::make_unique<views::ImageButton>(base::BindRepeating(
 +          &ThirdPartyLlmPanelCoordinator::OnCopyContent,
-+          base::Unretained(this))));
++          weak_factory_.GetWeakPtr())));
 +  copy_button->SetImageModel(
 +      views::Button::STATE_NORMAL,
 +      ui::ImageModel::FromVectorIcon(vector_icons::kContentCopyIcon, ui::kColorIcon, 16));
@@ -469,7 +490,7 @@ index 0000000000000..9b60a66266fc5
 +  auto* open_button = header->AddChildView(
 +      std::make_unique<views::ImageButton>(base::BindRepeating(
 +          &ThirdPartyLlmPanelCoordinator::OnOpenInNewTab,
-+          base::Unretained(this))));
++          weak_factory_.GetWeakPtr())));
 +  open_button->SetImageModel(
 +      views::Button::STATE_NORMAL,
 +      ui::ImageModel::FromVectorIcon(vector_icons::kLaunchIcon, ui::kColorIcon, 16));
@@ -493,10 +514,7 @@ index 0000000000000..9b60a66266fc5
 +  
 +  // Set this as the delegate to handle keyboard events
 +  web_contents->SetDelegate(this);
-+  
-+  // Observe the WebContents to know when pages finish loading
-+  Observe(web_contents.get());
-+  
++
 +  // Navigate to initial provider (use last URL if available)
 +  GURL provider_url;
 +  auto it = last_urls_.find(current_provider_);
@@ -508,25 +526,27 @@ index 0000000000000..9b60a66266fc5
 +  web_contents->GetController().LoadURL(
 +      provider_url, 
 +      content::Referrer(),
-+      ui::PAGE_TRANSITION_AUTO_TOPLEVEL, 
++      ui::PAGE_TRANSITION_AUTO_TOPLEVEL,
 +      std::string());
-+  
-+  // Set the WebContents in the WebView
-+  web_view_->SetWebContents(web_contents.get());
++
++  // Set the WebContents in the WebView (WebView takes ownership)
++  web_view_->SetWebContents(web_contents.release());
 +  web_view_->SetVisible(true);
-+  
++
++  // Now observe the WebContents AFTER WebView has taken ownership
++  if (web_view_->web_contents()) {
++    Observe(web_view_->web_contents());
++  }
++
 +  // Enable focus for the WebView to handle keyboard events properly
 +  web_view_->SetFocusBehavior(views::View::FocusBehavior::ALWAYS);
-+  
++
 +  // Allow accelerators (keyboard shortcuts) to be processed
 +  web_view_->set_allow_accelerators(true);
-+  
-+  // The WebView takes ownership of the WebContents
-+  web_contents.release();
-+  
++
 +  // Add separator before footer
 +  container->AddChildView(std::make_unique<views::Separator>());
-+  
++
 +  // Create footer with keyboard shortcuts
 +  auto* footer = container->AddChildView(std::make_unique<views::View>());
 +  footer->SetLayoutManager(std::make_unique<views::BoxLayout>(
@@ -549,30 +569,37 @@ index 0000000000000..9b60a66266fc5
 +}
 +
 +void ThirdPartyLlmPanelCoordinator::OnProviderChanged() {
-+  if (!web_view_ || !web_view_->web_contents()) {
++  if (!web_view_ || !web_view_->web_contents() || !provider_selector_) {
 +    return;
 +  }
-+  
++
 +  // Save the current URL for the previous provider
 +  GURL current_url = web_view_->web_contents()->GetURL();
 +  if (current_url.is_valid()) {
 +    last_urls_[current_provider_] = current_url;
 +  }
-+  
++
 +  // Get the new provider from the dropdown
-+  LlmProvider new_provider = static_cast<LlmProvider>(provider_selector_->GetSelectedIndex().value());
-+  
++  auto selected_index = provider_selector_->GetSelectedIndex();
++  if (!selected_index.has_value() || selected_index.value() > 3) {
++    return;
++  }
++
++  LlmProvider new_provider = static_cast<LlmProvider>(selected_index.value());
++
 +  // Only proceed if the provider actually changed
 +  if (new_provider == current_provider_) {
 +    return;
 +  }
 +  
 +  current_provider_ = new_provider;
-+  
++
 +  // Save preference
 +  PrefService* prefs = GetBrowser().profile()->GetPrefs();
-+  prefs->SetInteger(kThirdPartyLlmProviderPref, static_cast<int>(current_provider_));
-+  
++  if (prefs) {
++    prefs->SetInteger(kThirdPartyLlmProviderPref, static_cast<int>(current_provider_));
++  }
++
 +  // Check if we have a saved URL for this provider
 +  GURL provider_url;
 +  auto it = last_urls_.find(current_provider_);
@@ -633,7 +660,12 @@ index 0000000000000..9b60a66266fc5
 +
 +void ThirdPartyLlmPanelCoordinator::OnCopyContent() {
 +  // Get the active tab's web contents
-+  content::WebContents* active_contents = GetBrowser().tab_strip_model()->GetActiveWebContents();
++  TabStripModel* tab_strip_model = GetBrowser().tab_strip_model();
++  if (!tab_strip_model) {
++    return;
++  }
++
++  content::WebContents* active_contents = tab_strip_model->GetActiveWebContents();
 +  if (!active_contents) {
 +    return;
 +  }
@@ -695,16 +727,25 @@ index 0000000000000..9b60a66266fc5
 +    if (copy_feedback_label_) {
 +      copy_feedback_label_->SetText(u"Content copied to clipboard");
 +      copy_feedback_label_->SetVisible(true);
-+      
++
++      // Cancel any existing timer
++      if (feedback_timer_->IsRunning()) {
++        feedback_timer_->Stop();
++      }
++
 +      // Start timer to hide message after 2.5 seconds
 +      feedback_timer_->Start(FROM_HERE, base::Seconds(2.5),
-+          base::BindOnce([](base::WeakPtr<ThirdPartyLlmPanelCoordinator> coordinator) {
-+            if (coordinator && coordinator->copy_feedback_label_) {
-+              coordinator->copy_feedback_label_->SetVisible(false);
-+            }
-+          }, weak_factory_.GetWeakPtr()));
++          base::BindOnce(&ThirdPartyLlmPanelCoordinator::HideFeedbackLabel,
++                         weak_factory_.GetWeakPtr()));
 +    }
-+    
++  }
++}
++
++void ThirdPartyLlmPanelCoordinator::HideFeedbackLabel() {
++  // Check if we still have a valid label and that it hasn't been destroyed
++  // This can be called by a timer after the view hierarchy has been torn down
++  if (copy_feedback_label_ && copy_feedback_label_->GetWidget()) {
++    copy_feedback_label_->SetVisible(false);
 +  }
 +}
 +
@@ -805,6 +846,37 @@ index 0000000000000..9b60a66266fc5
 +      event, web_view_->GetFocusManager());
 +}
 +
++content::WebContents* ThirdPartyLlmPanelCoordinator::AddNewContents(
++    content::WebContents* source,
++    std::unique_ptr<content::WebContents> new_contents,
++    const GURL& target_url,
++    WindowOpenDisposition disposition,
++    const blink::mojom::WindowFeatures& window_features,
++    bool user_gesture,
++    bool* was_blocked) {
++  // Handle popup windows from the webview
++  Browser* browser = &GetBrowser();
++  
++  // Only allow popups triggered by user gesture
++  if (!user_gesture) {
++    if (was_blocked) {
++      *was_blocked = true;
++    }
++    return nullptr;
++  }
++  
++  // For popup windows and new tabs, open them in the main browser
++  if (disposition == WindowOpenDisposition::NEW_POPUP ||
++      disposition == WindowOpenDisposition::NEW_FOREGROUND_TAB ||
++      disposition == WindowOpenDisposition::NEW_BACKGROUND_TAB ||
++      disposition == WindowOpenDisposition::NEW_WINDOW) {
++    chrome::AddWebContents(browser, source, std::move(new_contents), 
++                          target_url, disposition, window_features);
++  }
++  
++  return nullptr;
++}
++
 +void ThirdPartyLlmPanelCoordinator::CycleProvider() {
 +  // Check if the third-party LLM panel is open
 +  auto* side_panel_ui = GetBrowser().GetFeatures().side_panel_ui();
@@ -826,11 +898,13 @@ index 0000000000000..9b60a66266fc5
 +  } else {
 +    // If the UI isn't created yet, update everything manually
 +    current_provider_ = new_provider;
-+    
++
 +    // Save preference
 +    PrefService* prefs = GetBrowser().profile()->GetPrefs();
-+    prefs->SetInteger(kThirdPartyLlmProviderPref, next_provider);
-+    
++    if (prefs) {
++      prefs->SetInteger(kThirdPartyLlmProviderPref, next_provider);
++    }
++
 +    // Navigate to the new provider URL if web_view_ exists
 +    if (web_view_ && web_view_->web_contents()) {
 +      GURL provider_url = GetProviderUrl(current_provider_);
@@ -847,14 +921,16 @@ index 0000000000000..9b60a66266fc5
 +    std::u16string provider_name = GetProviderName(new_provider);
 +    copy_feedback_label_->SetText(u"Switched to " + provider_name);
 +    copy_feedback_label_->SetVisible(true);
-+    
++
++    // Cancel any existing timer
++    if (feedback_timer_->IsRunning()) {
++      feedback_timer_->Stop();
++    }
++
 +    // Start timer to hide message after 2 seconds
 +    feedback_timer_->Start(FROM_HERE, base::Seconds(2),
-+        base::BindOnce([](base::WeakPtr<ThirdPartyLlmPanelCoordinator> coordinator) {
-+          if (coordinator && coordinator->copy_feedback_label_) {
-+            coordinator->copy_feedback_label_->SetVisible(false);
-+          }
-+        }, weak_factory_.GetWeakPtr()));
++        base::BindOnce(&ThirdPartyLlmPanelCoordinator::HideFeedbackLabel,
++                       weak_factory_.GetWeakPtr()));
 +  }
 +}
 +
@@ -956,12 +1032,13 @@ index 0000000000000..9b60a66266fc5
 +}
 +
 +BROWSER_USER_DATA_KEY_IMPL(ThirdPartyLlmPanelCoordinator);
+\ No newline at end of file
 diff --git a/chrome/browser/ui/views/side_panel/third_party_llm/third_party_llm_panel_coordinator.h b/chrome/browser/ui/views/side_panel/third_party_llm/third_party_llm_panel_coordinator.h
 new file mode 100644
-index 0000000000000..207cbba9c3eaa
+index 0000000000000..1fa4adbc46b70
 --- /dev/null
 +++ b/chrome/browser/ui/views/side_panel/third_party_llm/third_party_llm_panel_coordinator.h
-@@ -0,0 +1,127 @@
+@@ -0,0 +1,138 @@
 +// Copyright 2024 The Chromium Authors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
@@ -978,7 +1055,9 @@ index 0000000000000..207cbba9c3eaa
 +#include "components/prefs/pref_change_registrar.h"
 +#include "content/public/browser/web_contents_delegate.h"
 +#include "content/public/browser/web_contents_observer.h"
++#include "third_party/blink/public/mojom/window_features/window_features.mojom.h"
 +#include "ui/accessibility/ax_node_id_forward.h"
++#include "ui/base/window_open_disposition.h"
 +#include "ui/views/controls/webview/unhandled_keyboard_event_handler.h"
 +#include "url/gurl.h"
 +
@@ -1031,6 +1110,14 @@ index 0000000000000..207cbba9c3eaa
 +  // content::WebContentsDelegate:
 +  bool HandleKeyboardEvent(content::WebContents* source,
 +                          const input::NativeWebKeyboardEvent& event) override;
++  content::WebContents* AddNewContents(
++      content::WebContents* source,
++      std::unique_ptr<content::WebContents> new_contents,
++      const GURL& target_url,
++      WindowOpenDisposition disposition,
++      const blink::mojom::WindowFeatures& window_features,
++      bool user_gesture,
++      bool* was_blocked) override;
 +  
 +  // content::WebContentsObserver:
 +  void DidFinishLoad(content::RenderFrameHost* render_frame_host,
@@ -1062,7 +1149,8 @@ index 0000000000000..207cbba9c3eaa
 +  GURL GetProviderUrl(LlmProvider provider) const;
 +  std::u16string GetProviderName(LlmProvider provider) const;
 +  void FocusInputField();
-+  
++  void HideFeedbackLabel();
++
 +  // Current provider selection
 +  LlmProvider current_provider_ = LlmProvider::kChatGPT;
 +  
