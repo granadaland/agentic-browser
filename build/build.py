@@ -189,18 +189,36 @@ def build_main(
                     notify_build_step(f"Started building for {arch_name}")
                 configure(ctx, gn_flags_file)
                 build(ctx)
-                
+
                 # Run post-build tasks
-                run_postbuild(ctx)
-                
+                # run_postbuild(ctx)
+
                 if slack_notifications:
                     notify_build_step(f"Completed building for {arch_name}")
 
             built_contexts.append(ctx)
 
-        # Handle signing and packaging
+        # Always sign and package individual architectures first (needed for appcast.xml)
+        for ctx in built_contexts:
+            log_info(f"\n📦 Processing {ctx.architecture} build...")
+
+            if sign_flag:
+                if slack_notifications:
+                    notify_build_step(f"[{ctx.architecture}] Started signing")
+                sign(ctx)
+                if slack_notifications:
+                    notify_build_step(f"[{ctx.architecture}] Completed signing")
+
+            if package_flag:
+                if slack_notifications:
+                    notify_build_step(f"[{ctx.architecture}] Started DMG creation")
+                package(ctx)
+                if slack_notifications:
+                    notify_build_step(f"[{ctx.architecture}] Completed DMG creation")
+
+        # Handle universal build if requested
         if len(architectures) > 1 and universal:
-            # Universal build: merge first, then sign and package
+            # Universal build: merge, sign and package
             log_info(f"\n{'='*60}")
             log_info("🔄 Creating universal binary...")
             log_info(f"{'='*60}")
@@ -208,30 +226,36 @@ def build_main(
             # Import merge function
             from modules.merge import merge_architectures
             import shutil
-            
+
             # Get paths for the built apps
             arch1_app = built_contexts[0].get_app_path()
             arch2_app = built_contexts[1].get_app_path()
-            
+
             # Clean up old universal output directory if it exists
             universal_dir = built_contexts[0].chromium_src / "out/Default_universal"
             if universal_dir.exists():
                 log_info("🧹 Cleaning up old universal output directory...")
                 shutil.rmtree(universal_dir)
-            
+
             # Create fresh universal output path
             universal_dir.mkdir(parents=True, exist_ok=True)
             universal_app_path = universal_dir / built_contexts[0].NXTSCAPE_APP_NAME
-            
+
             # Find universalizer script
             universalizer_script = root_dir / "build" / "universalizer_patched.py"
-            
+
             # Merge the architectures
-            if not merge_architectures(arch1_app, arch2_app, universal_app_path, universalizer_script):
-                raise RuntimeError("Failed to merge architectures into universal binary")
-            
+            if not merge_architectures(
+                arch1_app, arch2_app, universal_app_path, universalizer_script
+            ):
+                raise RuntimeError(
+                    "Failed to merge architectures into universal binary"
+                )
+
             if slack_notifications:
-                notify_build_step("Completed merging architectures into universal binary")
+                notify_build_step(
+                    "Completed merging architectures into universal binary"
+                )
 
             if sign_flag:
                 if slack_notifications:
@@ -246,24 +270,6 @@ def build_main(
                 package_universal(built_contexts)
                 if slack_notifications:
                     notify_build_step("[Universal] Completed DMG package creation")
-        else:
-            # Regular builds: sign and package each architecture separately
-            for ctx in built_contexts:
-                log_info(f"\n📦 Processing {ctx.architecture} build...")
-
-                if sign_flag:
-                    if slack_notifications:
-                        notify_build_step(f"[{ctx.architecture}] Started signing")
-                    sign(ctx)
-                    if slack_notifications:
-                        notify_build_step(f"[{ctx.architecture}] Completed signing")
-
-                if package_flag:
-                    if slack_notifications:
-                        notify_build_step(f"[{ctx.architecture}] Started DMG creation")
-                    package(ctx)
-                    if slack_notifications:
-                        notify_build_step(f"[{ctx.architecture}] Completed DMG creation")
 
         # Summary
         elapsed = time.time() - start_time
@@ -401,7 +407,7 @@ def main(
         # Get root_dir from where the build.py is being run
         root_dir = Path(__file__).parent.parent
         log_info(f"📂 Using root directory: {root_dir}")
-        
+
         # Auto-generate output path in chromium source
         output_path = chromium_src_path / "out" / "Default_universal" / "Nxtscape.app"
         log_info(f"  Output: {output_path} (auto-generated)")
