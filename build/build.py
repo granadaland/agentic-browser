@@ -39,7 +39,6 @@ def build_main(
     clean_flag: bool = False,
     git_setup_flag: bool = False,
     apply_patches_flag: bool = False,
-    chromium_replace_flag: bool = False,
     sign_flag: bool = False,
     package_flag: bool = False,
     build_flag: bool = False,
@@ -82,7 +81,6 @@ def build_main(
             apply_patches_flag = config["steps"].get(
                 "apply_patches", apply_patches_flag
             )
-            chromium_replace_flag = config["steps"].get("chromium_replace", chromium_replace_flag)
             build_flag = config["steps"].get("build", build_flag)
             sign_flag = config["steps"].get("sign", sign_flag)
             package_flag = config["steps"].get("package", package_flag)
@@ -179,19 +177,25 @@ def build_main(
 
             # Apply patches (only once for first architecture)
             if apply_patches_flag and arch_name == architectures[0]:
+                # First do chromium file replacements
+                replace_chromium_files(ctx)
+
+                # Then apply string replacements
+                apply_string_replacements(ctx)
+
+                # Setup sparkle
                 setup_sparkle(ctx)
+
+                # Apply patches
                 apply_patches(ctx)
+
+                # Copy resources
                 copy_resources(ctx)
+
                 if slack_notifications:
                     notify_build_step(
                         "Completed applying patches and copying resources"
                     )
-
-            # Replace chromium files (only once for first architecture)
-            if chromium_replace_flag and arch_name == architectures[0]:
-                replace_chromium_files(ctx)
-                if slack_notifications:
-                    notify_build_step("Completed replacing chromium files")
 
             # Build for this architecture
             if build_flag:
@@ -322,9 +326,6 @@ def build_main(
     "--apply-patches", "-p", is_flag=True, default=False, help="Apply patches"
 )
 @click.option(
-    "--chromium-replace", "-r", is_flag=True, default=False, help="Replace chromium files"
-)
-@click.option(
     "--sign", "-s", is_flag=True, default=False, help="Sign and notarize the app"
 )
 @click.option(
@@ -379,7 +380,6 @@ def main(
     clean,
     git_setup,
     apply_patches,
-    chromium_replace,
     sign,
     arch,
     build_type,
@@ -413,7 +413,9 @@ def main(
                 )
             else:
                 log_error("--chromium-src is required when not using a config file")
-                log_error("Example: python build.py --chromium-src /path/to/chromium/src")
+                log_error(
+                    "Example: python build.py --chromium-src /path/to/chromium/src"
+                )
             sys.exit(1)
 
         # Validate chromium_src path exists
@@ -425,27 +427,28 @@ def main(
     if string_replace:
         # Get root directory
         root_dir = Path(__file__).parent.parent
-        
+
         # Create a minimal context for string replacements
         from context import BuildContext
+
         ctx = BuildContext(
             root_dir=root_dir,
             chromium_src=chromium_src,
             architecture="arm64",  # Not used for string replacements
-            build_type="debug",    # Not used for string replacements
+            build_type="debug",  # Not used for string replacements
         )
-        
+
         # Apply string replacements
         if apply_string_replacements(ctx):
             sys.exit(0)
         else:
             sys.exit(1)
-    
+
     # Handle add-replace command
     if add_replace:
         # Get root directory
         root_dir = Path(__file__).parent.parent
-        
+
         # Call the function from chromium_replace module
         if add_file_to_replacements(add_replace, chromium_src, root_dir):
             sys.exit(0)
@@ -457,7 +460,7 @@ def main(
         from modules.merge import handle_merge_command
 
         arch1_path, arch2_path = merge
-        
+
         if handle_merge_command(arch1_path, arch2_path, chromium_src, sign, package):
             sys.exit(0)
         else:
@@ -469,7 +472,6 @@ def main(
         clean_flag=clean,
         git_setup_flag=git_setup,
         apply_patches_flag=apply_patches,
-        chromium_replace_flag=chromium_replace,
         sign_flag=sign,
         package_flag=package,
         build_flag=build,
