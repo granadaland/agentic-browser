@@ -22,6 +22,7 @@ from modules.configure import configure
 from modules.compile import build
 from modules.sign import sign, sign_universal
 from modules.package import package, package_universal
+from modules.postbuild import run_postbuild
 from modules.slack import (
     notify_build_started,
     notify_build_step,
@@ -188,6 +189,10 @@ def build_main(
                     notify_build_step(f"Started building for {arch_name}")
                 configure(ctx, gn_flags_file)
                 build(ctx)
+                
+                # Run post-build tasks
+                run_postbuild(ctx)
+                
                 if slack_notifications:
                     notify_build_step(f"Completed building for {arch_name}")
 
@@ -202,13 +207,19 @@ def build_main(
 
             # Import merge function
             from modules.merge import merge_architectures
+            import shutil
             
             # Get paths for the built apps
             arch1_app = built_contexts[0].get_app_path()
             arch2_app = built_contexts[1].get_app_path()
             
-            # Create universal output path
+            # Clean up old universal output directory if it exists
             universal_dir = built_contexts[0].chromium_src / "out/Default_universal"
+            if universal_dir.exists():
+                log_info("🧹 Cleaning up old universal output directory...")
+                shutil.rmtree(universal_dir)
+            
+            # Create fresh universal output path
             universal_dir.mkdir(parents=True, exist_ok=True)
             universal_app_path = universal_dir / built_contexts[0].NXTSCAPE_APP_NAME
             
@@ -329,10 +340,10 @@ def build_main(
 )
 @click.option(
     "--merge",
-    nargs=3,
+    nargs=2,
     type=click.Path(path_type=Path),
-    metavar="ARCH1_APP ARCH2_APP OUTPUT_APP",
-    help="Merge two architecture builds: --merge path/to/arch1.app path/to/arch2.app path/to/output.app",
+    metavar="ARCH1_APP ARCH2_APP",
+    help="Merge two architecture builds: --merge path/to/arch1.app path/to/arch2.app",
 )
 def main(
     config,
@@ -354,11 +365,10 @@ def main(
     if merge:
         from modules.merge import merge_sign_package
 
-        arch1_path, arch2_path, output_path = merge
+        arch1_path, arch2_path = merge
         log_info("🔄 Running merge command...")
         log_info(f"  Arch 1: {arch1_path}")
         log_info(f"  Arch 2: {arch2_path}")
-        log_info(f"  Output: {output_path}")
         log_info(f"  Sign: {sign}")
         log_info(f"  Package: {package}")
 
@@ -366,7 +376,7 @@ def main(
         if not chromium_src:
             log_error("Merge command requires --chromium-src to be specified")
             log_error(
-                "Example: python build.py --merge app1.app app2.app output.app --chromium-src /path/to/chromium/src"
+                "Example: python build.py --merge app1.app app2.app --chromium-src /path/to/chromium/src"
             )
             sys.exit(1)
 
@@ -391,6 +401,10 @@ def main(
         # Get root_dir from where the build.py is being run
         root_dir = Path(__file__).parent.parent
         log_info(f"📂 Using root directory: {root_dir}")
+        
+        # Auto-generate output path in chromium source
+        output_path = chromium_src_path / "out" / "Default_universal" / "Nxtscape.app"
+        log_info(f"  Output: {output_path} (auto-generated)")
 
         try:
             success = merge_sign_package(

@@ -15,6 +15,9 @@ steps:
   build: true
   sign: false
   package: true
+  
+# Disable Sparkle for testing (uncomment to disable)
+# disable_sparkle: true
 
 paths:
   root_dir: .
