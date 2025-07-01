@@ -1,0 +1,32 @@
+From 5baf27ebd196f1762523600c41dda406e092c7a0 Mon Sep 17 00:00:00 2001
+From: Nikhil Sonti <nikhilsv92@gmail.com>
+Date: Tue, 1 Jul 2025 13:57:56 -0700
+Subject: [PATCH] patch app info with Sparkler udpater
+
+---
+ chrome/app/app-Info.plist | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/chrome/app/app-Info.plist b/chrome/app/app-Info.plist
+index 9190c5ef6c092..debc1d8dabd34 100644
+--- a/chrome/app/app-Info.plist
++++ b/chrome/app/app-Info.plist
+@@ -409,5 +409,15 @@
+ 	<array>
+ 		<string>_googlecast._tcp</string>
+ 	</array>
++  <key>SUPublicEDKey</key>
++  <string>LzQmcNuTsdB3/dsivo0eeN+jPfDoriRHAkkEJcfFs2A=</string>
++  <key>SUEnableAutomaticChecks</key>
++  <true/>
++  <key>SUScheduledCheckInterval</key>
++  <integer>1080</integer>
++  <key>SUAllowsAutomaticUpdates</key>
++  <true/>
++  <key>SUAutomaticallyUpdate</key>
++  <true/>
+ </dict>
+ </plist>
+-- 
+2.49.0
+
