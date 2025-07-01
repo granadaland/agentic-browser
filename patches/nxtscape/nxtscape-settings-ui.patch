@@ -28,10 +28,10 @@ index 97bb4be60af93..1803d96b758e1 100644
    (*s_allowlist)[::prefs::kCaretBrowsingEnabled] =
        settings_api::PrefType::kBoolean;
  
-+  // Nxtscape AI provider preferences
++  // BrowserOS AI provider preferences
 +  (*s_allowlist)["nxtscape.default_provider"] = settings_api::PrefType::kString;
 +  
-+  // Nxtscape provider settings
++  // BrowserOS provider settings
 +  (*s_allowlist)["nxtscape.nxtscape_model"] = settings_api::PrefType::kString;
 +  
 +  // OpenAI provider settings
@@ -65,7 +65,7 @@ index 9a00400829ae1..e2593edee0b62 100644
    regional_capabilities::prefs::RegisterProfilePrefs(registry);
    RegisterBrowserUserPrefs(registry);
    RegisterGeminiSettingsPrefs(registry);
-+  RegisterNxtscapePrefs(registry);
++  RegisterBrowserOSPrefs(registry);
    RegisterPrefersDefaultScrollbarStylesPrefs(registry);
    RegisterSafetyHubProfilePrefs(registry);
  #if BUILDFLAG(IS_CHROMEOS)
@@ -73,11 +73,11 @@ index 9a00400829ae1..e2593edee0b62 100644
    registry->RegisterIntegerPref(prefs::kGeminiSettings, 0);
  }
  
-+void RegisterNxtscapePrefs(user_prefs::PrefRegistrySyncable* registry) {
-+  // Nxtscape AI provider preferences
++void RegisterBrowserOSPrefs(user_prefs::PrefRegistrySyncable* registry) {
++  // BrowserOS AI provider preferences
 +  registry->RegisterStringPref("nxtscape.default_provider", "nxtscape");
 +
-+  // Nxtscape provider settings
++  // BrowserOS provider settings
 +  registry->RegisterStringPref("nxtscape.nxtscape_model", "claude-3-5-sonnet");
 +
 +  // OpenAI provider settings
@@ -112,7 +112,7 @@ index 3a1c48b14b37f..5600baa2143e0 100644
  
  void RegisterGeminiSettingsPrefs(user_prefs::PrefRegistrySyncable* registry);
  
-+void RegisterNxtscapePrefs(user_prefs::PrefRegistrySyncable* registry);
++void RegisterBrowserOSPrefs(user_prefs::PrefRegistrySyncable* registry);
 +
  // Register all prefs that will be used via a PrefService attached to a user
  // Profile using the locale of |g_browser_process|.
@@ -486,7 +486,7 @@ index 0000000000000..e4b35872710bf
 +      <div class="provider-header-content">
 +        <h1 class="provider-header-title">AI Provider Settings</h1>
 +        <div class="provider-header-subtitle">
-+          Configure your preferred AI provider and model settings. Your selection will be used across all Nxtscape AI features.
++          Configure your preferred AI provider and model settings. Your selection will be used across all BrowserOS AI features.
 +        </div>
 +      </div>
 +      <div class="provider-selector">
@@ -494,7 +494,7 @@ index 0000000000000..e4b35872710bf
 +        <select id="defaultProvider" class="md-select"
 +                value="[[prefs.nxtscape.default_provider.value]]"
 +                on-change="onDefaultProviderChange_">
-+          <option value="nxtscape">Nxtscape</option>
++          <option value="browseros">BrowserOS</option>
 +          <option value="openai">OpenAI</option>
 +          <option value="anthropic">Anthropic</option>
 +          <option value="gemini">Gemini</option>
@@ -524,13 +524,13 @@ index 0000000000000..e4b35872710bf
 +            <span>N</span>
 +          </div>
 +          <div class="provider-card-info">
-+            <h3 class="provider-card-name">Nxtscape AI</h3>
++            <h3 class="provider-card-name">BrowserOS AI</h3>
 +            <div class="provider-card-status">
 +              <span class="status-dot"></span>
 +              <span>[[getProviderStatus_('nxtscape', prefs.nxtscape.default_provider.value)]]</span>
 +            </div>
 +            <div class="provider-tagline">
-+              Powered by Nxtscape's AI service.
++              Powered by BrowserOS's AI service.
 +            </div>
 +          </div>
 +        </div>
@@ -544,7 +544,7 @@ index 0000000000000..e4b35872710bf
 +              <option value="claude-3-7-sonnet-latest">Claude Sonnet 3.7</option>
 +              <option value="gpt-4o">GPT-4o</option>
 +            </select>
-+            <div class="form-helper">Select the model for Nxtscape AI operations</div>
++            <div class="form-helper">Select the model for BrowserOS AI operations</div>
 +          </div>
 +        </div>
 +      </div>
@@ -764,7 +764,7 @@ index 0000000000000..e4b35872710bf
 +OLLAMA_ORIGINS="*" ollama serve</code>
 +            </div>
 +            <div class="instructions-note">
-+              Note: Set <code>OLLAMA_ORIGINS</code> to allow Nxtscape to access your Ollama server.
++              Note: Set <code>OLLAMA_ORIGINS</code> to allow BrowserOS to access your Ollama server.
 +            </div>
 +          </div>
 +        </div>
@@ -858,7 +858,7 @@ index 0000000000000..8c4421ef76e45
 +  }
 +
 +  /**
-+   * Handle Nxtscape model selection change
++   * Handle BrowserOS model selection change
 +   */
 +  private onNxtscapeModelChange_(e: Event) {
 +    const select = e.target as HTMLSelectElement;
@@ -1058,7 +1058,7 @@ index 2458ecb3791b0..1b43a902a38f5 100644
    // Root pages.
    r.BASIC = new Route('/');
    r.ABOUT = new Route('/help', loadTimeData.getString('aboutPageTitle'));
-+  r.NXTSCAPE = new Route('/nxtscape', 'Nxtscape Settings');
++  r.NXTSCAPE = new Route('/nxtscape', 'BrowserOS Settings');
  
    r.SEARCH = r.BASIC.createSection(
        '/search', 'search', loadTimeData.getString('searchPageTitle'));
@@ -1158,7 +1158,7 @@ index 79aad7032abc7..b3a15b5b44637 100644
 +        <a role="menuitem" id="nxtscape-menu" href="/nxtscape"
 +            class="cr-nav-menu-item">
 +          <cr-icon icon="[[aiPageIcon_]]"></cr-icon>
-+          Nxtscape
++          BrowserOS
 +          <cr-ripple></cr-ripple>
 +        </a>
          <a role="menuitem" id="autofill" href="/autofill"
