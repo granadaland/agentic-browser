@@ -191,18 +191,14 @@ def build_main(
                 build(ctx)
 
                 # Run post-build tasks
-                # run_postbuild(ctx)
+                run_postbuild(ctx)
 
                 if slack_notifications:
                     notify_build_step(f"Completed building for {arch_name}")
 
-            built_contexts.append(ctx)
-
-        # Always sign and package individual architectures first (needed for appcast.xml)
-        for ctx in built_contexts:
-            log_info(f"\n📦 Processing {ctx.architecture} build...")
-
+            # Sign and package immediately after building each architecture
             if sign_flag:
+                log_info(f"\n🔏 Signing {ctx.architecture} build...")
                 if slack_notifications:
                     notify_build_step(f"[{ctx.architecture}] Started signing")
                 sign(ctx)
@@ -210,11 +206,14 @@ def build_main(
                     notify_build_step(f"[{ctx.architecture}] Completed signing")
 
             if package_flag:
+                log_info(f"\n📦 Packaging {ctx.architecture} build...")
                 if slack_notifications:
                     notify_build_step(f"[{ctx.architecture}] Started DMG creation")
                 package(ctx)
                 if slack_notifications:
                     notify_build_step(f"[{ctx.architecture}] Completed DMG creation")
+
+            built_contexts.append(ctx)
 
         # Handle universal build if requested
         if len(architectures) > 1 and universal:
