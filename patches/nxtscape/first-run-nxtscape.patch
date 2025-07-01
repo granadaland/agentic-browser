@@ -96,7 +96,7 @@ index 0000000000000..9f54c5932bd45
 +  std::string source = R"(<!DOCTYPE html>
 +<html lang="en">
 +<head>
-+<title>Nxtscape First Run</title>
++<title>BrowserOS First Run</title>
 +<meta charset="UTF-8">
 +<meta name="color-scheme" content="light dark">
 +<style>
@@ -175,7 +175,7 @@ index 0000000000000..9f54c5932bd45
 +<section>
 + <h2 class="section-title">✨ Key Features</h2>
 + <ul class="feature-list">
-+  <li>🤖 <strong>Nxtscape Agent:</strong> Your productivity agent that can manage your tabs and browsing sessions. For example:
++  <li>🤖 <strong>BrowserOS Agent:</strong> Your productivity agent that can manage your tabs and browsing sessions. For example:
 +   <ul>
 +    <li>"list tabs I have open"</li>
 +    <li>"close duplicate tabs"</li>
@@ -187,7 +187,7 @@ index 0000000000000..9f54c5932bd45
 +    <li>"organize my entire bookmark collection"</li>
 +   </ul>
 +  </li>
-+  <li>🧭 <strong>Nxtscape Navigator:</strong> Performs agentic tasks for you on web pages. For example:
++  <li>🧭 <strong>BrowserOS Navigator:</strong> Performs agentic tasks for you on web pages. For example:
 +   <ul>
 +    <li>Go to amazon.com and search for "hard disk"</li>
 +    <li>Navigate to specific pages and interact with content</li>

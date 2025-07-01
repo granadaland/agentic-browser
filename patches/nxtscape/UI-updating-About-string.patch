@@ -16,7 +16,7 @@ index 7d97fdc317d7f..6eefff3e0ea48 100644
      <else>
        <message name="IDS_SETTINGS_ABOUT_PROGRAM" desc="Menu title for the About Chromium page.">
 -        About Chromium
-+        About Nxtscape
++        About BrowserOS
        </message>
        <message name="IDS_SETTINGS_GET_HELP_USING_CHROME" desc="Text of the button which takes the user to the Chrome help page.">
          Get help with Chromium

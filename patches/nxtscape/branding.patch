@@ -19,11 +19,11 @@ index 2e5d2a8929ca8..c340e17579615 100644
          <else>
            <message name="IDS_PRODUCT_NAME" desc="The Chrome application name" translateable="false">
 -            Chromium
-+            Nxtscape
++            BrowserOS
            </message>
            <message name="IDS_SHORT_PRODUCT_NAME" desc="The Chrome application short name." translateable="false">
 -            Chromium
-+            Nxtscape
++            BrowserOS
            </message>
          </else>
        </if>
@@ -32,13 +32,13 @@ index 2e5d2a8929ca8..c340e17579615 100644
          </message>
          <message name="IDS_WELCOME_TO_CHROME" desc="Welcoming text announced via screen readers the first time Chrome is launched at the conclusion of installation.">
 -          Welcome to Chromium; new browser window opened
-+          Welcome to Nxtscape; new browser window opened
++          Welcome to BrowserOS; new browser window opened
          </message>
        </if>
        <if expr="is_macosx or is_linux">
          <message name="IDS_FIRST_RUN_DIALOG_WINDOW_TITLE" desc="Window title of First Run dialog on Mac and Linux, displayed in title bar">
 -          Welcome to Chromium
-+          Welcome to Nxtscape
++          Welcome to BrowserOS
          </message>
        </if>
        <if expr="is_chromeos">
@@ -64,14 +64,14 @@ index f8363d5b294fe..ad8baa62212ad 100644
 -PRODUCT_INSTALLER_SHORTNAME=Chromium Installer
 -COPYRIGHT=Copyright @LASTCHANGE_YEAR@ The Chromium Authors. All rights reserved.
 -MAC_BUNDLE_ID=org.chromium.Chromium
-+COMPANY_FULLNAME=Nxtscape
-+COMPANY_SHORTNAME=Nxtscape
-+PRODUCT_FULLNAME=Nxtscape
-+PRODUCT_SHORTNAME=Nxtscape
-+PRODUCT_INSTALLER_FULLNAME=Nxtscape Installer
-+PRODUCT_INSTALLER_SHORTNAME=Nxtscape Installer
-+COPYRIGHT=Copyright @LASTCHANGE_YEAR@ Nxtscape. All rights reserved.
-+MAC_BUNDLE_ID=org.nxtscape.Nxtscape
++COMPANY_FULLNAME=BrowserOS
++COMPANY_SHORTNAME=BrowserOS
++PRODUCT_FULLNAME=BrowserOS
++PRODUCT_SHORTNAME=BrowserOS
++PRODUCT_INSTALLER_FULLNAME=BrowserOS Installer
++PRODUCT_INSTALLER_SHORTNAME=BrowserOS Installer
++COPYRIGHT=Copyright 2025 BrowserOS. All rights reserved.
++MAC_BUNDLE_ID=org.browseros.BrowserOS
  MAC_CREATOR_CODE=Cr24
  MAC_TEAM_ID=
 diff --git a/chrome/enterprise_companion/branding.gni b/chrome/enterprise_companion/branding.gni
@@ -88,7 +88,7 @@ index 6b4469870d693..5ff88b0bc1d3e 100644
  
  if (is_chrome_branded) {
 -  enterprise_companion_crash_product_name = "Chrome_Enterprise_Companion"
-+  enterprise_companion_crash_product_name = "Nxtscape_Enterprise_Companion"
++  enterprise_companion_crash_product_name = "BrowserOS_Enterprise_Companion"
    enterprise_companion_crash_upload_url =
        "https://clients2.google.com/cr/report"
    enterprise_companion_appid = "{85eedf37-756c-4972-9399-5a12a4bee148}"
@@ -96,21 +96,21 @@ index 6b4469870d693..5ff88b0bc1d3e 100644
 -  enterprise_companion_company_short_name_lowercase = "google"
 -  enterprise_companion_company_short_name_uppercase = "GOOGLE"
 -  enterprise_companion_product_full_name = "ChromeEnterpriseCompanion"
-+  enterprise_companion_company_short_name = "Nxtscape"
-+  enterprise_companion_company_short_name_lowercase = "nxtscape"
-+  enterprise_companion_company_short_name_uppercase = "NXTSCAPE"
-+  enterprise_companion_product_full_name = "NxtscapeEnterpriseCompanion"
++  enterprise_companion_company_short_name = "BrowserOS"
++  enterprise_companion_company_short_name_lowercase = "browseros"
++  enterprise_companion_company_short_name_uppercase = "BROWSEROS"
++  enterprise_companion_product_full_name = "BrowserOSEnterpriseCompanion"
    enterprise_companion_product_full_name_dashed_lowercase =
 -      "chrome-enterprise-companion"
 -  enterprise_companion_keystone_app_name = "GoogleSoftwareUpdate"
-+      "nxtscape-enterprise-companion"
-+  enterprise_companion_keystone_app_name = "NxtscapeSoftwareUpdate"
++      "browseros-enterprise-companion"
++  enterprise_companion_keystone_app_name = "BrowserOSSoftwareUpdate"
    mac_enterprise_companion_bundle_identifier =
 -      "com.google.ChromeEnterpriseCompanion"
-+      "com.nxtscape.NxtscapeEnterpriseCompanion"
++      "com.browseros.BrowserOSEnterpriseCompanion"
  } else {
 -  enterprise_companion_crash_product_name = "Chromium_Enterprise_Companion"
-+  enterprise_companion_crash_product_name = "Nxtscape_Enterprise_Companion"
++  enterprise_companion_crash_product_name = "BrowserOS_Enterprise_Companion"
    enterprise_companion_crash_upload_url =
        "https://clients2.google.com/cr/staging_report"
    enterprise_companion_appid = "{d6acc642-8982-441d-949b-312d5ccb559f}"
@@ -118,17 +118,17 @@ index 6b4469870d693..5ff88b0bc1d3e 100644
 -  enterprise_companion_company_short_name_lowercase = "chromium"
 -  enterprise_companion_company_short_name_uppercase = "CHROMIUM"
 -  enterprise_companion_product_full_name = "ChromiumEnterpriseCompanion"
-+  enterprise_companion_company_short_name = "Nxtscape"
-+  enterprise_companion_company_short_name_lowercase = "nxtscape"
-+  enterprise_companion_company_short_name_uppercase = "NXTSCAPE"
-+  enterprise_companion_product_full_name = "NxtscapeEnterpriseCompanion"
++  enterprise_companion_company_short_name = "BrowserOS"
++  enterprise_companion_company_short_name_lowercase = "browseros"
++  enterprise_companion_company_short_name_uppercase = "BROWSEROS"
++  enterprise_companion_product_full_name = "BrowserOSEnterpriseCompanion"
    enterprise_companion_product_full_name_dashed_lowercase =
        "chromium-enterprise-companion"
 -  enterprise_companion_keystone_app_name = "ChromiumSoftwareUpdate"
-+  enterprise_companion_keystone_app_name = "NxtscapeSoftwareUpdate"
++  enterprise_companion_keystone_app_name = "BrowserOSSoftwareUpdate"
    mac_enterprise_companion_bundle_identifier =
 -      "org.chromium.ChromiumEnterpriseCompanion"
-+      "org.nxtscape.NxtscapeEnterpriseCompanion"
++      "org.browseros.BrowserOSEnterpriseCompanion"
  }
  
  enterprise_companion_device_management_server_url =
@@ -143,9 +143,9 @@ index 1f9bf5847f642..03a2ec68526a5 100644
 -  browser_name = "Chromium"
 -  browser_product_name = "Chromium"
 -  crash_product_name = "ChromiumUpdater"
-+  browser_name = "Nxtscape"
-+  browser_product_name = "Nxtscape"
-+  crash_product_name = "NxtscapeUpdater"
++  browser_name = "BrowserOS"
++  browser_product_name = "BrowserOS"
++  crash_product_name = "BrowserOSUpdater"
    crash_upload_url = "https://clients2.google.com/cr/staging_report"
    help_center_url = "http://support.google.com/installer/"
    app_logo_url = "https://dl.google.com/update2/installers/icons/"
@@ -159,27 +159,27 @@ index 1f9bf5847f642..03a2ec68526a5 100644
 -  updater_company_short_name = "Chromium"
 -  updater_company_short_name_lowercase = "chromium"
 -  updater_company_short_name_uppercase = "CHROMIUM"
-+  keystone_app_name = "NxtscapeSoftwareUpdate"
-+  keystone_bundle_identifier = "org.nxtscape.Keystone"
-+  mac_browser_bundle_identifier = "org.nxtscape.Nxtscape"
-+  mac_updater_bundle_identifier = "org.nxtscape.NxtscapeUpdater"
-+  privileged_helper_bundle_name = "NxtscapeUpdaterPrivilegedHelper"
-+  privileged_helper_name = "org.nxtscape.Nxtscape.UpdaterPrivilegedHelper"
-+  updater_company_full_name = "Nxtscape Authors"
-+  updater_company_short_name = "Nxtscape"
-+  updater_company_short_name_lowercase = "nxtscape"
-+  updater_company_short_name_uppercase = "Nxtscape"
++  keystone_app_name = "BrowserOSSoftwareUpdate"
++  keystone_bundle_identifier = "org.browseros.Keystone"
++  mac_browser_bundle_identifier = "org.browseros.BrowserOS"
++  mac_updater_bundle_identifier = "org.browseros.BrowserOSUpdater"
++  privileged_helper_bundle_name = "BrowserOSUpdaterPrivilegedHelper"
++  privileged_helper_name = "org.browseros.BrowserOS.UpdaterPrivilegedHelper"
++  updater_company_full_name = "BrowserOS Authors"
++  updater_company_short_name = "BrowserOS"
++  updater_company_short_name_lowercase = "browseros"
++  updater_company_short_name_uppercase = "BROWSEROS"
    updater_copyright =
 -      "Copyright 2020 The Chromium Authors. All rights reserved."
 -  updater_product_full_name = "ChromiumUpdater"
 -  updater_product_full_name_dashed_lowercase = "chromium-updater"
 -  updater_product_full_display_name = "Chromium Updater"
 -  updater_metainstaller_name = "Chromium Installer"
-+      "Copyright 2020 Nxtscape Authors. All rights reserved."
-+  updater_product_full_name = "NxtscapeUpdater"
-+  updater_product_full_name_dashed_lowercase = "nxtscape-updater"
-+  updater_product_full_display_name = "Nxtscape Updater"
-+  updater_metainstaller_name = "Nxtscape Installer"
++      "Copyright 2025 BrowserOS Authors. All rights reserved."
++  updater_product_full_name = "BrowserOSUpdater"
++  updater_product_full_name_dashed_lowercase = "browseros-updater"
++  updater_product_full_display_name = "BrowserOS Updater"
++  updater_metainstaller_name = "BrowserOS Installer"
    mac_team_identifier = "PLACEHOLDER"
    updater_appid = "{6e8ffa8f-e7e2-4000-9884-589283c27015}"
    qualification_appid = "{43f3a046-04b3-4443-a770-d67dae90e440}"
