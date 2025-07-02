@@ -17,12 +17,12 @@
       </description>
       <sparkle:version>7174.69</sparkle:version>
       <sparkle:shortVersionString>0.8.0</sparkle:shortVersionString>
-      <pubDate>Wed, 02 Jul 2025 07:53:08 -0700</pubDate>
+      <pubDate>Wed, 02 Jul 2025 14:20:34 -0700</pubDate>
       <link>https://nxtscape.ai</link>
       <enclosure
         url="http://cdn.browseros.com/dmg/BrowserOS_v0.8.0_x64.dmg"
-        sparkle:edSignature="O/PfxxkT+GW0moUU9R59k3+wc1VASLegC+mOb85cXwnWds5u64UJfCr7tLaONknhXUAZA67qLEmJmYqLweguDw==" 
-        length="136470762"
+        sparkle:edSignature="Uo7OjzJWFCHzjNOLFAODhELUUX1DE8UeOEP6+rXtGo7aSgPyQOvsk427crKsv6QHIBA+o5oCiS0IA4XofMkzCQ=="
+        length="136446289"
         type="application/octet-stream" />
       <sparkle:minimumSystemVersion>10.15</sparkle:minimumSystemVersion>
     </item>
