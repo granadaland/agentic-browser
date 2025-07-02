@@ -19,7 +19,7 @@ index 681fd3282078c..f003d7bd5ba49 100644
    if (first_run::IsChromeFirstRun()) {
      if (!base::CommandLine::ForCurrentProcess()->HasSwitch(switches::kApp) &&
          !base::CommandLine::ForCurrentProcess()->HasSwitch(switches::kAppId)) {
-+      browser_creator_->AddFirstRunTabs({GURL("chrome://nxtscape-first-run")});
++      browser_creator_->AddFirstRunTabs({GURL("chrome://browseros-first-run")});
        browser_creator_->AddFirstRunTabs(master_prefs_->new_tabs);
      }
  
@@ -77,7 +77,7 @@ index 0000000000000..9f54c5932bd45
 +
 +// Implementation of UFRDataSource
 +std::string UFRDataSource::GetSource() {
-+  return "nxtscape-first-run";
++  return "browseros-first-run";
 +}
 +
 +std::string UFRDataSource::GetMimeType(const GURL& url) {
@@ -142,7 +142,7 @@ index 0000000000000..9f54c5932bd45
 + <h1>The Open-Source Agentic Browser 🦊</h1>
 + <p class="sub-headline">Your Browser, Reimagined. ✨</p>
 + <p>We believe browsers must be open source, not owned by search or ad companies. And the future is AI agents automating your work locally and securely. We're building the best browser for that future. 🚀</p>
-+ <p style="font-size:0.9em; color: #777;">This page can always be accessed again at <a href="chrome://nxtscape-first-run"><code>chrome://nxtscape-first-run</code></a></p>
++ <p style="font-size:0.9em; color: #777;">This page can always be accessed again at <a href="chrome://browseros-first-run"><code>chrome://browseros-first-run</code></a></p>
 +</section>
 +
 +<section>
@@ -225,7 +225,7 @@ index 0000000000000..9f54c5932bd45
 +class NxtscapeFirstRun;
 +class NxtscapeFirstRunUIConfig : public content::DefaultWebUIConfig<NxtscapeFirstRun> {
 +  public:
-+   NxtscapeFirstRunUIConfig() : DefaultWebUIConfig("chrome", "nxtscape-first-run") {}
++   NxtscapeFirstRunUIConfig() : DefaultWebUIConfig("chrome", "browseros-first-run") {}
 +};
 +
 +class NxtscapeFirstRun : public content::WebUIController {
@@ -246,7 +246,7 @@ index e5e724a22d015..7a378544092b7 100644
  // These hosts will also be suggested by BuiltinProvider.
  base::span<const base::cstring_view> ChromeURLHosts() {
    static constexpr auto kChromeURLHosts = std::to_array<base::cstring_view>({
-+      "nxtscape-first-run",
++      "browseros-first-run",
        kChromeUIAboutHost,
        kChromeUIAccessibilityHost,
  #if !BUILDFLAG(IS_ANDROID)
