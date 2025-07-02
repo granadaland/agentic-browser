@@ -1,25 +1,26 @@
-From b92be348d838f757a7c04c7af785c8d4fc0e1cef Mon Sep 17 00:00:00 2001
+From dd5b88d7b8c87c73f9036d4c0efdc32dfa2cb71b Mon Sep 17 00:00:00 2001
 From: Nikhil Sonti <nikhilsv92@gmail.com>
-Date: Fri, 20 Jun 2025 07:29:44 -0700
+Date: Wed, 2 Jul 2025 10:58:56 -0700
 Subject: [PATCH] first run
 
 ---
- chrome/browser/chrome_browser_main.cc         |   1 +
+ chrome/browser/chrome_browser_main.cc         |   2 +
  .../browser/ui/webui/chrome_web_ui_configs.cc |   2 +
- chrome/browser/ui/webui/nxtscape_first_run.h  | 189 ++++++++++++++++++
+ chrome/browser/ui/webui/nxtscape_first_run.h  | 194 ++++++++++++++++++
  chrome/common/webui_url_constants.cc          |   1 +
- 4 files changed, 193 insertions(+)
+ 4 files changed, 199 insertions(+)
  create mode 100644 chrome/browser/ui/webui/nxtscape_first_run.h
 
 diff --git a/chrome/browser/chrome_browser_main.cc b/chrome/browser/chrome_browser_main.cc
-index 681fd3282078c..f003d7bd5ba49 100644
+index 681fd3282078c..c1c03ff72af7e 100644
 --- a/chrome/browser/chrome_browser_main.cc
 +++ b/chrome/browser/chrome_browser_main.cc
-@@ -1018,6 +1018,7 @@ int ChromeBrowserMainParts::PreCreateThreadsImpl() {
+@@ -1018,6 +1018,8 @@ int ChromeBrowserMainParts::PreCreateThreadsImpl() {
    if (first_run::IsChromeFirstRun()) {
      if (!base::CommandLine::ForCurrentProcess()->HasSwitch(switches::kApp) &&
          !base::CommandLine::ForCurrentProcess()->HasSwitch(switches::kAppId)) {
 +      browser_creator_->AddFirstRunTabs({GURL("chrome://browseros-first-run")});
++      browser_creator_->AddFirstRunTabs({GURL("https://bit.ly/BrowserOS-setup")});
        browser_creator_->AddFirstRunTabs(master_prefs_->new_tabs);
      }
  
@@ -45,10 +46,10 @@ index cbcdde4afa71b..0b1381fe9813c 100644
    map.AddWebUIConfig(std::make_unique<VersionUIConfig>());
 diff --git a/chrome/browser/ui/webui/nxtscape_first_run.h b/chrome/browser/ui/webui/nxtscape_first_run.h
 new file mode 100644
-index 0000000000000..9f54c5932bd45
+index 0000000000000..3c2a0cbaffed5
 --- /dev/null
 +++ b/chrome/browser/ui/webui/nxtscape_first_run.h
-@@ -0,0 +1,189 @@
+@@ -0,0 +1,194 @@
 +#ifndef CHROME_BROWSER_UI_WEBUI_NXTSCAPE_FIRST_RUN_H_
 +#define CHROME_BROWSER_UI_WEBUI_NXTSCAPE_FIRST_RUN_H_
 +
@@ -147,6 +148,11 @@ index 0000000000000..9f54c5932bd45
 +
 +<section>
 + <h2 class="section-title">🚀 Getting Started</h2>
++ <p style="text-align: center; margin: 1em 0; padding: 0.8em; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 0.5em;">
++  <a href="https://bit.ly/BrowserOS-setup" target="_blank" style="color: white; font-weight: bold; font-size: 1.1em;">
++   📖 Quick Start Guide - bit.ly/BrowserOS-setup
++  </a>
++ </p>
 + <details open>
 +  <summary><b>📥 Import your data from Chrome</b></summary>
 +  <ol>
@@ -239,7 +245,7 @@ index 0000000000000..9f54c5932bd45
 +
 +#endif  // CHROME_BROWSER_UI_WEBUI_NXTSCAPE_FIRST_RUN_H_
 diff --git a/chrome/common/webui_url_constants.cc b/chrome/common/webui_url_constants.cc
-index e5e724a22d015..7a378544092b7 100644
+index e5e724a22d015..3627df513cd04 100644
 --- a/chrome/common/webui_url_constants.cc
 +++ b/chrome/common/webui_url_constants.cc
 @@ -72,6 +72,7 @@ bool IsSystemWebUIHost(std::string_view host) {
