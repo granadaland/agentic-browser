@@ -9,7 +9,7 @@ import subprocess
 from pathlib import Path
 from typing import Iterator, List
 from context import BuildContext
-from utils import log_info, log_error, log_success
+from utils import log_info, log_error, log_success, log_warning
 
 
 def apply_patches(ctx: BuildContext) -> bool:
