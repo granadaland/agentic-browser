@@ -27,7 +27,8 @@ def _ensure_log_file():
         # Create log file with timestamp
         timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         log_file_path = log_dir / f"build_{timestamp}.log"
-        _log_file = open(log_file_path, 'w')
+        # Open with UTF-8 encoding to handle any characters
+        _log_file = open(log_file_path, 'w', encoding='utf-8')
         _log_file.write(f"Nxtscape Build Log - Started at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
         _log_file.write("=" * 80 + "\n\n")
     return _log_file
@@ -41,25 +42,44 @@ def _log_to_file(message: str):
     log_file.flush()
 
 
+def _sanitize_for_windows(message: str) -> str:
+    """Remove non-ASCII characters on Windows to avoid encoding issues"""
+    if sys.platform == "win32":
+        # Remove all non-ASCII characters
+        return ''.join(char for char in message if ord(char) < 128)
+    return message
+
 def log_info(message: str):
     """Print info message"""
-    print(message)
+    if sys.platform == "win32":
+        print(_sanitize_for_windows(message))
+    else:
+        print(f"[INFO] {message}")
     _log_to_file(f"INFO: {message}")
 
 def log_warning(message: str):
     """Print warning message"""
-    print(f"⚠️ {message}")
+    if sys.platform == "win32":
+        print(f"[WARN] {_sanitize_for_windows(message)}")
+    else:
+        print(f"⚠️ {message}")
     _log_to_file(f"WARNING: {message}")
 
 def log_error(message: str):
     """Print error message"""
-    print(f"❌ {message}")
+    if sys.platform == "win32":
+        print(f"[ERROR] {_sanitize_for_windows(message)}")
+    else:
+        print(f"❌ {message}")
     _log_to_file(f"ERROR: {message}")
 
 
 def log_success(message: str):
     """Print success message"""
-    print(f"✅ {message}")
+    if sys.platform == "win32":
+        print(f"[SUCCESS] {_sanitize_for_windows(message)}")
+    else:
+        print(f"✅ {message}")
     _log_to_file(f"SUCCESS: {message}")
 
 
