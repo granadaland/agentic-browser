@@ -9,6 +9,22 @@
 
     <!-- Updates -->
     <item>
+      <title>Nxtscape - 0.9.0</title>
+      <description sparkle:format="plain-text">
+- Minor stability improvements.
+      </description>
+      <sparkle:version>7175.69</sparkle:version>
+      <sparkle:shortVersionString>0.9.0</sparkle:shortVersionString>
+      <pubDate>Thu, 03 Jul 2025 10:29:43 -0700</pubDate>
+      <link>https://nxtscape.ai</link>
+      <enclosure
+        url="http://cdn.browseros.com/dmg/BrowserOS_v0.9.0_arm64.dmg"
+        sparkle:edSignature="cGQ8f+VOOC4ZWsl02D2Wp5uaezoepaVC4Mo0a7tXxuB/Avb04d1nLQl6U7FNW4Q4EgPP3dni7TwXg61MSHX3Cg==" 
+        length="126796495"
+        type="application/octet-stream" />
+      <sparkle:minimumSystemVersion>10.15</sparkle:minimumSystemVersion>
+    </item>
+    <item>
       <title>Nxtscape - 0.8.0</title>
       <description sparkle:format="plain-text">
 - NEW FEATURE: Sidekick LLM. Brings third party LLMs to side panel.
