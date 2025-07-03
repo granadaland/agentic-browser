@@ -34,7 +34,7 @@
 ## What makes BrowserOS special
 
 <div align="center">
-<img src="resources/media/example-use-cases.png" alt="example-use-cases" width="85%">
+<img src="https://cdn.browseros.com/resources/usecase.png" alt="example-use-cases" width="85%">
 </div>
 
 ## Features
