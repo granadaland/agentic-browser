@@ -210,7 +210,7 @@ def merge_sign_package(
                 log_error("Make sure you provided the correct --chromium-src path")
                 return False
             
-            if create_dmg(output_path, dmg_path, "Nxtscape", pkg_dmg_path):
+            if create_dmg(output_path, dmg_path, "BrowserOS", pkg_dmg_path):
                 log_success(f"DMG created: {dmg_name}")
             else:
                 log_error("Failed to create DMG")
@@ -271,7 +271,10 @@ def handle_merge_command(
     log_info(f"📂 Using root directory: {root_dir}")
     
     # Auto-generate output path in chromium source
-    output_path = chromium_src / "out" / "Default_universal" / "Nxtscape.app"
+    # Get the app name from BuildContext
+    from context import BuildContext
+    temp_ctx = BuildContext(root_dir=root_dir, chromium_src=chromium_src, architecture="universal", build_type="release")
+    output_path = chromium_src / "out" / "Default_universal" / temp_ctx.NXTSCAPE_APP_NAME
     log_info(f"  Output: {output_path} (auto-generated)")
     
     try:
