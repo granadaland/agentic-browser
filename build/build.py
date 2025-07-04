@@ -20,6 +20,7 @@ from modules.patches import apply_patches
 from modules.resources import copy_resources
 from modules.chromium_replace import replace_chromium_files, add_file_to_replacements
 from modules.string_replaces import apply_string_replacements
+from modules.inject import inject_version
 from modules.configure import configure
 from modules.compile import build
 
@@ -212,6 +213,9 @@ def build_main(
 
             # Apply patches (only once for first architecture)
             if apply_patches_flag and arch_name == architectures[0]:
+                # Inject version into manifest files
+                inject_version(ctx)
+
                 # First do chromium file replacements
                 replace_chromium_files(ctx)
 
@@ -227,8 +231,10 @@ def build_main(
                 # Apply patches
                 apply_patches(ctx, interactive=patch_interactive)
 
+
                 # Copy resources
                 copy_resources(ctx)
+                
 
                 if slack_notifications:
                     notify_build_step(
