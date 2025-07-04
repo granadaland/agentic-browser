@@ -35,7 +35,7 @@ def inject_version(ctx: BuildContext) -> bool:
 
 
 def inject_version_to_manifest(manifest_path: Path, browser_version: str) -> bool:
-    """Inject browser version into a single manifest.json file"""
+    """Inject browser version and increment version into a single manifest.json file"""
     try:
         if not manifest_path.exists():
             log_error(f"Manifest not found: {manifest_path}")
@@ -44,6 +44,13 @@ def inject_version_to_manifest(manifest_path: Path, browser_version: str) -> boo
         # Read existing manifest
         with open(manifest_path, 'r', encoding='utf-8') as f:
             manifest_data = json.load(f)
+        
+        # Increment the version field
+        if 'version' in manifest_data:
+            current_version = manifest_data['version']
+            new_version = increment_version(current_version)
+            manifest_data['version'] = new_version
+            log_info(f"  Version: {current_version} → {new_version}")
         
         # Add browser_version field
         manifest_data['browser_version'] = browser_version
@@ -55,7 +62,7 @@ def inject_version_to_manifest(manifest_path: Path, browser_version: str) -> boo
         
         # Validate the written JSON
         if validate_json_file(manifest_path):
-            log_success(f"✓ Injected version into: {manifest_path.name}")
+            log_success(f"✓ Updated: {manifest_path.name}")
             return True
         else:
             log_error(f"✗ Invalid JSON after injection: {manifest_path.name}")
@@ -67,6 +74,27 @@ def inject_version_to_manifest(manifest_path: Path, browser_version: str) -> boo
     except Exception as e:
         log_error(f"Failed to inject version into {manifest_path}: {e}")
         return False
+
+
+def increment_version(version: str) -> str:
+    """Increment version string by 1 in the last component"""
+    parts = version.split('.')
+    if not parts:
+        return "0.0.1"
+    
+    # Try to increment the last numeric part
+    for i in range(len(parts) - 1, -1, -1):
+        try:
+            # Convert to int, increment, and convert back
+            incremented = int(parts[i]) + 1
+            parts[i] = str(incremented)
+            return '.'.join(parts)
+        except ValueError:
+            # If this part is not numeric, continue to the previous part
+            continue
+    
+    # If no numeric part found, append .1
+    return version + ".1"
 
 
 def validate_json_file(file_path: Path) -> bool:
