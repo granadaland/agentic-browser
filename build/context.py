@@ -201,6 +201,10 @@ class BuildContext:
             if signed:
                 return f"BrowserOS_{self.nxtscape_chromium_version}_{self.architecture}_signed.dmg"
             return f"BrowserOS_{self.nxtscape_chromium_version}_{self.architecture}.dmg"
+    
+    def get_nxtscape_version(self) -> str:
+        """Get Nxtscape version string"""
+        return self.nxtscape_chromium_version
 
     # Extension names
     def get_ai_extensions(self) -> list[str]:

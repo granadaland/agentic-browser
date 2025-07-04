@@ -11,7 +11,7 @@ from typing import Optional
 
 # Import shared components
 from context import BuildContext
-from utils import load_config, log_info, log_warning, log_error, log_success, IS_MACOS
+from utils import load_config, log_info, log_warning, log_error, log_success, IS_MACOS, IS_WINDOWS
 
 # Import modules
 from modules.clean import clean
@@ -28,8 +28,16 @@ if IS_MACOS:
     from modules.sign import sign, sign_universal
     from modules.package import package, package_universal
     from modules.postbuild import run_postbuild
+elif IS_WINDOWS:
+    from modules.package_windows import package, package_universal, sign_binaries as sign
+    # Windows doesn't have universal signing
+    def sign_universal(contexts: list[BuildContext]) -> bool:
+        log_warning("Universal signing is not supported on Windows")
+        return True
+    def run_postbuild(ctx: BuildContext) -> None:
+        log_warning("Post-build tasks are not implemented for Windows yet")
 else:
-    # Stub functions for non-macOS platforms
+    # Stub functions for other platforms (Linux, etc.)
     def sign(ctx: BuildContext) -> bool:
         log_warning("Signing is not implemented for this platform")
         return True
