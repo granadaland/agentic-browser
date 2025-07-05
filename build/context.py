@@ -36,6 +36,7 @@ class BuildContext:
     # App names - will be set based on platform
     CHROMIUM_APP_NAME: str = ""
     NXTSCAPE_APP_NAME: str = ""
+    NXTSCAPE_APP_BASE_NAME: str = "BrowserOS"  # Base name without extension
 
     # Third party
     SPARKLE_VERSION: str = "2.7.0"
@@ -49,13 +50,13 @@ class BuildContext:
         # Set platform-specific app names
         if IS_WINDOWS:
             self.CHROMIUM_APP_NAME = f"chrome{get_executable_extension()}"
-            self.NXTSCAPE_APP_NAME = f"BrowserOS{get_executable_extension()}"
+            self.NXTSCAPE_APP_NAME = f"{self.NXTSCAPE_APP_BASE_NAME}{get_executable_extension()}"
         elif IS_MACOS:
             self.CHROMIUM_APP_NAME = "Chromium.app"
-            self.NXTSCAPE_APP_NAME = "BrowserOS.app"
+            self.NXTSCAPE_APP_NAME = f"{self.NXTSCAPE_APP_BASE_NAME}.app"
         else:
             self.CHROMIUM_APP_NAME = "chrome"
-            self.NXTSCAPE_APP_NAME = "browseros"
+            self.NXTSCAPE_APP_NAME = self.NXTSCAPE_APP_BASE_NAME.lower()
         
         # Set architecture-specific output directory with platform separator
         if IS_WINDOWS:
@@ -195,16 +196,20 @@ class BuildContext:
         """Get DMG filename with architecture suffix"""
         if self.architecture == "universal":
             if signed:
-                return f"BrowserOS_{self.nxtscape_chromium_version}_universal_signed.dmg"
-            return f"BrowserOS_{self.nxtscape_chromium_version}_universal.dmg"
+                return f"{self.NXTSCAPE_APP_BASE_NAME}_{self.nxtscape_chromium_version}_universal_signed.dmg"
+            return f"{self.NXTSCAPE_APP_BASE_NAME}_{self.nxtscape_chromium_version}_universal.dmg"
         else:
             if signed:
-                return f"BrowserOS_{self.nxtscape_chromium_version}_{self.architecture}_signed.dmg"
-            return f"BrowserOS_{self.nxtscape_chromium_version}_{self.architecture}.dmg"
+                return f"{self.NXTSCAPE_APP_BASE_NAME}_{self.nxtscape_chromium_version}_{self.architecture}_signed.dmg"
+            return f"{self.NXTSCAPE_APP_BASE_NAME}_{self.nxtscape_chromium_version}_{self.architecture}.dmg"
     
     def get_nxtscape_version(self) -> str:
         """Get Nxtscape version string"""
         return self.nxtscape_chromium_version
+    
+    def get_app_base_name(self) -> str:
+        """Get app base name without extension"""
+        return self.NXTSCAPE_APP_BASE_NAME
 
     # Extension names
     def get_ai_extensions(self) -> list[str]:
