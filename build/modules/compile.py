@@ -44,7 +44,7 @@ def build(ctx: BuildContext) -> bool:
     # Try to detect CPU cores and optimize parallel jobs
     try:
         cpu_count = multiprocessing.cpu_count()
-        parallel_jobs = cpu_count * 2
+        parallel_jobs = cpu_count
         log_info(f"🖥️  Detected {cpu_count} CPU cores, using {parallel_jobs} parallel jobs")
         run_command(["autoninja", f"-j{parallel_jobs}", "-C", ctx.out_dir, "chrome", "chromedriver"])
     except Exception as e:
