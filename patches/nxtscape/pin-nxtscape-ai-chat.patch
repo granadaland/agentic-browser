@@ -23,8 +23,8 @@ index ae782891ad341..b23cdb005df86 100644
 +
 +  // Force-pin Bug Reporter
 +  // Set toolbar_pin to kForcePinned for Bug Reporter extension
-+  // auto* bug_reporter_settings = AccessById(extension_misc::kBugReporterExtensionId);
-+  // bug_reporter_settings->toolbar_pin = ManagedToolbarPinMode::kForcePinned;
++  auto* bug_reporter_settings = AccessById(extension_misc::kBugReporterExtensionId);
++  bug_reporter_settings->toolbar_pin = ManagedToolbarPinMode::kForcePinned;
  }
  
  bool ExtensionManagement::ParseById(const std::string& extension_id,
