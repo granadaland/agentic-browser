@@ -9,6 +9,23 @@
 
     <!-- Updates -->
     <item>
+      <title>Nxtscape - 0.10.0</title>
+      <description sparkle:format="plain-text">
+- BrowserOS now supports Windows. Check our github page for windows installer.
+- Add a new easy way to report bugs and features from the browser.
+      </description>
+      <sparkle:version>7178.69</sparkle:version>
+      <sparkle:shortVersionString>0.10.0</sparkle:shortVersionString>
+      <pubDate>Sun, 07 Jul 2025 00:00:00 -0700</pubDate>
+      <link>https://nxtscape.ai</link>
+      <enclosure
+        url="http://cdn.browseros.com/dmg/BrowserOS_v0.10.0_arm64.dmg"
+        sparkle:edSignature="XMJ3Vy9/XiVf38yGS5ZxHZsKrexPTtuEHr0IzA/aKRL0sMd0MhwOAt3TD4iuQDwOuyWuLbj5Uaspq1eCXliuBA==" 
+        length="126798649"
+        type="application/octet-stream" />
+      <sparkle:minimumSystemVersion>10.15</sparkle:minimumSystemVersion>
+    </item>
+    <item>
       <title>Nxtscape - 0.9.1</title>
       <description sparkle:format="plain-text">
       </description>
