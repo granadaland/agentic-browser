@@ -11,8 +11,8 @@
     <item>
       <title>Nxtscape - 0.10.0</title>
       <description sparkle:format="plain-text">
-- BrowserOS now supports Windows. Check our github page for windows installer.
-- Add a new easy way to report bugs and features from the browser.
+- BrowserOS now supports Windows. Check our GitHub page for the Windows installer.
+- Added a new easy way to report bugs and request features from the browser.
       </description>
       <sparkle:version>7178.69</sparkle:version>
       <sparkle:shortVersionString>0.10.0</sparkle:shortVersionString>
