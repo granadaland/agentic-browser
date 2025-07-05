@@ -6,6 +6,7 @@ Build execution module for Nxtscape build system
 import os
 import tempfile
 import shutil
+import multiprocessing
 from pathlib import Path
 from context import BuildContext
 from utils import run_command, log_info, log_success, log_warning, join_paths
@@ -39,7 +40,17 @@ def build(ctx: BuildContext) -> bool:
         log_warning("No nxtscape_chromium_version set. Not building")
     
     os.chdir(ctx.chromium_src)
-    run_command(["autoninja", "-C", ctx.out_dir, "chrome", "chromedriver"])
+    
+    # Try to detect CPU cores and optimize parallel jobs
+    try:
+        cpu_count = multiprocessing.cpu_count()
+        parallel_jobs = cpu_count * 2
+        log_info(f"🖥️  Detected {cpu_count} CPU cores, using {parallel_jobs} parallel jobs")
+        run_command(["autoninja", f"-j{parallel_jobs}", "-C", ctx.out_dir, "chrome", "chromedriver"])
+    except Exception as e:
+        log_warning(f"Could not optimize parallel jobs: {e}")
+        log_info("Falling back to default autoninja settings")
+        run_command(["autoninja", "-C", ctx.out_dir, "chrome", "chromedriver"])
     
     # Rename Chromium.app to Nxtscape.app
     app_path = ctx.get_chromium_app_path()
