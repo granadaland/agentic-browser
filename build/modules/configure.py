@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 from typing import Optional
 from context import BuildContext
-from utils import run_command, log_info, log_error, log_success, join_paths
+from utils import run_command, log_info, log_error, log_success, join_paths, IS_WINDOWS
 
 
 def configure(ctx: BuildContext, gn_flags_file: Optional[Path] = None) -> bool:
@@ -38,7 +38,15 @@ def configure(ctx: BuildContext, gn_flags_file: Optional[Path] = None) -> bool:
     
     # Run gn gen
     os.chdir(ctx.chromium_src)
-    run_command(["gn", "gen", ctx.out_dir, "--fail-on-unused-args"])
+    gn_cmd = "gn.bat" if IS_WINDOWS else "gn"
+    
+    # Windows needs DEPOT_TOOLS_WIN_TOOLCHAIN=0 to use local Visual Studio
+    if IS_WINDOWS:
+        env = os.environ.copy()
+        env["DEPOT_TOOLS_WIN_TOOLCHAIN"] = "0"
+        run_command([gn_cmd, "gen", ctx.out_dir, "--fail-on-unused-args"], env=env)
+    else:
+        run_command([gn_cmd, "gen", ctx.out_dir, "--fail-on-unused-args"])
     
     log_success("Build configured")
     return True
