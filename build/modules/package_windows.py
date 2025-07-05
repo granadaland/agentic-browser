@@ -44,7 +44,8 @@ def create_installer(ctx: BuildContext) -> bool:
     mini_installer_path = build_output_dir / "mini_installer.exe"
     
     if not mini_installer_path.exists():
-        log_error(f"mini_installer.exe not found at: {mini_installer_path}")
+        log_warning(f"mini_installer.exe not found at: {mini_installer_path}")
+        log_info("To build the installer, run: autoninja -C out\\Default_x64 mini_installer")
         return False
     
     # Create output directory

@@ -1,7 +1,7 @@
-From d2867d423b13ec09c70846506d4998f0e12d5e11 Mon Sep 17 00:00:00 2001
+From 27b2e9d7dde108ffb3a77ee8ea75e3541b9fdf4a Mon Sep 17 00:00:00 2001
 From: Nikhil Sonti <nikhilsv92@gmail.com>
-Date: Sat, 21 Jun 2025 15:24:04 -0700
-Subject: [PATCH] nxtscape importer
+Date: Fri, 4 Jul 2025 16:50:10 -0700
+Subject: [PATCH] importer patch
 
 ---
  chrome/app/generated_resources.grd            |   3 +
@@ -38,10 +38,10 @@ Subject: [PATCH] nxtscape importer
  create mode 100644 chrome/utility/importer/chrome_importer.h
 
 diff --git a/chrome/app/generated_resources.grd b/chrome/app/generated_resources.grd
-index 186d94b83cb9c..a7e94095c4dc5 100644
+index 444323aed7636..d8243b834206d 100644
 --- a/chrome/app/generated_resources.grd
 +++ b/chrome/app/generated_resources.grd
-@@ -10882,6 +10882,9 @@ Check your passwords anytime in <ph name="GOOGLE_PASSWORD_MANAGER">$1<ex>Google
+@@ -10885,6 +10885,9 @@ Check your passwords anytime in <ph name="GOOGLE_PASSWORD_MANAGER">$1<ex>Google
          <message name="IDS_IMPORT_FROM_FIREFOX" desc="browser combo box: Mozilla Firefox">
            Mozilla Firefox
          </message>
@@ -66,10 +66,10 @@ index 8d41891d1717b..8064a065bbb54 100644
      <message name="IDS_SETTINGS_IMPORT_CHOOSE_FILE" desc="Text for the Choose File on dialog">
        Choose File
 diff --git a/chrome/browser/extensions/api/settings_private/prefs_util.cc b/chrome/browser/extensions/api/settings_private/prefs_util.cc
-index 619a42dd9fc50..731af3681346c 100644
+index 1803d96b758e1..1869a54c5b4e4 100644
 --- a/chrome/browser/extensions/api/settings_private/prefs_util.cc
 +++ b/chrome/browser/extensions/api/settings_private/prefs_util.cc
-@@ -1183,6 +1183,8 @@ const PrefsUtil::TypedPrefMap& PrefsUtil::GetAllowlistedKeys() {
+@@ -1190,6 +1190,8 @@ const PrefsUtil::TypedPrefMap& PrefsUtil::GetAllowlistedKeys() {
        settings_api::PrefType::kBoolean;
    (*s_allowlist)[::prefs::kImportDialogSearchEngine] =
        settings_api::PrefType::kBoolean;
@@ -798,7 +798,7 @@ index aad8bc1ac7d4f..bd24de192a0ee 100644
      if (is_mac) {
 diff --git a/chrome/utility/importer/chrome_importer.cc b/chrome/utility/importer/chrome_importer.cc
 new file mode 100644
-index 0000000000000..483b1ed3731cd
+index 0000000000000..9026dcc1ec6b1
 --- /dev/null
 +++ b/chrome/utility/importer/chrome_importer.cc
 @@ -0,0 +1,736 @@
@@ -895,7 +895,7 @@ index 0000000000000..483b1ed3731cd
 +  // Keep only essential logging for startup and completion
 +  LOG(INFO) << "ChromeImporter: Starting history import";
 +
-+  base::FilePath history_path = source_path_.Append("History");
++  base::FilePath history_path = source_path_.Append(FILE_PATH_LITERAL("History"));
 +  if (!base::PathExists(history_path)) {
 +    LOG(ERROR) << "ChromeImporter: History file not found";
 +    return;
@@ -908,7 +908,7 @@ index 0000000000000..483b1ed3731cd
 +    return;
 +  }
 +
-+  base::FilePath temp_history_path = temp_directory.Append("History");
++  base::FilePath temp_history_path = temp_directory.Append(FILE_PATH_LITERAL("History"));
 +  if (!base::CopyFile(history_path, temp_history_path)) {
 +    LOG(ERROR) << "ChromeImporter: Failed to copy history file";
 +    return;
@@ -979,7 +979,7 @@ index 0000000000000..483b1ed3731cd
 +void ChromeImporter::ImportBookmarks() {
 +  LOG(INFO) << "ChromeImporter: Starting bookmarks import";
 +
-+  base::FilePath bookmarks_path = source_path_.Append("Bookmarks");
++  base::FilePath bookmarks_path = source_path_.Append(FILE_PATH_LITERAL("Bookmarks"));
 +  if (!base::PathExists(bookmarks_path)) {
 +    LOG(ERROR) << "ChromeImporter: Bookmarks file not found";
 +    return;
@@ -992,7 +992,7 @@ index 0000000000000..483b1ed3731cd
 +    return;
 +  }
 +
-+  base::FilePath temp_bookmarks_path = temp_directory.Append("Bookmarks");
++  base::FilePath temp_bookmarks_path = temp_directory.Append(FILE_PATH_LITERAL("Bookmarks"));
 +  if (!base::CopyFile(bookmarks_path, temp_bookmarks_path)) {
 +    LOG(ERROR) << "ChromeImporter: Failed to copy bookmarks file";
 +    base::DeletePathRecursively(temp_directory);
@@ -1054,10 +1054,10 @@ index 0000000000000..483b1ed3731cd
 +  }
 +
 +  // Import favicon data - Chrome uses a Favicons database
-+  base::FilePath favicons_path = source_path_.DirName().Append("Favicons");
++  base::FilePath favicons_path = source_path_.DirName().Append(FILE_PATH_LITERAL("Favicons"));
 +  if (base::PathExists(favicons_path)) {
 +    // Create a temporary copy of the favicons file
-+    base::FilePath temp_favicons_path = temp_directory.Append("Favicons");
++    base::FilePath temp_favicons_path = temp_directory.Append(FILE_PATH_LITERAL("Favicons"));
 +    if (base::CopyFile(favicons_path, temp_favicons_path)) {
 +      sql::Database favicon_db(kDatabaseTag);
 +      if (favicon_db.Open(temp_favicons_path)) {
@@ -1226,10 +1226,10 @@ index 0000000000000..483b1ed3731cd
 +  }
 +
 +  // First try the main Login Data file
-+  ImportPasswordsFromFile(base::FilePath("Login Data"));
++  ImportPasswordsFromFile(base::FilePath(FILE_PATH_LITERAL("Login Data")));
 +
 +  // Then try the account-specific Login Data file if it exists
-+  ImportPasswordsFromFile(base::FilePath("Login Data For Account"));
++  ImportPasswordsFromFile(base::FilePath(FILE_PATH_LITERAL("Login Data For Account")));
 +
 +  LOG(INFO) << "ChromeImporter: Passwords import complete";
 +}
@@ -1332,7 +1332,7 @@ index 0000000000000..483b1ed3731cd
 +void ChromeImporter::ImportAutofillFormData() {
 +  LOG(INFO) << "ChromeImporter: Starting autofill form data import";
 +
-+  base::FilePath web_data_path = source_path_.DirName().Append("Web Data");
++  base::FilePath web_data_path = source_path_.DirName().Append(FILE_PATH_LITERAL("Web Data"));
 +  if (!base::PathExists(web_data_path)) {
 +    LOG(ERROR) << "ChromeImporter: Web Data file not found";
 +    return;
@@ -1346,7 +1346,7 @@ index 0000000000000..483b1ed3731cd
 +  }
 +
 +  // Copy the database file to avoid lock issues
-+  base::FilePath temp_web_data_path = temp_directory.Append("Web Data");
++  base::FilePath temp_web_data_path = temp_directory.Append(FILE_PATH_LITERAL("Web Data"));
 +  if (!base::CopyFile(web_data_path, temp_web_data_path)) {
 +    LOG(ERROR) << "ChromeImporter: Failed to copy Web Data file";
 +    base::DeletePathRecursively(temp_directory);
@@ -1407,7 +1407,7 @@ index 0000000000000..483b1ed3731cd
 +  return true;
 +#elif BUILDFLAG(IS_WIN)
 +  // On Windows, we need to obtain the encryption key from Local State
-+  base::FilePath local_state_path = source_path.Append("Local State");
++  base::FilePath local_state_path = source_path.Append(FILE_PATH_LITERAL("Local State"));
 +  if (!base::PathExists(local_state_path)) {
 +    LOG(ERROR) << "ChromeImporter: Local State file not found";
 +    return false;
@@ -1439,8 +1439,8 @@ index 0000000000000..483b1ed3731cd
 +  LOG(INFO) << "ChromeImporter: Starting extensions import";
 +
 +  // First, check the Preferences and Secure Preferences files to get the list of extensions
-+  base::FilePath preferences_path = source_path_.Append("Preferences");
-+  base::FilePath secure_preferences_path = source_path_.Append("Secure Preferences");
++  base::FilePath preferences_path = source_path_.Append(FILE_PATH_LITERAL("Preferences"));
++  base::FilePath secure_preferences_path = source_path_.Append(FILE_PATH_LITERAL("Secure Preferences"));
 +
 +  if (!base::PathExists(preferences_path) && !base::PathExists(secure_preferences_path)) {
 +    LOG(ERROR) << "ChromeImporter: No preferences files found for extensions import";
