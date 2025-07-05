@@ -268,10 +268,12 @@ def build_main(
             if package_flag:
                 log_info(f"\n📦 Packaging {ctx.architecture} build...")
                 if slack_notifications:
-                    notify_build_step(f"[{ctx.architecture}] Started DMG creation")
+                    package_type = "DMG" if IS_MACOS else "package"
+                    notify_build_step(f"[{ctx.architecture}] Started {package_type} creation")
                 package(ctx)
                 if slack_notifications:
-                    notify_build_step(f"[{ctx.architecture}] Completed DMG creation")
+                    package_type = "DMG" if IS_MACOS else "package"
+                    notify_build_step(f"[{ctx.architecture}] Completed {package_type} creation")
                 
                 # Upload to GCS after packaging
                 if upload_gcs:
@@ -329,10 +331,12 @@ def build_main(
 
             if package_flag:
                 if slack_notifications:
-                    notify_build_step("[Universal] Started DMG package creation")
+                    package_type = "DMG" if IS_MACOS else "package"
+                    notify_build_step(f"[Universal] Started {package_type} creation")
                 package_universal(built_contexts)
                 if slack_notifications:
-                    notify_build_step("[Universal] Completed DMG package creation")
+                    package_type = "DMG" if IS_MACOS else "package"
+                    notify_build_step(f"[Universal] Completed {package_type} creation")
                 
                 # Upload universal package to GCS
                 if upload_gcs:

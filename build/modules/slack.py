@@ -10,12 +10,25 @@ from typing import Optional
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
-from utils import log_info, log_warning, log_error
+from utils import log_info, log_warning, log_error, get_platform
 
 
 def get_slack_webhook_url() -> Optional[str]:
     """Get Slack webhook URL from environment variable"""
     return os.environ.get("SLACK_WEBHOOK_URL")
+
+
+def get_os_info() -> tuple[str, str]:
+    """Get OS emoji and name for Slack notifications"""
+    platform = get_platform()
+    if platform == "macos":
+        return "🍎", "macOS"
+    elif platform == "windows":
+        return "🪟", "Windows"
+    elif platform == "linux":
+        return "🐧", "Linux"
+    else:
+        return "💻", platform.capitalize()
 
 
 def send_slack_notification(message: str, success: bool = True) -> bool:
@@ -30,6 +43,9 @@ def send_slack_notification(message: str, success: bool = True) -> bool:
     emoji = "✅" if success else "❌"
     color = "good" if success else "danger"
     
+    # Get OS information
+    os_emoji, os_name = get_os_info()
+    
     # Create Slack message payload
     payload = {
         "attachments": [
@@ -42,7 +58,7 @@ def send_slack_notification(message: str, success: bool = True) -> bool:
                         "short": False
                     }
                 ],
-                "footer": "Nxtscape Build System",
+                "footer": f"{os_emoji} Nxtscape Build System - {os_name}",
                 "ts": None  # Slack will use current timestamp
             }
         ]
@@ -70,7 +86,8 @@ def send_slack_notification(message: str, success: bool = True) -> bool:
 
 def notify_build_started(build_type: str, arch: str) -> bool:
     """Notify that build has started"""
-    message = f"Build started - {build_type} build for {arch}"
+    _, os_name = get_os_info()
+    message = f"Build started on {os_name} - {build_type} build for {arch}"
     return send_slack_notification(message, success=True)
 
 
