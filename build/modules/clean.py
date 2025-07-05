@@ -7,7 +7,7 @@ import os
 import shutil
 from pathlib import Path
 from context import BuildContext
-from utils import run_command, log_info, log_success
+from utils import run_command, log_info, log_success, safe_rmtree
 
 
 def clean(ctx: BuildContext) -> bool:
@@ -16,7 +16,7 @@ def clean(ctx: BuildContext) -> bool:
     
     out_path = ctx.chromium_src / ctx.out_dir
     if out_path.exists():
-        shutil.rmtree(out_path)
+        safe_rmtree(out_path)
         log_success("Cleaned build directory")
     
     log_info("\n🔀 Resetting git branch and removing all tracked files...")
@@ -33,7 +33,7 @@ def clean_sparkle(ctx: BuildContext) -> bool:
     log_info("\n🧹 Cleaning Sparkle build artifacts...")
     sparkle_dir = ctx.get_sparkle_dir()
     if sparkle_dir.exists():
-        shutil.rmtree(sparkle_dir)
+        safe_rmtree(sparkle_dir)
     log_success("Cleaned Sparkle build directory")
     return True
 

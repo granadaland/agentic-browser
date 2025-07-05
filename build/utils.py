@@ -7,6 +7,7 @@ import os
 import sys
 import subprocess
 import yaml
+import shutil
 from pathlib import Path
 from typing import Optional, List, Dict, Union
 from datetime import datetime
@@ -233,4 +234,36 @@ def join_paths(*paths: Union[str, Path]) -> Path:
         result = result / p
     
     return normalize_path(result)
+
+
+def safe_rmtree(path: Union[str, Path]) -> None:
+    """Safely remove directory tree, handling Windows symlinks and junction points"""
+    path = Path(path)
+    
+    if not path.exists():
+        return
+        
+    if IS_WINDOWS:
+        # On Windows, use rmdir for junctions and symlinks
+        import stat
+        
+        def handle_remove_readonly(func, path, exc):
+            """Error handler for Windows readonly files"""
+            if os.path.exists(path):
+                os.chmod(path, stat.S_IWRITE)
+                func(path)
+        
+        # Try to remove as a junction/symlink first
+        try:
+            if path.is_symlink() or (path.is_dir() and os.path.islink(str(path))):
+                path.unlink()
+                return
+        except:
+            pass
+        
+        # Fall back to rmtree with error handler
+        shutil.rmtree(path, onerror=handle_remove_readonly)
+    else:
+        # On Unix-like systems, regular rmtree works fine
+        shutil.rmtree(path)
 

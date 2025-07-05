@@ -46,7 +46,7 @@ def build(ctx: BuildContext) -> bool:
     new_path = ctx.get_app_path()
     
     if app_path.exists() and not new_path.exists():
-        app_path.rename(new_path)
+        shutil.move(str(app_path), str(new_path))
     
     log_success("Build complete!")
     return True

@@ -282,7 +282,6 @@ def build_main(
 
             # Import merge function
             from modules.merge import merge_architectures
-            import shutil
 
             # Get paths for the built apps
             arch1_app = built_contexts[0].get_app_path()
@@ -292,7 +291,8 @@ def build_main(
             universal_dir = built_contexts[0].chromium_src / "out/Default_universal"
             if universal_dir.exists():
                 log_info("🧹 Cleaning up old universal output directory...")
-                shutil.rmtree(universal_dir)
+                from utils import safe_rmtree
+                safe_rmtree(universal_dir)
 
             # Create fresh universal output path
             universal_dir.mkdir(parents=True, exist_ok=True)

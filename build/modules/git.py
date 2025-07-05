@@ -11,7 +11,7 @@ import tarfile
 import urllib.request
 from pathlib import Path
 from context import BuildContext
-from utils import run_command, log_info, log_error, log_success, IS_WINDOWS
+from utils import run_command, log_info, log_error, log_success, IS_WINDOWS, safe_rmtree
 
 
 def setup_git(ctx: BuildContext) -> bool:
@@ -23,7 +23,6 @@ def setup_git(ctx: BuildContext) -> bool:
     # Fetch all tags and checkout
     log_info("📥 Fetching all tags from remote...")
     run_command(["git", "fetch", "--tags", "--force"])
-    run_command(["git", "fetch", "origin", "--tags", "--force"])
     
     # Verify tag exists before checkout
     result = subprocess.run(["git", "tag", "-l", ctx.chromium_version], 
@@ -43,7 +42,11 @@ def setup_git(ctx: BuildContext) -> bool:
     
     # Sync dependencies
     log_info("📥 Syncing dependencies (this may take a while)...")
-    run_command(["gclient", "sync", "-D", "--no-history", "--shallow"])
+    # Windows gclient doesn't support --shallow flag
+    if IS_WINDOWS:
+        run_command(["gclient", "sync", "-D", "--force", "--no-history"])
+    else:
+        run_command(["gclient", "sync", "-D", "--no-history", "--shallow"])
     
     log_success("Git setup complete")
     return True
@@ -57,7 +60,7 @@ def setup_sparkle(ctx: BuildContext) -> bool:
     
     # Clean existing
     if sparkle_dir.exists():
-        shutil.rmtree(sparkle_dir)
+        safe_rmtree(sparkle_dir)
     
     sparkle_dir.mkdir(parents=True)
     
