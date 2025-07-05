@@ -18,7 +18,7 @@ except ImportError:
     GCS_AVAILABLE = False
 
 # Service account file name
-SERVICE_ACCOUNT_FILE = "nxtscape-cli-access.json"
+SERVICE_ACCOUNT_FILE = "gclient.json"
 
 
 def upload_to_gcs(ctx: BuildContext, file_paths: List[Path]) -> tuple[bool, List[str]]:
