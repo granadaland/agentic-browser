@@ -30,7 +30,9 @@
 
 ## Quick start
 
-1. [Download and install BrowserOS](https://bit.ly/nxtscape)
+1. Download and install BrowserOS:
+   - [macOS](https://bit.ly/nxtscape)
+   - [Windows](https://cdn.browseros.com/win/BrowserOS-installer.zip)
 2. Import your Chrome data (optional)
 3. Connect your AI provider (OpenAI, Anthropic, or local Ollama)
 4. Start automating!
