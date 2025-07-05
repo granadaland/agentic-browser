@@ -6,7 +6,7 @@ Slack notification module for Nxtscape build system
 import os
 import json
 import requests
-from typing import Optional
+from typing import Optional, List
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
@@ -97,9 +97,21 @@ def notify_build_step(step_name: str) -> bool:
     return send_slack_notification(message, success=True)
 
 
-def notify_build_success(duration_mins: int, duration_secs: int) -> bool:
+def notify_build_success(duration_mins: int, duration_secs: int, gcs_uris: Optional[List[str]] = None) -> bool:
     """Notify that build completed successfully"""
     message = f"Build completed successfully in {duration_mins}m {duration_secs}s"
+    
+    # Add GCS URIs to message if provided
+    if gcs_uris:
+        message += f"\n\nUploaded artifacts ({len(gcs_uris)} files):"
+        for uri in gcs_uris:
+            # Convert gs:// URI to public URL for easier access
+            if uri.startswith("gs://"):
+                public_url = uri.replace("gs://", "https://storage.googleapis.com/")
+                message += f"\n• {public_url}"
+            else:
+                message += f"\n• {uri}"
+    
     return send_slack_notification(message, success=True)
 
 
@@ -113,3 +125,22 @@ def notify_build_interrupted() -> bool:
     """Notify that build was interrupted"""
     message = "Build was interrupted by user"
     return send_slack_notification(message, success=False)
+
+
+def notify_gcs_upload(architecture: str, gcs_uris: List[str]) -> bool:
+    """Notify about GCS upload for a specific architecture"""
+    if not gcs_uris:
+        return True
+    
+    message = f"[{architecture}] Uploaded {len(gcs_uris)} artifact(s) to GCS"
+    
+    # Add URIs to message
+    for uri in gcs_uris:
+        # Convert gs:// URI to public URL
+        if uri.startswith("gs://"):
+            public_url = uri.replace("gs://", "https://storage.googleapis.com/")
+            message += f"\n• {public_url}"
+        else:
+            message += f"\n• {uri}"
+    
+    return send_slack_notification(message, success=True)

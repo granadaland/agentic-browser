@@ -61,6 +61,7 @@ from modules.slack import (
     notify_build_success,
     notify_build_failure,
     notify_build_interrupted,
+    notify_gcs_upload,
 )
 
 
@@ -179,6 +180,7 @@ def build_main(
     # Run build steps
     try:
         built_contexts = []
+        all_gcs_uris = []  # Track all uploaded GCS URIs
 
         # Build each architecture separately
         for arch_name in architectures:
@@ -276,8 +278,14 @@ def build_main(
                     notify_build_step(f"[{ctx.architecture}] Completed {package_type} creation")
                 
                 # Upload to GCS after packaging
+                gcs_uris = []
                 if upload_gcs:
-                    upload_package_artifacts(ctx)
+                    success, gcs_uris = upload_package_artifacts(ctx)
+                    if not success:
+                        log_warning("Failed to upload package artifacts to GCS")
+                    elif gcs_uris and slack_notifications:
+                        notify_gcs_upload(ctx.architecture, gcs_uris)
+                        all_gcs_uris.extend(gcs_uris)
 
             built_contexts.append(ctx)
 
@@ -339,12 +347,18 @@ def build_main(
                     notify_build_step(f"[Universal] Completed {package_type} creation")
                 
                 # Upload universal package to GCS
+                universal_gcs_uris = []
                 if upload_gcs:
                     # Use the first context with universal architecture override
                     universal_ctx = built_contexts[0]
                     original_arch = universal_ctx.architecture
                     universal_ctx.architecture = "universal"
-                    upload_package_artifacts(universal_ctx)
+                    success, universal_gcs_uris = upload_package_artifacts(universal_ctx)
+                    if not success:
+                        log_warning("Failed to upload universal package artifacts to GCS")
+                    elif universal_gcs_uris and slack_notifications:
+                        notify_gcs_upload("universal", universal_gcs_uris)
+                        all_gcs_uris.extend(universal_gcs_uris)
                     universal_ctx.architecture = original_arch
 
         # Summary
@@ -362,7 +376,7 @@ def build_main(
 
         # Notify build success (if enabled)
         if slack_notifications:
-            notify_build_success(mins, secs)
+            notify_build_success(mins, secs, gcs_uris=all_gcs_uris)
 
     except KeyboardInterrupt:
         log_warning("\nBuild interrupted")

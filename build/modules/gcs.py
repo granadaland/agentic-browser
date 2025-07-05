@@ -21,16 +21,17 @@ except ImportError:
 SERVICE_ACCOUNT_FILE = "nxtscape-cli-access.json"
 
 
-def upload_to_gcs(ctx: BuildContext, file_paths: List[Path]) -> bool:
-    """Upload build artifacts to Google Cloud Storage"""
+def upload_to_gcs(ctx: BuildContext, file_paths: List[Path]) -> tuple[bool, List[str]]:
+    """Upload build artifacts to Google Cloud Storage
+    Returns: (success, list of GCS URIs)"""
     if not GCS_AVAILABLE:
         log_warning("google-cloud-storage not installed. Skipping GCS upload.")
         log_info("Install with: pip install google-cloud-storage")
-        return True  # Not a fatal error
+        return True, []  # Not a fatal error
     
     if not file_paths:
         log_info("No files to upload to GCS")
-        return True
+        return True, []
     
     # Determine platform subdirectory
     if IS_WINDOWS:
@@ -51,7 +52,7 @@ def upload_to_gcs(ctx: BuildContext, file_paths: List[Path]) -> bool:
     if not service_account_path.exists():
         log_error(f"Service account file not found: {SERVICE_ACCOUNT_FILE}")
         log_info(f"Please place the service account JSON file at: {service_account_path}")
-        return False
+        return False, []
     
     try:
         # Initialize GCS client with service account
@@ -62,6 +63,7 @@ def upload_to_gcs(ctx: BuildContext, file_paths: List[Path]) -> bool:
         bucket = client.bucket(bucket_name)
         
         uploaded_files = []
+        gcs_uris = []
         
         for file_path in file_paths:
             if not file_path.exists():
@@ -81,12 +83,14 @@ def upload_to_gcs(ctx: BuildContext, file_paths: List[Path]) -> bool:
                 blob.make_public()
                 
                 public_url = f"https://storage.googleapis.com/{bucket_name}/{blob_name}"
+                gcs_uri = f"gs://{bucket_name}/{blob_name}"
                 uploaded_files.append(public_url)
+                gcs_uris.append(gcs_uri)
                 log_success(f"✓ Uploaded: {public_url}")
                     
             except Exception as e:
                 log_error(f"Failed to upload {file_path.name}: {e}")
-                return False
+                return False, []
         
         if uploaded_files:
             log_success(f"\n☁️  Successfully uploaded {len(uploaded_files)} file(s) to GCS")
@@ -94,15 +98,16 @@ def upload_to_gcs(ctx: BuildContext, file_paths: List[Path]) -> bool:
             for url in uploaded_files:
                 log_info(f"  {url}")
         
-        return True
+        return True, gcs_uris
         
     except Exception as e:
         log_error(f"GCS upload failed: {e}")
-        return False
+        return False, []
 
 
-def upload_package_artifacts(ctx: BuildContext) -> bool:
-    """Upload package artifacts (DMG, ZIP, EXE) to GCS"""
+def upload_package_artifacts(ctx: BuildContext) -> tuple[bool, List[str]]:
+    """Upload package artifacts (DMG, ZIP, EXE) to GCS
+    Returns: (success, list of GCS URIs)"""
     log_info("\n☁️  Preparing to upload package artifacts to GCS...")
     
     artifacts = []
@@ -122,7 +127,7 @@ def upload_package_artifacts(ctx: BuildContext) -> bool:
     
     if not artifacts:
         log_info("No package artifacts found to upload")
-        return True
+        return True, []
     
     log_info(f"Found {len(artifacts)} artifact(s) to upload:")
     for artifact in artifacts:
