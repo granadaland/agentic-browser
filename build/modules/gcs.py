@@ -79,8 +79,8 @@ def upload_to_gcs(ctx: BuildContext, file_paths: List[Path]) -> tuple[bool, List
                 log_info(f"📤 Uploading {file_path.name}...")
                 blob.upload_from_filename(str(file_path))
                 
-                # Make the blob publicly readable
-                blob.make_public()
+                # Note: With uniform bucket-level access, objects inherit bucket's IAM policies
+                # No need to set individual object ACLs
                 
                 public_url = f"https://storage.googleapis.com/{bucket_name}/{blob_name}"
                 gcs_uri = f"gs://{bucket_name}/{blob_name}"
