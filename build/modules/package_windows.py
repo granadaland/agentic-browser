@@ -10,12 +10,17 @@ import zipfile
 from pathlib import Path
 from typing import Optional, List
 from context import BuildContext
-from utils import run_command, log_info, log_error, log_success, log_warning, join_paths
+from utils import run_command, log_info, log_error, log_success, log_warning, join_paths, IS_WINDOWS
 
 
 def package(ctx: BuildContext) -> bool:
     """Create Windows packages (installer and portable zip)"""
     log_info("\n📦 Creating Windows packages...")
+    
+    # First, ensure mini_installer is built
+    if not build_mini_installer(ctx):
+        log_error("Failed to build mini_installer")
+        return False
     
     # Create both installer and portable zip
     success = True
@@ -33,6 +38,56 @@ def package(ctx: BuildContext) -> bool:
         success = False
     
     return success
+
+
+def build_mini_installer(ctx: BuildContext) -> bool:
+    """Build the mini_installer target if it doesn't exist"""
+    log_info("\n🔨 Checking mini_installer build...")
+    
+    # Get paths
+    build_output_dir = join_paths(ctx.chromium_src, ctx.out_dir)
+    mini_installer_path = build_output_dir / "mini_installer.exe"
+    
+    if mini_installer_path.exists():
+        log_info("mini_installer.exe already exists")
+        return True
+    
+    log_info("Building mini_installer target...")
+    
+    # Build mini_installer using autoninja
+    try:
+        # Use autoninja.bat on Windows
+        autoninja_cmd = "autoninja.bat" if IS_WINDOWS else "autoninja"
+        
+        # Build the mini_installer target
+        cmd = [
+            autoninja_cmd,
+            "-C",
+            ctx.out_dir,  # Use relative path like in compile.py
+            "mini_installer"
+        ]
+        
+        # Change to chromium_src directory before running (like compile.py does)
+        import os
+        old_cwd = os.getcwd()
+        os.chdir(ctx.chromium_src)
+        
+        try:
+            run_command(cmd)
+        finally:
+            os.chdir(old_cwd)
+        
+        # Verify the file was created
+        if mini_installer_path.exists():
+            log_success("mini_installer built successfully")
+            return True
+        else:
+            log_error("mini_installer build completed but file not found")
+            return False
+            
+    except Exception as e:
+        log_error(f"Failed to build mini_installer: {e}")
+        return False
 
 
 def create_installer(ctx: BuildContext) -> bool:
