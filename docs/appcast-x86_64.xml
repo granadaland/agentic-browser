@@ -9,6 +9,21 @@
 
     <!-- Updates -->
     <item>
+      <title>Nxtscape - 0.11.0</title>
+      <description sparkle:format="plain-text">
+      </description>
+      <sparkle:version>7179.69</sparkle:version>
+      <sparkle:shortVersionString>0.11.0</sparkle:shortVersionString>
+      <pubDate>Wed, 09 Jul 2025 13:39:48 -0700</pubDate>
+      <link>https://nxtscape.ai</link>
+      <enclosure
+        url="http://cdn.browseros.com/dmg/BrowserOS_v0.11.0_x64.dmg"
+        sparkle:edSignature="iV8ngEWpTSZnxZb0/QgP2IalctM+UNG2L0W1EX4gFioYNjoUQ1Esa/cFczOyuhRci0LANCLOY9Ujq5yZCGF2CQ==" 
+        length="135985949"
+        type="application/octet-stream" />
+      <sparkle:minimumSystemVersion>10.15</sparkle:minimumSystemVersion>
+    </item>
+    <item>
       <title>Nxtscape - 0.10.0</title>
       <description sparkle:format="plain-text">
 - BrowserOS now supports Windows. Check our GitHub page for the Windows installer.
