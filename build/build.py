@@ -28,7 +28,7 @@ from modules.gcs import upload_package_artifacts, upload_signed_artifacts
 
 # Platform-specific imports
 if IS_MACOS:
-    from modules.sign import sign, sign_universal
+    from modules.sign import sign, sign_universal, check_signing_environment
     from modules.package import package, package_universal
     from modules.postbuild import run_postbuild
 elif IS_WINDOWS:
@@ -84,6 +84,11 @@ def build_main(
     """Main build orchestration"""
     log_info("🚀 Nxtscape Build System")
     log_info("=" * 50)
+    
+    # Check if sign flag is enabled and required environment variables are set
+    if sign_flag:
+        if not check_signing_environment():
+            sys.exit(1)
     
     # Set Windows-specific environment variables
     if IS_WINDOWS:

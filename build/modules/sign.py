@@ -18,6 +18,7 @@ from utils import (
     log_error,
     log_success,
     log_warning,
+    IS_MACOS,
 )
 
 
@@ -44,6 +45,33 @@ def sign(ctx: BuildContext) -> bool:
         raise RuntimeError("Signing and notarization failed")
 
     log_success("Application signed and notarized successfully")
+    return True
+
+
+def check_signing_environment() -> bool:
+    """Check if all required environment variables are set for signing (early check)"""
+    # Only check on macOS
+    if not IS_MACOS:
+        return True
+    
+    required_vars = [
+        "MACOS_CERTIFICATE_NAME",
+        "PROD_MACOS_NOTARIZATION_APPLE_ID",
+        "PROD_MACOS_NOTARIZATION_TEAM_ID",
+        "PROD_MACOS_NOTARIZATION_PWD"
+    ]
+    
+    missing = []
+    for var in required_vars:
+        if not os.environ.get(var):
+            missing.append(var)
+    
+    if missing:
+        log_error("❌ Signing requires macOS environment variables!")
+        log_error(f"Missing environment variables: {', '.join(missing)}")
+        log_error("Please set all required environment variables before signing.")
+        return False
+    
     return True
 
 
