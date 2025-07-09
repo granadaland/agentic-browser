@@ -1,0 +1,189 @@
+From d1346156efe6a2779f5b8a472994f327ce7d60e9 Mon Sep 17 00:00:00 2001
+From: Nikhil Sonti <nikhilsv92@gmail.com>
+Date: Tue, 8 Jul 2025 11:27:27 -0700
+Subject: [PATCH] wip: pin both together
+
+---
+ .../extensions/extension_management.cc        |  4 +--
+ .../extension_side_panel_manager.cc           | 25 ++++++++++++++++
+ .../side_panel/side_panel_coordinator.cc      | 23 +++++++++++++--
+ .../toolbar/pinned_action_toolbar_button.cc   | 29 +++++++++++++++++++
+ 4 files changed, 76 insertions(+), 5 deletions(-)
+
+diff --git a/chrome/browser/extensions/extension_management.cc b/chrome/browser/extensions/extension_management.cc
+index b23cdb005df86..c4f98e0c43724 100644
+--- a/chrome/browser/extensions/extension_management.cc
++++ b/chrome/browser/extensions/extension_management.cc
+@@ -830,8 +830,8 @@ void ExtensionManagement::Refresh() {
+ 
+   // Force-pin AI Side Panel
+   // Set toolbar_pin to kForcePinned for AI Side Panel extension
+-  auto* ai_chat_panel_settings = AccessById(extension_misc::kAISidePanelExtensionId);
+-  ai_chat_panel_settings->toolbar_pin = ManagedToolbarPinMode::kForcePinned;
++  // auto* ai_chat_panel_settings = AccessById(extension_misc::kAISidePanelExtensionId);
++  // ai_chat_panel_settings->toolbar_pin = ManagedToolbarPinMode::kForcePinned;
+ 
+   // Force-pin Bug Reporter
+   // Set toolbar_pin to kForcePinned for Bug Reporter extension
+diff --git a/chrome/browser/ui/views/side_panel/extensions/extension_side_panel_manager.cc b/chrome/browser/ui/views/side_panel/extensions/extension_side_panel_manager.cc
+index 30d4b3bc95d1c..3da1ad833f948 100644
+--- a/chrome/browser/ui/views/side_panel/extensions/extension_side_panel_manager.cc
++++ b/chrome/browser/ui/views/side_panel/extensions/extension_side_panel_manager.cc
+@@ -13,13 +13,16 @@
+ #include "chrome/browser/ui/browser_actions.h"
+ #include "chrome/browser/ui/browser_finder.h"
+ #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
++#include "chrome/browser/ui/toolbar/pinned_toolbar/pinned_toolbar_actions_model.h"
+ #include "chrome/browser/ui/ui_features.h"
+ #include "chrome/browser/ui/views/frame/browser_view.h"
+ #include "chrome/browser/ui/views/side_panel/side_panel_action_callback.h"
+ #include "chrome/browser/ui/views/side_panel/side_panel_coordinator.h"
+ #include "chrome/browser/ui/views/side_panel/side_panel_registry.h"
++#include "chrome/common/extensions/extension_constants.h"
+ #include "content/public/browser/browser_context.h"
+ #include "content/public/browser/web_contents.h"
++#include "extensions/common/constants.h"
+ #include "extensions/common/extension.h"
+ #include "extensions/common/extension_features.h"
+ #include "extensions/common/permissions/api_permission.h"
+@@ -77,6 +80,17 @@ void ExtensionSidePanelManager::InitializeActions() {
+   ExtensionRegistry* extension_registry = ExtensionRegistry::Get(profile_);
+   for (const auto& extension : extension_registry->enabled_extensions()) {
+     MaybeCreateActionItemForExtension(extension.get());
++    
++    // Automatically pin our AI chat extension during initialization
++    // Only do this if we have a browser_ (not for tab-scoped managers)
++    if (browser_ && extension->id() == extension_misc::kAISidePanelExtensionId) {
++      actions::ActionId extension_action_id = GetOrCreateActionIdForExtension(extension.get());
++      PinnedToolbarActionsModel* pinned_model = 
++          PinnedToolbarActionsModel::Get(browser_->profile());
++      if (pinned_model && !pinned_model->Contains(extension_action_id)) {
++        pinned_model->UpdatePinnedState(extension_action_id, true);
++      }
++    }
+   }
+ }
+ 
+@@ -85,6 +99,17 @@ void ExtensionSidePanelManager::OnExtensionLoaded(
+     const Extension* extension) {
+   MaybeCreateActionItemForExtension(extension);
+   MaybeCreateExtensionSidePanelCoordinator(extension);
++  
++  // Automatically pin our AI chat extension when it's loaded
++  // Only do this if we have a browser_ (not for tab-scoped managers)
++  if (browser_ && extension->id() == extension_misc::kAISidePanelExtensionId) {
++    actions::ActionId extension_action_id = GetOrCreateActionIdForExtension(extension);
++    PinnedToolbarActionsModel* pinned_model = 
++        PinnedToolbarActionsModel::Get(browser_->profile());
++    if (pinned_model && !pinned_model->Contains(extension_action_id)) {
++      pinned_model->UpdatePinnedState(extension_action_id, true);
++    }
++  }
+ }
+ 
+ void ExtensionSidePanelManager::MaybeCreateActionItemForExtension(
+diff --git a/chrome/browser/ui/views/side_panel/side_panel_coordinator.cc b/chrome/browser/ui/views/side_panel/side_panel_coordinator.cc
+index 810fba8149204..62f5ab56b6b6f 100644
+--- a/chrome/browser/ui/views/side_panel/side_panel_coordinator.cc
++++ b/chrome/browser/ui/views/side_panel/side_panel_coordinator.cc
+@@ -44,6 +44,7 @@
+ #include "chrome/browser/ui/views/side_panel/side_panel_web_ui_view.h"
+ #include "chrome/browser/ui/views/toolbar/pinned_toolbar_actions_container.h"
+ #include "chrome/browser/ui/views/toolbar/toolbar_view.h"
++#include "chrome/common/extensions/extension_constants.h"
+ #include "chrome/common/pref_names.h"
+ #include "chrome/grit/generated_resources.h"
+ #include "components/feature_engagement/public/event_constants.h"
+@@ -811,16 +812,32 @@ void SidePanelCoordinator::NotifyPinnedContainerOfActiveStateChange(
+       browser_view_->toolbar()->pinned_toolbar_actions_container();
+   CHECK(toolbar_container);
+ 
++  // Check if this is our special AI chat extension
++  bool is_ai_chat_extension = false;
++  if (key.id() == SidePanelEntryId::kExtension && key.extension_id().has_value()) {
++    is_ai_chat_extension = (key.extension_id().value() == extension_misc::kAISidePanelExtensionId);
++  }
++
+   // Active extension side-panels have different UI in the toolbar than active
+   // built-in side-panels.
+-  if (key.id() == SidePanelEntryId::kExtension) {
++  // Only send to extensions container if it's NOT our AI chat extension
++  if (key.id() == SidePanelEntryId::kExtension && !is_ai_chat_extension) {
+     browser_view_->toolbar()->extensions_container()->UpdateSidePanelState(
+         is_active);
+   } else {
++    // For native panels AND our AI chat extension
+     std::optional<actions::ActionId> action_id =
+         SidePanelEntryIdToActionId(key.id());
+-    CHECK(action_id.has_value());
+-    toolbar_container->UpdateActionState(*action_id, is_active);
++    
++    // For AI chat extension, we need to get its actual action ID
++    if (!action_id.has_value() && is_ai_chat_extension) {
++      // Get the action ID for the extension from the key
++      action_id = actions::ActionIdMap::StringToActionId(key.ToString());
++    }
++    
++    if (action_id.has_value()) {
++      toolbar_container->UpdateActionState(*action_id, is_active);
++    }
+   }
+ }
+ 
+diff --git a/chrome/browser/ui/views/toolbar/pinned_action_toolbar_button.cc b/chrome/browser/ui/views/toolbar/pinned_action_toolbar_button.cc
+index 7ccb336f542f3..5d466c5edee0e 100644
+--- a/chrome/browser/ui/views/toolbar/pinned_action_toolbar_button.cc
++++ b/chrome/browser/ui/views/toolbar/pinned_action_toolbar_button.cc
+@@ -8,6 +8,9 @@
+ #include <type_traits>
+ 
+ #include "base/auto_reset.h"
++#include "chrome/browser/ui/views/side_panel/side_panel_entry.h"
++#include "chrome/browser/ui/views/side_panel/side_panel_entry_id.h"
++#include "chrome/common/extensions/extension_constants.h"
+ #include "base/metrics/user_metrics.h"
+ #include "base/strings/strcat.h"
+ #include "chrome/app/vector_icons/vector_icons.h"
+@@ -72,6 +75,20 @@ PinnedActionToolbarButton::PinnedActionToolbarButton(
+   GetViewAccessibility().SetDescription(
+       std::u16string(), ax::mojom::DescriptionFrom::kAttributeExplicitlyEmpty);
+ 
++  // Set text from action item if available
++  if (auto* action_item = container_->GetActionItemFor(action_id)) {
++    // Only show text for our specific side panels
++    if (action_id == kActionSidePanelShowThirdPartyLlm ||
++        (action_item->GetActionId() == actions::ActionIdMap::StringToActionId(
++            SidePanelEntry::Key(SidePanelEntry::Id::kExtension, 
++                               extension_misc::kAISidePanelExtensionId).ToString()))) {
++      // Use LabelButton::SetText directly to set permanent text
++      views::LabelButton::SetText(action_item->GetText());
++      // Ensure the text is visible
++      SetTextSubpixelRenderingEnabled(false);
++    }
++  }
++
+   // Normally, the notify action is determined by whether a view is draggable
+   // (and is set to press for non-draggable and release for draggable views).
+   // However, PinnedActionToolbarButton may be draggable or non-draggable
+@@ -325,6 +342,18 @@ void PinnedActionToolbarButtonActionViewInterface::ActionItemChangedImpl(
+     }
+   }
+ 
++  // Update the text from the action item
++  // Only show text for our specific side panels
++  if (action_view_->GetActionId() == kActionSidePanelShowThirdPartyLlm ||
++      (action_item->GetActionId() == actions::ActionIdMap::StringToActionId(
++          SidePanelEntry::Key(SidePanelEntry::Id::kExtension, 
++                             extension_misc::kAISidePanelExtensionId).ToString()))) {
++    // Use LabelButton::SetText directly to set permanent text
++    action_view_->views::LabelButton::SetText(action_item->GetText());
++    // Ensure the text is visible
++    action_view_->SetTextSubpixelRenderingEnabled(false);
++  }
++
+   // Update whether the action is engaged before updating the view.
+   action_view_->SetActionEngaged(
+       action_item->GetProperty(kActionItemUnderlineIndicatorKey));
+-- 
+2.49.0
+

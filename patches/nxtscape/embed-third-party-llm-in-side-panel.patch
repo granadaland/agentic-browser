@@ -48,7 +48,7 @@ index 186d94b83cb9c..444323aed7636 100644
          </message>
        </if>
 +      <message name="IDS_THIRD_PARTY_LLM_TITLE" desc="Title for 3rd party LLM side panel">
-+        LLM sidekick
++        Chat
 +      </message>
        <message name="IDS_READ_LATER_MENU_UNREAD_HEADER" desc="Header for section of unread Read later items.">
          Unread

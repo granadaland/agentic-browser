@@ -12,3 +12,4 @@ nxtscape/add-sparkle-info-plist-keys.patch
 nxtscape/embed-third-party-llm-in-side-panel.patch
 # nxtscape/UI-updating-About-string.patch
 nxtscape/disable-google-key-info-bar.patch
+nxtscape/pin-nxtscape-agents-together.patch
