@@ -12,14 +12,14 @@
       <title>Nxtscape - 0.11.0</title>
       <description sparkle:format="plain-text">
       </description>
-      <sparkle:version>7179.69</sparkle:version>
+      <sparkle:version>7180.69</sparkle:version>
       <sparkle:shortVersionString>0.11.0</sparkle:shortVersionString>
       <pubDate>Wed, 09 Jul 2025 13:39:48 -0700</pubDate>
       <link>https://nxtscape.ai</link>
       <enclosure
         url="http://cdn.browseros.com/dmg/BrowserOS_v0.11.0_arm64.dmg"
-        sparkle:edSignature="fs8bP/B+ghwZ4qzEA+YQxl4fcuPloKSJ166yAYKbAnCwxX/i7AARUdlPVptHNX2xA/TZ4SOpSR/LIjmmmzMFDA==" 
-        length="126805180"
+        sparkle:edSignature="g4PJb3tqiSx9NcB4rwg5byFWQl48TI30jYPDF47s1lt0qCWEhewSLOWktVnDNR8Wkk07dtf61conedSxkVZ6BA==" 
+        length="126847980"
         type="application/octet-stream" />
       <sparkle:minimumSystemVersion>10.15</sparkle:minimumSystemVersion>
     </item>
