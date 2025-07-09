@@ -1,30 +1,14 @@
-From d1346156efe6a2779f5b8a472994f327ce7d60e9 Mon Sep 17 00:00:00 2001
+From 8d53ddfd0bcbc117ad5a6a18d75f248da7c8446d Mon Sep 17 00:00:00 2001
 From: Nikhil Sonti <nikhilsv92@gmail.com>
-Date: Tue, 8 Jul 2025 11:27:27 -0700
-Subject: [PATCH] wip: pin both together
+Date: Wed, 9 Jul 2025 08:59:40 -0700
+Subject: [PATCH] pin together nxtscape agents
 
 ---
- .../extensions/extension_management.cc        |  4 +--
  .../extension_side_panel_manager.cc           | 25 ++++++++++++++++
  .../side_panel/side_panel_coordinator.cc      | 23 +++++++++++++--
  .../toolbar/pinned_action_toolbar_button.cc   | 29 +++++++++++++++++++
- 4 files changed, 76 insertions(+), 5 deletions(-)
+ 3 files changed, 74 insertions(+), 3 deletions(-)
 
-diff --git a/chrome/browser/extensions/extension_management.cc b/chrome/browser/extensions/extension_management.cc
-index b23cdb005df86..c4f98e0c43724 100644
---- a/chrome/browser/extensions/extension_management.cc
-+++ b/chrome/browser/extensions/extension_management.cc
-@@ -830,8 +830,8 @@ void ExtensionManagement::Refresh() {
- 
-   // Force-pin AI Side Panel
-   // Set toolbar_pin to kForcePinned for AI Side Panel extension
--  auto* ai_chat_panel_settings = AccessById(extension_misc::kAISidePanelExtensionId);
--  ai_chat_panel_settings->toolbar_pin = ManagedToolbarPinMode::kForcePinned;
-+  // auto* ai_chat_panel_settings = AccessById(extension_misc::kAISidePanelExtensionId);
-+  // ai_chat_panel_settings->toolbar_pin = ManagedToolbarPinMode::kForcePinned;
- 
-   // Force-pin Bug Reporter
-   // Set toolbar_pin to kForcePinned for Bug Reporter extension
 diff --git a/chrome/browser/ui/views/side_panel/extensions/extension_side_panel_manager.cc b/chrome/browser/ui/views/side_panel/extensions/extension_side_panel_manager.cc
 index 30d4b3bc95d1c..3da1ad833f948 100644
 --- a/chrome/browser/ui/views/side_panel/extensions/extension_side_panel_manager.cc
