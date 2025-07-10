@@ -5,6 +5,7 @@
 <strong>(previously Nxtscape)</strong>
 
 ### Your browser, with AI superpowers 🚀
+#### (Open Source Perplexity Comet Alternative)
 
 [![Discord](https://img.shields.io/badge/Discord-Join%20us-blue)](https://discord.gg/YKwjt5vuKr)
 [![Twitter](https://img.shields.io/twitter/follow/browswerOS_ai?style=social)](https://twitter.com/browseros_ai)
