@@ -2,7 +2,6 @@
 
 # 
 <img src="https://cdn.browseros.com/resources/banner.png" alt="backed-by-yc" >
-<strong>(previously Nxtscape)</strong>
 
 ### Your browser, with AI superpowers 🚀
 #### (Open Source Perplexity Comet Alternative)
