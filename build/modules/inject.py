@@ -23,7 +23,7 @@ def inject_version(ctx: BuildContext) -> bool:
     
     success = True
     for manifest_path in manifest_paths:
-        if not inject_version_to_manifest(manifest_path, ctx.get_nxtscape_version()):
+        if not inject_version_to_manifest(manifest_path, ctx.get_nxtscape_version(), ctx.get_nxtscape_version()):
             success = False
     
     if success:
@@ -34,7 +34,7 @@ def inject_version(ctx: BuildContext) -> bool:
     return success
 
 
-def inject_version_to_manifest(manifest_path: Path, browser_version: str) -> bool:
+def inject_version_to_manifest(manifest_path: Path, browser_version: str, nxtscape_version: str) -> bool:
     """Inject browser version and increment version into a single manifest.json file"""
     try:
         if not manifest_path.exists():
@@ -45,12 +45,11 @@ def inject_version_to_manifest(manifest_path: Path, browser_version: str) -> boo
         with open(manifest_path, 'r', encoding='utf-8') as f:
             manifest_data = json.load(f)
         
-        # Increment the version field
+        # Set version to NXTSCAPE_VERSION
         if 'version' in manifest_data:
             current_version = manifest_data['version']
-            new_version = increment_version(current_version)
-            manifest_data['version'] = new_version
-            log_info(f"  Version: {current_version} → {new_version}")
+            manifest_data['version'] = nxtscape_version
+            log_info(f"  Manifest version updated: {current_version} → {nxtscape_version}")
         
         # Add browser_version field
         manifest_data['browser_version'] = browser_version

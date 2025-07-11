@@ -203,9 +203,13 @@ class BuildContext:
                 return f"{self.NXTSCAPE_APP_BASE_NAME}_{self.nxtscape_chromium_version}_{self.architecture}_signed.dmg"
             return f"{self.NXTSCAPE_APP_BASE_NAME}_{self.nxtscape_chromium_version}_{self.architecture}.dmg"
     
-    def get_nxtscape_version(self) -> str:
+    def get_nxtscape_chromium_version(self) -> str:
         """Get Nxtscape version string"""
         return self.nxtscape_chromium_version
+
+    def get_nxtscape_version(self) -> str:
+        """Get Nxtscape version string"""
+        return self.nxtscape_version
     
     def get_app_base_name(self) -> str:
         """Get app base name without extension"""
