@@ -1,15 +1,26 @@
-# nxtscape/branding.patch
 nxtscape/first-run-nxtscape.patch
+
+# features
+nxtscape/add-importer-supporter-for-chrome.patch
+nxtscape/nxtscape-settings-ui.patch
+
+# chromium
 nxtscape/disable-user-gesture-restriction-on-sidepanel.patch
+nxtscape/disable-info-bar-in-cdp.patch
+nxtscape/disable-google-key-info-bar.patch
+
+# agents
 nxtscape/ai-chat-extension.patch
 nxtscape/bug-reporter-extension.patch
-nxtscape/add-importer-supporter-for-chrome.patch
-nxtscape/disable-info-bar-in-cdp.patch
 nxtscape/pin-nxtscape-ai-chat.patch
-nxtscape/nxtscape-settings-ui.patch
+
+# updater
 nxtscape/nxtscape-updater-sparkle.patch
 nxtscape/add-sparkle-info-plist-keys.patch
+
+# new views
+nxtscape/adding-new-vector-icons.patch
 nxtscape/embed-third-party-llm-in-side-panel.patch
-# nxtscape/UI-updating-About-string.patch
-nxtscape/disable-google-key-info-bar.patch
 nxtscape/pin-nxtscape-agents-together.patch
+nxtscape/clash-of-gpts.patch
+nxtscape/update-color-pinned-views.patch
