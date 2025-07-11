@@ -1,0 +1,104 @@
+From f07b80002fb490f96728c9cdda67e083ba983c90 Mon Sep 17 00:00:00 2001
+From: Nikhil Sonti <nikhilsv92@gmail.com>
+Date: Fri, 11 Jul 2025 13:04:34 -0700
+Subject: [PATCH] pin clashofgpt and third party on old profiles too
+
+---
+ .../sync/prefs/chrome_syncable_prefs_database.cc   | 10 ++++++++++
+ .../pinned_toolbar/pinned_toolbar_actions_model.cc | 14 ++++++++++++++
+ chrome/browser/ui/toolbar/toolbar_pref_names.cc    |  6 ++++++
+ chrome/browser/ui/toolbar/toolbar_pref_names.h     |  8 ++++++++
+ 4 files changed, 38 insertions(+)
+
+diff --git a/chrome/browser/sync/prefs/chrome_syncable_prefs_database.cc b/chrome/browser/sync/prefs/chrome_syncable_prefs_database.cc
+index 26f4aed48a900..946b7292a78e8 100644
+--- a/chrome/browser/sync/prefs/chrome_syncable_prefs_database.cc
++++ b/chrome/browser/sync/prefs/chrome_syncable_prefs_database.cc
+@@ -394,6 +394,8 @@ enum {
+   kPinSplitTabButton = 100327,
+   kGlicRolloutEligibility = 100328,
+   kShelfNotebookLmAppPinRolls = 100329,
++  kPinnedThirdPartyLlmMigrationComplete = 100330,
++  kPinnedClashOfGptsMigrationComplete = 100331,
+   // See components/sync_preferences/README.md about adding new entries here.
+   // vvvvv IMPORTANT! vvvvv
+   // Note to the reviewer: IT IS YOUR RESPONSIBILITY to ensure that new syncable
+@@ -574,6 +576,14 @@ constexpr auto kChromeSyncablePrefsAllowlist = base::MakeFixedFlatMap<
+      {syncable_prefs_ids::kTabSearchMigrationComplete, syncer::PREFERENCES,
+       sync_preferences::PrefSensitivity::kNone,
+       sync_preferences::MergeBehavior::kNone}},
++    {prefs::kPinnedThirdPartyLlmMigrationComplete,
++     {syncable_prefs_ids::kPinnedThirdPartyLlmMigrationComplete, syncer::PREFERENCES,
++      sync_preferences::PrefSensitivity::kNone,
++      sync_preferences::MergeBehavior::kNone}},
++    {prefs::kPinnedClashOfGptsMigrationComplete,
++     {syncable_prefs_ids::kPinnedClashOfGptsMigrationComplete, syncer::PREFERENCES,
++      sync_preferences::PrefSensitivity::kNone,
++      sync_preferences::MergeBehavior::kNone}},
+ #endif  // BUILDFLAG(IS_ANDROID)
+ #if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+     {extensions::pref_names::kPinnedExtensions,
+diff --git a/chrome/browser/ui/toolbar/pinned_toolbar/pinned_toolbar_actions_model.cc b/chrome/browser/ui/toolbar/pinned_toolbar/pinned_toolbar_actions_model.cc
+index 613d124be1752..3fd0ec6cd8da1 100644
+--- a/chrome/browser/ui/toolbar/pinned_toolbar/pinned_toolbar_actions_model.cc
++++ b/chrome/browser/ui/toolbar/pinned_toolbar/pinned_toolbar_actions_model.cc
+@@ -252,6 +252,20 @@ void PinnedToolbarActionsModel::MaybeMigrateExistingPinnedStates() {
+     UpdatePinnedState(kActionRouteMedia, previously_pinned);
+     pref_service_->SetBoolean(prefs::kPinnedCastMigrationComplete, true);
+   }
++  
++  // Migrate Third Party LLM panel to pinned state for existing profiles
++  if (base::FeatureList::IsEnabled(features::kThirdPartyLlmPanel) &&
++      !pref_service_->GetBoolean(prefs::kPinnedThirdPartyLlmMigrationComplete)) {
++    UpdatePinnedState(kActionSidePanelShowThirdPartyLlm, true);
++    pref_service_->SetBoolean(prefs::kPinnedThirdPartyLlmMigrationComplete, true);
++  }
++  
++  // Migrate Clash of GPTs to pinned state for existing profiles
++  if (base::FeatureList::IsEnabled(features::kClashOfGpts) &&
++      !pref_service_->GetBoolean(prefs::kPinnedClashOfGptsMigrationComplete)) {
++    UpdatePinnedState(kActionSidePanelShowClashOfGpts, true);
++    pref_service_->SetBoolean(prefs::kPinnedClashOfGptsMigrationComplete, true);
++  }
+ }
+ 
+ const std::vector<actions::ActionId>&
+diff --git a/chrome/browser/ui/toolbar/toolbar_pref_names.cc b/chrome/browser/ui/toolbar/toolbar_pref_names.cc
+index 98c8216772c6f..343376dd051fb 100644
+--- a/chrome/browser/ui/toolbar/toolbar_pref_names.cc
++++ b/chrome/browser/ui/toolbar/toolbar_pref_names.cc
+@@ -66,6 +66,12 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
+   registry->RegisterBooleanPref(
+       prefs::kTabSearchMigrationComplete, false,
+       user_prefs::PrefRegistrySyncable::SYNCABLE_PREF);
++  registry->RegisterBooleanPref(
++      prefs::kPinnedThirdPartyLlmMigrationComplete, false,
++      user_prefs::PrefRegistrySyncable::SYNCABLE_PREF);
++  registry->RegisterBooleanPref(
++      prefs::kPinnedClashOfGptsMigrationComplete, false,
++      user_prefs::PrefRegistrySyncable::SYNCABLE_PREF);
+ }
+ 
+ }  // namespace toolbar
+diff --git a/chrome/browser/ui/toolbar/toolbar_pref_names.h b/chrome/browser/ui/toolbar/toolbar_pref_names.h
+index c59d5f14f663d..91c60de160f9e 100644
+--- a/chrome/browser/ui/toolbar/toolbar_pref_names.h
++++ b/chrome/browser/ui/toolbar/toolbar_pref_names.h
+@@ -33,6 +33,14 @@ inline constexpr char kPinnedCastMigrationComplete[] =
+ inline constexpr char kTabSearchMigrationComplete[] =
+     "toolbar.tab_search_migration_complete";
+ 
++// Indicates whether Third Party LLM has been migrated to the new toolbar container.
++inline constexpr char kPinnedThirdPartyLlmMigrationComplete[] =
++    "toolbar.pinned_third_party_llm_migration_complete";
++
++// Indicates whether Clash of GPTs has been migrated to the new toolbar container.
++inline constexpr char kPinnedClashOfGptsMigrationComplete[] =
++    "toolbar.pinned_clash_of_gpts_migration_complete";
++
+ }  // namespace prefs
+ 
+ namespace toolbar {
+-- 
+2.49.0
+

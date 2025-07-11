@@ -1,0 +1,49 @@
+From 80fc1ca1096e8cb2c0858d695d3a0c359d9681e5 Mon Sep 17 00:00:00 2001
+From: Nikhil Sonti <nikhilsv92@gmail.com>
+Date: Fri, 11 Jul 2025 13:07:04 -0700
+Subject: [PATCH] disable chromelabs pinned by default
+
+---
+ .../pinned_toolbar/pinned_toolbar_actions_model.cc       | 4 +++-
+ chrome/browser/ui/toolbar/toolbar_pref_names.cc          | 9 +--------
+ 2 files changed, 4 insertions(+), 9 deletions(-)
+
+diff --git a/chrome/browser/ui/toolbar/pinned_toolbar/pinned_toolbar_actions_model.cc b/chrome/browser/ui/toolbar/pinned_toolbar/pinned_toolbar_actions_model.cc
+index 3fd0ec6cd8da1..0b554e8cfe999 100644
+--- a/chrome/browser/ui/toolbar/pinned_toolbar/pinned_toolbar_actions_model.cc
++++ b/chrome/browser/ui/toolbar/pinned_toolbar/pinned_toolbar_actions_model.cc
+@@ -236,8 +236,10 @@ void PinnedToolbarActionsModel::MaybeMigrateExistingPinnedStates() {
+   if (!CanUpdate()) {
+     return;
+   }
++  // Chrome Labs is no longer automatically pinned for new profiles
++  // We keep this migration complete check to not affect users who already have it
+   if (!pref_service_->GetBoolean(prefs::kPinnedChromeLabsMigrationComplete)) {
+-    UpdatePinnedState(kActionShowChromeLabs, true);
++    // UpdatePinnedState(kActionShowChromeLabs, true);  // No longer auto-pin
+     pref_service_->SetBoolean(prefs::kPinnedChromeLabsMigrationComplete, true);
+   }
+   if (features::HasTabSearchToolbarButton() &&
+diff --git a/chrome/browser/ui/toolbar/toolbar_pref_names.cc b/chrome/browser/ui/toolbar/toolbar_pref_names.cc
+index 343376dd051fb..d2868cb83608f 100644
+--- a/chrome/browser/ui/toolbar/toolbar_pref_names.cc
++++ b/chrome/browser/ui/toolbar/toolbar_pref_names.cc
+@@ -16,14 +16,7 @@ namespace toolbar {
+ 
+ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
+   base::Value::List default_pinned_actions;
+-  const std::optional<std::string>& chrome_labs_action =
+-      actions::ActionIdMap::ActionIdToString(kActionShowChromeLabs);
+-  // ActionIdToStringMappings are not initialized in unit tests, therefore will
+-  // not have a value. In the normal case, the action should always have a
+-  // value.
+-  if (chrome_labs_action.has_value()) {
+-    default_pinned_actions.Append(chrome_labs_action.value());
+-  }
++  // Chrome Labs is no longer pinned by default
+ 
+   if (features::HasTabSearchToolbarButton()) {
+     const std::optional<std::string>& tab_search_action =
+-- 
+2.49.0
+
