@@ -1,4 +1,4 @@
-From 2531e64bd1be38f870d5b2845dbd865032c79ec3 Mon Sep 17 00:00:00 2001
+From e84f25a384b4de886d637b042f5560dd86f988fe Mon Sep 17 00:00:00 2001
 From: Nikhil Sonti <nikhilsv92@gmail.com>
 Date: Thu, 10 Jul 2025 17:04:08 -0700
 Subject: [PATCH] clash of gpts
@@ -232,13 +232,13 @@ index c22b9bd1d77ab..80af2177736e3 100644
  // Platform-specific key maps.
  #if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
 diff --git a/chrome/browser/ui/views/side_panel/BUILD.gn b/chrome/browser/ui/views/side_panel/BUILD.gn
-index f2c935cea00c3..f408db76c60eb 100644
+index 36605fd2eddbf..a06f78dc7e4b6 100644
 --- a/chrome/browser/ui/views/side_panel/BUILD.gn
 +++ b/chrome/browser/ui/views/side_panel/BUILD.gn
-@@ -90,6 +90,12 @@ source_set("side_panel") {
-     "side_panel_web_ui_view.h",
-     "third_party_llm/third_party_llm_panel_coordinator.cc",
+@@ -92,6 +92,12 @@ source_set("side_panel") {
      "third_party_llm/third_party_llm_panel_coordinator.h",
+     "third_party_llm/third_party_llm_view.cc",
+     "third_party_llm/third_party_llm_view.h",
 +    "clash_of_gpts/clash_of_gpts_coordinator.cc",
 +    "clash_of_gpts/clash_of_gpts_coordinator.h",
 +    "clash_of_gpts/clash_of_gpts_view.cc",

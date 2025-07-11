@@ -1,4 +1,4 @@
-From a8e67e96156474f9af05870bb573f49dab51e4f8 Mon Sep 17 00:00:00 2001
+From 36ae8534f9afec25878e3e7f756f96c89b72474b Mon Sep 17 00:00:00 2001
 From: Nikhil Sonti <nikhilsv92@gmail.com>
 Date: Sat, 28 Jun 2025 16:38:45 -0700
 Subject: [PATCH] embed third party LLM in side panel
@@ -14,17 +14,21 @@ Subject: [PATCH] embed third party LLM in side panel
  chrome/browser/ui/ui_features.cc              |   4 +
  chrome/browser/ui/ui_features.h               |   1 +
  chrome/browser/ui/views/accelerator_table.cc  |   2 +
- chrome/browser/ui/views/side_panel/BUILD.gn   |   2 +
+ chrome/browser/ui/views/side_panel/BUILD.gn   |   4 +
  .../ui/views/side_panel/side_panel_entry_id.h |   1 +
  .../ui/views/side_panel/side_panel_prefs.cc   |   6 +
  .../ui/views/side_panel/side_panel_util.cc    |   7 +
- .../third_party_llm_panel_coordinator.cc      | 784 ++++++++++++++++++
- .../third_party_llm_panel_coordinator.h       | 160 ++++
+ .../third_party_llm_panel_coordinator.cc      | 796 ++++++++++++++++++
+ .../third_party_llm_panel_coordinator.h       | 162 ++++
+ .../third_party_llm/third_party_llm_view.cc   |  18 +
+ .../third_party_llm/third_party_llm_view.h    |  32 +
  .../customize_toolbar/customize_toolbar.mojom |   1 +
  .../customize_toolbar_handler.cc              |   6 +
- 18 files changed, 1026 insertions(+), 1 deletion(-)
+ 20 files changed, 1092 insertions(+), 1 deletion(-)
  create mode 100644 chrome/browser/ui/views/side_panel/third_party_llm/third_party_llm_panel_coordinator.cc
  create mode 100644 chrome/browser/ui/views/side_panel/third_party_llm/third_party_llm_panel_coordinator.h
+ create mode 100644 chrome/browser/ui/views/side_panel/third_party_llm/third_party_llm_view.cc
+ create mode 100644 chrome/browser/ui/views/side_panel/third_party_llm/third_party_llm_view.h
 
 diff --git a/chrome/app/chrome_command_ids.h b/chrome/app/chrome_command_ids.h
 index 7dbc937b376cc..91d055b22ce33 100644
@@ -219,15 +223,17 @@ index 6db32fe196921..c22b9bd1d77ab 100644
  // Platform-specific key maps.
  #if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
 diff --git a/chrome/browser/ui/views/side_panel/BUILD.gn b/chrome/browser/ui/views/side_panel/BUILD.gn
-index 2af616e71a52a..f2c935cea00c3 100644
+index 2af616e71a52a..36605fd2eddbf 100644
 --- a/chrome/browser/ui/views/side_panel/BUILD.gn
 +++ b/chrome/browser/ui/views/side_panel/BUILD.gn
-@@ -88,6 +88,8 @@ source_set("side_panel") {
+@@ -88,6 +88,10 @@ source_set("side_panel") {
      "side_panel_util.h",
      "side_panel_web_ui_view.cc",
      "side_panel_web_ui_view.h",
 +    "third_party_llm/third_party_llm_panel_coordinator.cc",
 +    "third_party_llm/third_party_llm_panel_coordinator.h",
++    "third_party_llm/third_party_llm_view.cc",
++    "third_party_llm/third_party_llm_view.h",
    ]
    public_deps = [
      "//base",
@@ -294,10 +300,10 @@ index f93a373cd9e96..cc55483ad32d7 100644
  SidePanelContentProxy* SidePanelUtil::GetSidePanelContentProxy(
 diff --git a/chrome/browser/ui/views/side_panel/third_party_llm/third_party_llm_panel_coordinator.cc b/chrome/browser/ui/views/side_panel/third_party_llm/third_party_llm_panel_coordinator.cc
 new file mode 100644
-index 0000000000000..230e3b3e3080f
+index 0000000000000..5bf96735160de
 --- /dev/null
 +++ b/chrome/browser/ui/views/side_panel/third_party_llm/third_party_llm_panel_coordinator.cc
-@@ -0,0 +1,784 @@
+@@ -0,0 +1,796 @@
 +// Copyright 2024 The Chromium Authors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
@@ -308,6 +314,7 @@ index 0000000000000..230e3b3e3080f
 +#include <vector>
 +
 +#include "base/functional/callback.h"
++#include "chrome/browser/ui/views/side_panel/third_party_llm/third_party_llm_view.h"
 +#include "base/strings/utf_string_conversions.h"
 +#include "chrome/browser/profiles/profile.h"
 +#include "chrome/browser/ui/browser.h"
@@ -412,11 +419,13 @@ index 0000000000000..230e3b3e3080f
 +
 +void ThirdPartyLlmPanelCoordinator::CreateAndRegisterEntry(
 +    SidePanelRegistry* global_registry) {
-+  global_registry->Register(std::make_unique<SidePanelEntry>(
++  auto entry = std::make_unique<SidePanelEntry>(
 +      SidePanelEntry::Id::kThirdPartyLlm,
 +      base::BindRepeating(
 +          &ThirdPartyLlmPanelCoordinator::CreateThirdPartyLlmWebView,
-+          base::Unretained(this))));
++          base::Unretained(this)));
++  
++  global_registry->Register(std::move(entry));
 +}
 +
 +std::unique_ptr<views::View>
@@ -435,8 +444,8 @@ index 0000000000000..230e3b3e3080f
 +  // Stop observing any previous views to prevent dangling observations.
 +  view_observation_.RemoveAllObservations();
 +
-+  // Create the main container
-+  auto container = std::make_unique<views::View>();
++  // Create the main container using our custom view that handles cleanup
++  auto container = std::make_unique<ThirdPartyLlmView>();
 +  auto* container_layout = container->SetLayoutManager(std::make_unique<views::FlexLayout>());
 +  container_layout->SetOrientation(views::LayoutOrientation::kVertical)
 +      .SetMainAxisAlignment(views::LayoutAlignment::kStart)
@@ -548,6 +557,9 @@ index 0000000000000..230e3b3e3080f
 +  // Set the WebContents in the WebView (WebView takes ownership)
 +  web_view_->SetWebContents(web_contents.release());
 +  web_view_->SetVisible(true);
++  
++  // Tell our custom container about the WebView for proper cleanup
++  container->SetWebView(web_view_);
 +
 +  // Now observe the WebContents AFTER WebView has taken ownership
 +  if (web_view_->web_contents()) {
@@ -785,12 +797,18 @@ index 0000000000000..230e3b3e3080f
 +  }
 +
 +  if (observed_view == web_view_) {
++    // Just clear our pointer. DO NOT call methods on the view being destroyed!
++    // The WebView should handle its own WebContents cleanup in its destructor.
 +    web_view_ = nullptr;
++    
++    // Stop observing the WebContents since the WebView is being destroyed
++    Observe(nullptr);
 +  }
 +
 +  // Remove observation for this view.
 +  view_observation_.RemoveObservation(observed_view);
 +}
++
 +
 +void ThirdPartyLlmPanelCoordinator::ExtractTextFromNodeData(
 +    const ui::AXNodeData* node,
@@ -1085,10 +1103,10 @@ index 0000000000000..230e3b3e3080f
 \ No newline at end of file
 diff --git a/chrome/browser/ui/views/side_panel/third_party_llm/third_party_llm_panel_coordinator.h b/chrome/browser/ui/views/side_panel/third_party_llm/third_party_llm_panel_coordinator.h
 new file mode 100644
-index 0000000000000..ba951c6c7de4b
+index 0000000000000..7d1797f6a4a3e
 --- /dev/null
 +++ b/chrome/browser/ui/views/side_panel/third_party_llm/third_party_llm_panel_coordinator.h
-@@ -0,0 +1,160 @@
+@@ -0,0 +1,162 @@
 +// Copyright 2026 The Chromium Authors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
@@ -1150,6 +1168,8 @@ index 0000000000000..ba951c6c7de4b
 +      public views::ViewObserver {
 + public:
 +  explicit ThirdPartyLlmPanelCoordinator(Browser* browser);
++  ThirdPartyLlmPanelCoordinator(const ThirdPartyLlmPanelCoordinator&) = delete;
++  ThirdPartyLlmPanelCoordinator& operator=(const ThirdPartyLlmPanelCoordinator&) = delete;
 +  ~ThirdPartyLlmPanelCoordinator() override;
 +
 +  void CreateAndRegisterEntry(SidePanelRegistry* global_registry);
@@ -1249,6 +1269,70 @@ index 0000000000000..ba951c6c7de4b
 +};
 +
 +#endif  // CHROME_BROWSER_UI_VIEWS_SIDE_PANEL_THIRD_PARTY_LLM_THIRD_PARTY_LLM_PANEL_COORDINATOR_H_
+\ No newline at end of file
+diff --git a/chrome/browser/ui/views/side_panel/third_party_llm/third_party_llm_view.cc b/chrome/browser/ui/views/side_panel/third_party_llm/third_party_llm_view.cc
+new file mode 100644
+index 0000000000000..8e87f38473c63
+--- /dev/null
++++ b/chrome/browser/ui/views/side_panel/third_party_llm/third_party_llm_view.cc
+@@ -0,0 +1,18 @@
++// Copyright 2024 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "chrome/browser/ui/views/side_panel/third_party_llm/third_party_llm_view.h"
++
++#include "ui/views/controls/webview/webview.h"
++
++ThirdPartyLlmView::ThirdPartyLlmView() = default;
++
++ThirdPartyLlmView::~ThirdPartyLlmView() {
++  // Clean up WebContents to avoid crash on shutdown.
++  // This ensures WebContents are destroyed before the Profile/BrowserContext.
++  if (web_view_) {
++    // This will destroy the WebContents owned by the WebView
++    web_view_->SetWebContents(nullptr);
++  }
++}
+\ No newline at end of file
+diff --git a/chrome/browser/ui/views/side_panel/third_party_llm/third_party_llm_view.h b/chrome/browser/ui/views/side_panel/third_party_llm/third_party_llm_view.h
+new file mode 100644
+index 0000000000000..c6f5e2a95e806
+--- /dev/null
++++ b/chrome/browser/ui/views/side_panel/third_party_llm/third_party_llm_view.h
+@@ -0,0 +1,32 @@
++// Copyright 2024 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef CHROME_BROWSER_UI_VIEWS_SIDE_PANEL_THIRD_PARTY_LLM_THIRD_PARTY_LLM_VIEW_H_
++#define CHROME_BROWSER_UI_VIEWS_SIDE_PANEL_THIRD_PARTY_LLM_THIRD_PARTY_LLM_VIEW_H_
++
++#include "base/memory/raw_ptr.h"
++#include "ui/views/view.h"
++
++namespace views {
++class WebView;
++}  // namespace views
++
++// Custom view for the Third Party LLM panel that ensures proper cleanup
++// of WebContents during browser shutdown.
++class ThirdPartyLlmView : public views::View {
++ public:
++  ThirdPartyLlmView();
++  ThirdPartyLlmView(const ThirdPartyLlmView&) = delete;
++  ThirdPartyLlmView& operator=(const ThirdPartyLlmView&) = delete;
++  ~ThirdPartyLlmView() override;
++
++  void SetWebView(views::WebView* web_view) { web_view_ = web_view; }
++
++ private:
++  // The WebView that contains our WebContents. We need to track this
++  // to ensure proper cleanup during shutdown.
++  raw_ptr<views::WebView> web_view_ = nullptr;
++};
++
++#endif  // CHROME_BROWSER_UI_VIEWS_SIDE_PANEL_THIRD_PARTY_LLM_THIRD_PARTY_LLM_VIEW_H_
 \ No newline at end of file
 diff --git a/chrome/browser/ui/webui/side_panel/customize_chrome/customize_toolbar/customize_toolbar.mojom b/chrome/browser/ui/webui/side_panel/customize_chrome/customize_toolbar/customize_toolbar.mojom
 index 8eec2ead88a8a..278acb75a3704 100644
