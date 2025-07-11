@@ -1,4 +1,4 @@
-From 3ee6b6f44565cbbec28278da931e6ab1b032a2b0 Mon Sep 17 00:00:00 2001
+From 2531e64bd1be38f870d5b2845dbd865032c79ec3 Mon Sep 17 00:00:00 2001
 From: Nikhil Sonti <nikhilsv92@gmail.com>
 Date: Thu, 10 Jul 2025 17:04:08 -0700
 Subject: [PATCH] clash of gpts
@@ -15,12 +15,12 @@ Subject: [PATCH] clash of gpts
  chrome/browser/ui/ui_features.h               |   1 +
  chrome/browser/ui/views/accelerator_table.cc  |   2 +
  chrome/browser/ui/views/side_panel/BUILD.gn   |   6 +
- .../clash_of_gpts_coordinator.cc              | 482 ++++++++++++++++
- .../clash_of_gpts/clash_of_gpts_coordinator.h | 186 +++++++
- .../clash_of_gpts/clash_of_gpts_view.cc       | 514 ++++++++++++++++++
- .../clash_of_gpts/clash_of_gpts_view.h        | 114 ++++
+ .../clash_of_gpts_coordinator.cc              | 490 +++++++++++++++
+ .../clash_of_gpts/clash_of_gpts_coordinator.h | 186 ++++++
+ .../clash_of_gpts/clash_of_gpts_view.cc       | 562 ++++++++++++++++++
+ .../clash_of_gpts/clash_of_gpts_view.h        | 115 ++++
  .../clash_of_gpts/clash_of_gpts_window.cc     |  83 +++
- .../clash_of_gpts/clash_of_gpts_window.h      |  65 +++
+ .../clash_of_gpts/clash_of_gpts_window.h      |  65 ++
  .../ui/views/side_panel/side_panel_entry_id.h |   1 +
  .../ui/views/side_panel/side_panel_prefs.cc   |   6 +
  .../ui/views/side_panel/side_panel_util.cc    |   2 +
@@ -28,11 +28,11 @@ Subject: [PATCH] clash of gpts
  chrome/browser/ui/webui/BUILD.gn              |   2 +
  .../browser/ui/webui/chrome_web_ui_configs.cc |   2 +
  .../webui/clash_of_gpts/clash_of_gpts_ui.cc   | 103 ++++
- .../ui/webui/clash_of_gpts/clash_of_gpts_ui.h |  33 ++
+ .../ui/webui/clash_of_gpts/clash_of_gpts_ui.h |  33 +
  .../customize_toolbar/customize_toolbar.mojom |   1 +
  .../customize_toolbar_handler.cc              |   6 +
  chrome/common/webui_url_constants.h           |   2 +
- 28 files changed, 1674 insertions(+), 1 deletion(-)
+ 28 files changed, 1731 insertions(+), 1 deletion(-)
  create mode 100644 chrome/browser/ui/views/side_panel/clash_of_gpts/clash_of_gpts_coordinator.cc
  create mode 100644 chrome/browser/ui/views/side_panel/clash_of_gpts/clash_of_gpts_coordinator.h
  create mode 100644 chrome/browser/ui/views/side_panel/clash_of_gpts/clash_of_gpts_view.cc
@@ -250,10 +250,10 @@ index f2c935cea00c3..f408db76c60eb 100644
      "//base",
 diff --git a/chrome/browser/ui/views/side_panel/clash_of_gpts/clash_of_gpts_coordinator.cc b/chrome/browser/ui/views/side_panel/clash_of_gpts/clash_of_gpts_coordinator.cc
 new file mode 100644
-index 0000000000000..97e7ede6c995c
+index 0000000000000..dd3461b59a7d0
 --- /dev/null
 +++ b/chrome/browser/ui/views/side_panel/clash_of_gpts/clash_of_gpts_coordinator.cc
-@@ -0,0 +1,482 @@
+@@ -0,0 +1,490 @@
 +// Copyright 2025 The Chromium Authors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
@@ -262,6 +262,7 @@ index 0000000000000..97e7ede6c995c
 +
 +#include "base/functional/bind.h"
 +#include "base/logging.h"
++#include "base/strings/string_number_conversions.h"
 +#include "base/strings/stringprintf.h"
 +#include "base/task/sequenced_task_runner.h"
 +#include "chrome/browser/profiles/profile.h"
@@ -374,12 +375,11 @@ index 0000000000000..97e7ede6c995c
 +        // TODO: Implement text extraction similar to third_party_llm_panel_coordinator.cc
 +        
 +        // Format the output for comparison across LLMs
-+        std::u16string formatted_output = u"----------- COMPARE ACROSS LLMs -----------\n\n";
++        std::u16string formatted_output = u"----------- WEB PAGE CONTENT -----------\n\n";
 +        formatted_output += u"TITLE: " + title + u"\n\n";
 +        formatted_output += u"URL: " + base::UTF8ToUTF16(url.spec()) + u"\n\n";
 +        formatted_output += u"CONTENT:\n\n" + extracted_text;
 +        formatted_output += u"\n\n----------- USER PROMPT -----------\n\n";
-+        formatted_output += u"Compare the following content across different LLMs:\n\n";
 +
 +        // Copy to clipboard
 +        ui::ScopedClipboardWriter clipboard_writer(ui::ClipboardBuffer::kCopyPaste);
@@ -480,7 +480,8 @@ index 0000000000000..97e7ede6c995c
 +
 +  // Resize window based on new pane count
 +  if (widget_ && widget_->IsVisible()) {
-+    int window_width = current_pane_count_ == 2 ? 1000 : 1400;
++    // int window_width = current_pane_count_ == 2 ? 1000 : 1400;
++    int window_width = 1400;
 +    gfx::Size new_size(window_width, widget_->GetWindowBoundsInScreen().height());
 +    widget_->CenterWindow(new_size);
 +  }
@@ -568,7 +569,8 @@ index 0000000000000..97e7ede6c995c
 +    params.name = "ClashOfGptsWindow";
 +    // Calculate window size based on pane count
 +    // For 2 panes: ~1000px width, for 3 panes: ~1400px width
-+    int window_width = current_pane_count_ == 2 ? 1000 : 1400;
++    // int window_width = current_pane_count_ == 2 ? 1000 : 1400;
++    int window_width = 1400;
 +    gfx::Size window_size(window_width, 800);
 +    
 +    params.bounds = gfx::Rect(window_size);
@@ -653,13 +655,19 @@ index 0000000000000..97e7ede6c995c
 +  const base::Value::Dict& urls_dict = prefs->GetDict(kClashOfGptsLastUrlsPref);
 +  for (const auto [key, value] : urls_dict) {
 +    if (const std::string* url_str = value.GetIfString()) {
-+      int pane_index, provider_int;
-+      if (sscanf(key.c_str(), "%d_%d", &pane_index, &provider_int) == 2) {
-+        if (pane_index >= 0 && pane_index < kMaxPanes &&
-+            provider_int >= 0 && provider_int <= 4) {  // Now includes kPerplexity = 4
-+          GURL url(*url_str);
-+          if (url.is_valid()) {
-+            last_urls_[{pane_index, static_cast<LlmProvider>(provider_int)}] = url;
++      // Parse key format "pane_provider" safely without sscanf
++      size_t underscore_pos = key.find('_');
++      if (underscore_pos != std::string::npos && underscore_pos > 0 && 
++          underscore_pos < key.length() - 1) {
++        int pane_index, provider_int;
++        if (base::StringToInt(key.substr(0, underscore_pos), &pane_index) &&
++            base::StringToInt(key.substr(underscore_pos + 1), &provider_int)) {
++          if (pane_index >= 0 && pane_index < kMaxPanes &&
++              provider_int >= 0 && provider_int <= 4) {  // Now includes kPerplexity = 4
++            GURL url(*url_str);
++            if (url.is_valid()) {
++              last_urls_[{pane_index, static_cast<LlmProvider>(provider_int)}] = url;
++            }
 +          }
 +        }
 +      }
@@ -736,10 +744,9 @@ index 0000000000000..97e7ede6c995c
 +}
 +
 +BROWSER_USER_DATA_KEY_IMPL(ClashOfGptsCoordinator);
-\ No newline at end of file
 diff --git a/chrome/browser/ui/views/side_panel/clash_of_gpts/clash_of_gpts_coordinator.h b/chrome/browser/ui/views/side_panel/clash_of_gpts/clash_of_gpts_coordinator.h
 new file mode 100644
-index 0000000000000..c285e2b9eabcd
+index 0000000000000..225df7d9d0e8a
 --- /dev/null
 +++ b/chrome/browser/ui/views/side_panel/clash_of_gpts/clash_of_gpts_coordinator.h
 @@ -0,0 +1,186 @@
@@ -805,7 +812,7 @@ index 0000000000000..c285e2b9eabcd
 +  };
 +
 +  // Configuration constants
-+  static constexpr int kMinPanes = 2;
++  static constexpr int kMinPanes = 1;
 +  static constexpr int kMaxPanes = 3;
 +  static constexpr int kDefaultPaneCount = 3;
 +
@@ -932,10 +939,10 @@ index 0000000000000..c285e2b9eabcd
 \ No newline at end of file
 diff --git a/chrome/browser/ui/views/side_panel/clash_of_gpts/clash_of_gpts_view.cc b/chrome/browser/ui/views/side_panel/clash_of_gpts/clash_of_gpts_view.cc
 new file mode 100644
-index 0000000000000..913c0dc792403
+index 0000000000000..66826d09ecc91
 --- /dev/null
 +++ b/chrome/browser/ui/views/side_panel/clash_of_gpts/clash_of_gpts_view.cc
-@@ -0,0 +1,514 @@
+@@ -0,0 +1,562 @@
 +// Copyright 2025 The Chromium Authors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
@@ -965,6 +972,7 @@ index 0000000000000..913c0dc792403
 +#include "ui/base/ui_base_features.h"
 +#include "ui/color/color_id.h"
 +#include "ui/color/color_provider.h"
++#include "ui/views/background.h"
 +#include "ui/views/controls/button/image_button.h"
 +#include "ui/views/controls/button/radio_button.h"
 +#include "ui/views/controls/combobox/combobox.h"
@@ -1040,6 +1048,12 @@ index 0000000000000..913c0dc792403
 +  auto* pane_count_label = header->AddChildView(
 +      std::make_unique<views::Label>(u"Panels:"));
 +  pane_count_label->SetEnabledColor(ui::kColorLabelForegroundSecondary);
++
++  one_pane_radio_ = header->AddChildView(
++      std::make_unique<views::RadioButton>(u"1", 1));
++  one_pane_radio_->SetCallback(base::BindRepeating(
++      &ClashOfGptsView::OnPaneCountChanged, base::Unretained(this), 1));
++  one_pane_radio_->SetChecked(coordinator_->GetPaneCount() == 1);
 +
 +  two_panes_radio_ = header->AddChildView(
 +      std::make_unique<views::RadioButton>(u"2", 1));
@@ -1255,12 +1269,52 @@ index 0000000000000..913c0dc792403
 +  if (!color_provider) {
 +    return;
 +  }
++  
++  // Set the view background to match the window background
++  SetBackground(views::CreateSolidBackground(
++      color_provider->GetColor(ui::kColorDialogBackground)));
 +
++  // Update all labels that use secondary color
++  if (copy_feedback_label_) {
++    copy_feedback_label_->SetEnabledColor(
++        color_provider->GetColor(ui::kColorLabelForegroundSecondary));
++  }
++  
++  // Note: pane_count_label_ doesn't exist - removed this block
++  
++  // Update shortcuts label if it exists
++  auto* footer = panes_container_->parent();
++  if (footer && footer->children().size() > 0) {
++    // Find the shortcuts label (should be one of the last children)
++    for (const auto& child_ptr : footer->children()) {
++      views::View* child = child_ptr.get();
++      if (auto* label = views::AsViewClass<views::Label>(child)) {
++        if (label->GetText().find(u"Toggle:") != std::u16string::npos) {
++          label->SetEnabledColor(
++              color_provider->GetColor(ui::kColorLabelForegroundSecondary));
++        }
++      }
++    }
++  }
++  
 +  // Update pane labels with theme colors
 +  for (const auto& pane : panes_) {
 +    if (pane.pane_label) {
 +      pane.pane_label->SetEnabledColor(
 +          color_provider->GetColor(ui::kColorLabelForegroundSecondary));
++    }
++    
++    // Force combobox to repaint with new theme
++    if (pane.provider_selector) {
++      pane.provider_selector->SchedulePaint();
++    }
++  }
++  
++  // Force WebViews to update their background
++  for (auto& pane : panes_) {
++    if (pane.web_view) {
++      // WebView background should automatically adapt, but we can force a repaint
++      pane.web_view->SchedulePaint();
 +    }
 +  }
 +}
@@ -1399,6 +1453,7 @@ index 0000000000000..913c0dc792403
 +  }
 +
 +  // Update radio button state
++  one_pane_radio_->SetChecked(new_count == 1);
 +  two_panes_radio_->SetChecked(new_count == 2);
 +  three_panes_radio_->SetChecked(new_count == 3);
 +
@@ -1452,10 +1507,10 @@ index 0000000000000..913c0dc792403
 +END_METADATA
 diff --git a/chrome/browser/ui/views/side_panel/clash_of_gpts/clash_of_gpts_view.h b/chrome/browser/ui/views/side_panel/clash_of_gpts/clash_of_gpts_view.h
 new file mode 100644
-index 0000000000000..74e3b015045d9
+index 0000000000000..43724dd1b3bfb
 --- /dev/null
 +++ b/chrome/browser/ui/views/side_panel/clash_of_gpts/clash_of_gpts_view.h
-@@ -0,0 +1,114 @@
+@@ -0,0 +1,115 @@
 +// Copyright 2025 The Chromium Authors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
@@ -1556,6 +1611,7 @@ index 0000000000000..74e3b015045d9
 +  raw_ptr<views::View> panes_container_ = nullptr;
 +
 +  // Radio buttons for selecting pane count
++  raw_ptr<views::RadioButton> one_pane_radio_ = nullptr;
 +  raw_ptr<views::RadioButton> two_panes_radio_ = nullptr;
 +  raw_ptr<views::RadioButton> three_panes_radio_ = nullptr;
 +
