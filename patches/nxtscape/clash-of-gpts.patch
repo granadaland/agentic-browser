@@ -1,4 +1,4 @@
-From e84f25a384b4de886d637b042f5560dd86f988fe Mon Sep 17 00:00:00 2001
+From a8b556d4a2eb72f8a29e62676ed25ec221b83ee8 Mon Sep 17 00:00:00 2001
 From: Nikhil Sonti <nikhilsv92@gmail.com>
 Date: Thu, 10 Jul 2025 17:04:08 -0700
 Subject: [PATCH] clash of gpts
@@ -15,8 +15,8 @@ Subject: [PATCH] clash of gpts
  chrome/browser/ui/ui_features.h               |   1 +
  chrome/browser/ui/views/accelerator_table.cc  |   2 +
  chrome/browser/ui/views/side_panel/BUILD.gn   |   6 +
- .../clash_of_gpts_coordinator.cc              | 490 +++++++++++++++
- .../clash_of_gpts/clash_of_gpts_coordinator.h | 186 ++++++
+ .../clash_of_gpts_coordinator.cc              | 500 ++++++++++++++++
+ .../clash_of_gpts/clash_of_gpts_coordinator.h | 190 ++++++
  .../clash_of_gpts/clash_of_gpts_view.cc       | 562 ++++++++++++++++++
  .../clash_of_gpts/clash_of_gpts_view.h        | 115 ++++
  .../clash_of_gpts/clash_of_gpts_window.cc     |  83 +++
@@ -32,7 +32,7 @@ Subject: [PATCH] clash of gpts
  .../customize_toolbar/customize_toolbar.mojom |   1 +
  .../customize_toolbar_handler.cc              |   6 +
  chrome/common/webui_url_constants.h           |   2 +
- 28 files changed, 1731 insertions(+), 1 deletion(-)
+ 28 files changed, 1745 insertions(+), 1 deletion(-)
  create mode 100644 chrome/browser/ui/views/side_panel/clash_of_gpts/clash_of_gpts_coordinator.cc
  create mode 100644 chrome/browser/ui/views/side_panel/clash_of_gpts/clash_of_gpts_coordinator.h
  create mode 100644 chrome/browser/ui/views/side_panel/clash_of_gpts/clash_of_gpts_view.cc
@@ -250,10 +250,10 @@ index 36605fd2eddbf..a06f78dc7e4b6 100644
      "//base",
 diff --git a/chrome/browser/ui/views/side_panel/clash_of_gpts/clash_of_gpts_coordinator.cc b/chrome/browser/ui/views/side_panel/clash_of_gpts/clash_of_gpts_coordinator.cc
 new file mode 100644
-index 0000000000000..dd3461b59a7d0
+index 0000000000000..89d116aa378f1
 --- /dev/null
 +++ b/chrome/browser/ui/views/side_panel/clash_of_gpts/clash_of_gpts_coordinator.cc
-@@ -0,0 +1,490 @@
+@@ -0,0 +1,500 @@
 +// Copyright 2025 The Chromium Authors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
@@ -493,6 +493,7 @@ index 0000000000000..dd3461b59a7d0
 +  // with the side panel infrastructure.
 +}
 +
++
 +bool ClashOfGptsCoordinator::HandleKeyboardEvent(
 +    content::WebContents* source,
 +    const input::NativeWebKeyboardEvent& event) {
@@ -510,6 +511,15 @@ index 0000000000000..dd3461b59a7d0
 +    if (pane_index >= 0 && pane_index < current_pane_count_ && view_) {
 +      view_->FocusInputFieldForPane(pane_index);
 +      return true;
++    }
++  }
++  
++  // Use the unhandled keyboard event handler to process the event
++  // This ensures standard browser shortcuts like Cmd+C and Cmd+V work properly
++  if (view_ && view_->GetWidget()) {
++    views::FocusManager* focus_manager = view_->GetWidget()->GetFocusManager();
++    if (focus_manager) {
++      return unhandled_keyboard_event_handler_.HandleKeyboardEvent(event, focus_manager);
 +    }
 +  }
 +  
@@ -746,10 +756,10 @@ index 0000000000000..dd3461b59a7d0
 +BROWSER_USER_DATA_KEY_IMPL(ClashOfGptsCoordinator);
 diff --git a/chrome/browser/ui/views/side_panel/clash_of_gpts/clash_of_gpts_coordinator.h b/chrome/browser/ui/views/side_panel/clash_of_gpts/clash_of_gpts_coordinator.h
 new file mode 100644
-index 0000000000000..225df7d9d0e8a
+index 0000000000000..69c56dd255725
 --- /dev/null
 +++ b/chrome/browser/ui/views/side_panel/clash_of_gpts/clash_of_gpts_coordinator.h
-@@ -0,0 +1,186 @@
+@@ -0,0 +1,190 @@
 +// Copyright 2025 The Chromium Authors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
@@ -770,6 +780,7 @@ index 0000000000000..225df7d9d0e8a
 +#include "content/public/browser/web_contents_observer.h"
 +#include "third_party/blink/public/mojom/window_features/window_features.mojom-forward.h"
 +#include "ui/base/window_open_disposition.h"
++#include "ui/views/controls/webview/unhandled_keyboard_event_handler.h"
 +#include "ui/views/view_observer.h"
 +#include "ui/views/widget/widget.h"
 +#include "ui/views/widget/widget_observer.h"
@@ -930,6 +941,9 @@ index 0000000000000..225df7d9d0e8a
 +  // Observe lifetime of UI views
 +  base::ScopedMultiSourceObservation<views::View, views::ViewObserver>
 +      view_observation_{this};
++
++  // Handler for unhandled keyboard events
++  views::UnhandledKeyboardEventHandler unhandled_keyboard_event_handler_;
 +
 +  // Weak pointer factory for callbacks
 +  base::WeakPtrFactory<ClashOfGptsCoordinator> weak_factory_{this};
