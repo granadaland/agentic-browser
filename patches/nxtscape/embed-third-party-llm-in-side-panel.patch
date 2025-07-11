@@ -1,4 +1,4 @@
-From 6dd22eb014ff7122d6d8318948bf32db3b33f08f Mon Sep 17 00:00:00 2001
+From a8e67e96156474f9af05870bb573f49dab51e4f8 Mon Sep 17 00:00:00 2001
 From: Nikhil Sonti <nikhilsv92@gmail.com>
 Date: Sat, 28 Jun 2025 16:38:45 -0700
 Subject: [PATCH] embed third party LLM in side panel
@@ -18,11 +18,11 @@ Subject: [PATCH] embed third party LLM in side panel
  .../ui/views/side_panel/side_panel_entry_id.h |   1 +
  .../ui/views/side_panel/side_panel_prefs.cc   |   6 +
  .../ui/views/side_panel/side_panel_util.cc    |   7 +
- .../third_party_llm_panel_coordinator.cc      | 759 ++++++++++++++++++
- .../third_party_llm_panel_coordinator.h       | 159 ++++
+ .../third_party_llm_panel_coordinator.cc      | 784 ++++++++++++++++++
+ .../third_party_llm_panel_coordinator.h       | 160 ++++
  .../customize_toolbar/customize_toolbar.mojom |   1 +
  .../customize_toolbar_handler.cc              |   6 +
- 18 files changed, 1000 insertions(+), 1 deletion(-)
+ 18 files changed, 1026 insertions(+), 1 deletion(-)
  create mode 100644 chrome/browser/ui/views/side_panel/third_party_llm/third_party_llm_panel_coordinator.cc
  create mode 100644 chrome/browser/ui/views/side_panel/third_party_llm/third_party_llm_panel_coordinator.h
 
@@ -40,7 +40,7 @@ index 7dbc937b376cc..91d055b22ce33 100644
  // Spell-check
  // Insert any additional suggestions before _LAST; these have to be consecutive.
 diff --git a/chrome/app/generated_resources.grd b/chrome/app/generated_resources.grd
-index 186d94b83cb9c..444323aed7636 100644
+index 186d94b83cb9c..1bc2770975fc4 100644
 --- a/chrome/app/generated_resources.grd
 +++ b/chrome/app/generated_resources.grd
 @@ -8840,6 +8840,9 @@ Keep your key file in a safe place. You will need it to create new versions of y
@@ -48,7 +48,7 @@ index 186d94b83cb9c..444323aed7636 100644
          </message>
        </if>
 +      <message name="IDS_THIRD_PARTY_LLM_TITLE" desc="Title for 3rd party LLM side panel">
-+        Chat
++        LLM Chat
 +      </message>
        <message name="IDS_READ_LATER_MENU_UNREAD_HEADER" desc="Header for section of unread Read later items.">
          Unread
@@ -81,7 +81,7 @@ index b79f667f412a8..15585a7886bdb 100644
  #define TOOLBAR_PINNABLE_ACTION_IDS \
    E(kActionHome, IDC_HOME) \
 diff --git a/chrome/browser/ui/browser_actions.cc b/chrome/browser/ui/browser_actions.cc
-index 38faf665d9d87..4a702d72d7b82 100644
+index 38faf665d9d87..b08b1f61ce3c4 100644
 --- a/chrome/browser/ui/browser_actions.cc
 +++ b/chrome/browser/ui/browser_actions.cc
 @@ -231,6 +231,18 @@ void BrowserActions::InitializeBrowserActions() {
@@ -94,7 +94,7 @@ index 38faf665d9d87..4a702d72d7b82 100644
 +        SidePanelAction(SidePanelEntryId::kThirdPartyLlm,
 +                        IDS_THIRD_PARTY_LLM_TITLE,  // Using reading list name temporarily
 +                        IDS_THIRD_PARTY_LLM_TITLE,
-+                        vector_icons::kHandGestureIcon,
++                        vector_icons::kChatOrangeIcon,
 +                        kActionSidePanelShowThirdPartyLlm, browser,
 +                        true)
 +            .Build());
@@ -294,10 +294,10 @@ index f93a373cd9e96..cc55483ad32d7 100644
  SidePanelContentProxy* SidePanelUtil::GetSidePanelContentProxy(
 diff --git a/chrome/browser/ui/views/side_panel/third_party_llm/third_party_llm_panel_coordinator.cc b/chrome/browser/ui/views/side_panel/third_party_llm/third_party_llm_panel_coordinator.cc
 new file mode 100644
-index 0000000000000..e49bbbf4d8a49
+index 0000000000000..230e3b3e3080f
 --- /dev/null
 +++ b/chrome/browser/ui/views/side_panel/third_party_llm/third_party_llm_panel_coordinator.cc
-@@ -0,0 +1,759 @@
+@@ -0,0 +1,784 @@
 +// Copyright 2024 The Chromium Authors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
@@ -363,7 +363,7 @@ index 0000000000000..e49bbbf4d8a49
 +  ~LlmProviderComboboxModel() override = default;
 +
 +  // ui::ComboboxModel:
-+  size_t GetItemCount() const override { return 4; }
++  size_t GetItemCount() const override { return 5; }
 +
 +  std::u16string GetItemAt(size_t index) const override {
 +    switch (index) {
@@ -372,8 +372,10 @@ index 0000000000000..e49bbbf4d8a49
 +      case 1:
 +        return u"Claude";
 +      case 2:
-+        return u"Gemini";
++        return u"Grok";
 +      case 3:
++        return u"Gemini";
++      case 4:
 +        return u"Perplexity";
 +      default:
 +        NOTREACHED();
@@ -390,7 +392,7 @@ index 0000000000000..e49bbbf4d8a49
 +  PrefService* prefs = browser->profile()->GetPrefs();
 +  if (prefs->HasPrefPath(kThirdPartyLlmProviderPref)) {
 +    int provider_value = prefs->GetInteger(kThirdPartyLlmProviderPref);
-+    if (provider_value >= 0 && provider_value <= 3) {
++    if (provider_value >= 0 && provider_value <= 4) {
 +      current_provider_ = static_cast<LlmProvider>(provider_value);
 +    }
 +  }
@@ -452,7 +454,7 @@ index 0000000000000..e49bbbf4d8a49
 +  header->SetLayoutManager(std::make_unique<views::BoxLayout>(
 +      views::BoxLayout::Orientation::kHorizontal, 
 +      gfx::Insets(), 
-+      8));
++      12));  // Increased spacing between elements
 +  
 +  // Add dropdown
 +  auto provider_model = std::make_unique<LlmProviderComboboxModel>();
@@ -487,9 +489,12 @@ index 0000000000000..e49bbbf4d8a49
 +          weak_factory_.GetWeakPtr())));
 +  copy_button->SetImageModel(
 +      views::Button::STATE_NORMAL,
-+      ui::ImageModel::FromVectorIcon(vector_icons::kContentCopyIcon, ui::kColorIcon, 16));
++      ui::ImageModel::FromVectorIcon(vector_icons::kContentCopyIcon, ui::kColorIcon, 20));
 +  copy_button->SetAccessibleName(u"Copy page content");
 +  copy_button->SetTooltipText(u"Copy main page content to clipboard");
++  copy_button->SetPreferredSize(gfx::Size(32, 32));
++  copy_button->SetImageHorizontalAlignment(views::ImageButton::ALIGN_CENTER);
++  copy_button->SetImageVerticalAlignment(views::ImageButton::ALIGN_MIDDLE);
 +  
 +  // Add open in new tab button
 +  auto* open_button = header->AddChildView(
@@ -498,9 +503,12 @@ index 0000000000000..e49bbbf4d8a49
 +          weak_factory_.GetWeakPtr())));
 +  open_button->SetImageModel(
 +      views::Button::STATE_NORMAL,
-+      ui::ImageModel::FromVectorIcon(vector_icons::kLaunchIcon, ui::kColorIcon, 16));
++      ui::ImageModel::FromVectorIcon(vector_icons::kLaunchIcon, ui::kColorIcon, 20));
 +  open_button->SetAccessibleName(u"Open in new tab");
 +  open_button->SetTooltipText(u"Open in new tab");
++  open_button->SetPreferredSize(gfx::Size(32, 32));
++  open_button->SetImageHorizontalAlignment(views::ImageButton::ALIGN_CENTER);
++  open_button->SetImageVerticalAlignment(views::ImageButton::ALIGN_MIDDLE);
 +  
 +  // Add separator
 +  container->AddChildView(std::make_unique<views::Separator>());
@@ -581,7 +589,7 @@ index 0000000000000..e49bbbf4d8a49
 +    return;
 +
 +  auto selected_index = provider_selector_->GetSelectedIndex();
-+  if (!selected_index || selected_index.value() > 3)
++  if (!selected_index || selected_index.value() > 4)
 +    return;
 +
 +  DoProviderChange(static_cast<LlmProvider>(selected_index.value()));
@@ -628,6 +636,8 @@ index 0000000000000..e49bbbf4d8a49
 +      return GURL("https://chatgpt.com");
 +    case LlmProvider::kClaude:
 +      return GURL("https://claude.ai");
++    case LlmProvider::kGrok:
++      return GURL("https://grok.com");
 +    case LlmProvider::kGemini:
 +      return GURL("https://gemini.google.com");
 +    case LlmProvider::kPerplexity:
@@ -641,6 +651,8 @@ index 0000000000000..e49bbbf4d8a49
 +      return u"ChatGPT";
 +    case LlmProvider::kClaude:
 +      return u"Claude";
++    case LlmProvider::kGrok:
++      return u"Grok";
 +    case LlmProvider::kGemini:
 +      return u"Gemini";
 +    case LlmProvider::kPerplexity:
@@ -923,8 +935,8 @@ index 0000000000000..e49bbbf4d8a49
 +    return;
 +  }
 +
-+  // Calculate next provider (cycle through 0-3)
-+  int next_provider = (static_cast<int>(current_provider_) + 1) % 4;
++  // Calculate next provider (cycle through 0-4)
++  int next_provider = (static_cast<int>(current_provider_) + 1) % 5;
 +  LlmProvider new_provider = static_cast<LlmProvider>(next_provider);
 +  
 +  // Update the provider selector if it exists
@@ -1014,6 +1026,19 @@ index 0000000000000..e49bbbf4d8a49
 +      )";
 +      break;
 +      
++    case LlmProvider::kGrok:
++      // Grok uses a textarea or input field
++      focus_script = R"(
++        setTimeout(() => {
++          const input = document.querySelector('textarea, input[type="text"]');
++          if (input) {
++            input.focus();
++            input.click();
++          }
++        }, 500);
++      )";
++      break;
++      
 +    case LlmProvider::kGemini:
 +      // Gemini uses a rich text editor
 +      focus_script = R"(
@@ -1060,10 +1085,10 @@ index 0000000000000..e49bbbf4d8a49
 \ No newline at end of file
 diff --git a/chrome/browser/ui/views/side_panel/third_party_llm/third_party_llm_panel_coordinator.h b/chrome/browser/ui/views/side_panel/third_party_llm/third_party_llm_panel_coordinator.h
 new file mode 100644
-index 0000000000000..d0a55bd1728a7
+index 0000000000000..ba951c6c7de4b
 --- /dev/null
 +++ b/chrome/browser/ui/views/side_panel/third_party_llm/third_party_llm_panel_coordinator.h
-@@ -0,0 +1,159 @@
+@@ -0,0 +1,160 @@
 +// Copyright 2026 The Chromium Authors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
@@ -1162,8 +1187,9 @@ index 0000000000000..d0a55bd1728a7
 +  enum class LlmProvider {
 +    kChatGPT = 0,
 +    kClaude = 1,
-+    kGemini = 2,
-+    kPerplexity = 3,
++    kGrok = 2,
++    kGemini = 3,
++    kPerplexity = 4,
 +  };
 +
 +  std::unique_ptr<views::View> CreateThirdPartyLlmWebView(
