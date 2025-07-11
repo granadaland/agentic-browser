@@ -47,7 +47,7 @@ def git_reset(ctx: BuildContext) -> bool:
     log_info("\n🧹 Running git clean with exclusions for important directories...")
     os.chdir(ctx.chromium_src)
     run_command([
-        "git", "clean", "-fdx", "chrome/",
+        "git", "clean", "-fdx", "chrome/", "components/",
         "--exclude=third_party/",
         "--exclude=build_tools/",
         "--exclude=uc_staging/",
