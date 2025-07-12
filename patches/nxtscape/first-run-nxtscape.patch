@@ -63,7 +63,6 @@ index 0000000000000..3c2a0cbaffed5
 +
 +class UFRDataSource : public content::URLDataSource {
 + public:
-+  UFRDataSource() {}
 +  UFRDataSource(const UFRDataSource&) = delete;
 +  UFRDataSource& operator=(const UFRDataSource&) = delete;
 +
