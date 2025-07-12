@@ -1,7 +1,7 @@
 <div align="center">
 
 # 
-<img src="https://cdn.browseros.com/resources/banner.png" alt="backed-by-yc" >
+<img src="https://pub-b52e24a001bd463a848cb2d8c8667f63.r2.dev/browseros-banner.png" alt="backed-by-yc" >
 
 ### Your browser, with AI superpowers 🚀
 #### (Open Source Perplexity Comet Alternative)
