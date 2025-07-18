@@ -210,7 +210,7 @@ index 0000000000000..c0b84c7873a18
 \ No newline at end of file
 diff --git a/chrome/browser/mac/sparkle_glue.mm b/chrome/browser/mac/sparkle_glue.mm
 new file mode 100644
-index 0000000000000..06a2e9d8a5b8e
+index 0000000000000..cf39a1f49a55a
 --- /dev/null
 +++ b/chrome/browser/mac/sparkle_glue.mm
 @@ -0,0 +1,580 @@
@@ -959,7 +959,7 @@ index 0000000000000..bdb3d62440d0d
 \ No newline at end of file
 diff --git a/chrome/browser/ui/webui/help/sparkle_version_updater_mac.mm b/chrome/browser/ui/webui/help/sparkle_version_updater_mac.mm
 new file mode 100644
-index 0000000000000..79bb8e37c2e8e
+index 0000000000000..889b72abb254a
 --- /dev/null
 +++ b/chrome/browser/ui/webui/help/sparkle_version_updater_mac.mm
 @@ -0,0 +1,109 @@
@@ -998,9 +998,6 @@ index 0000000000000..79bb8e37c2e8e
 +  [sparkle setVersionUpdater:GetWeakPtr()];
 +
 +  [sparkle checkForUpdates];
-+  
-+  SparkleVersionUpdater* Updater = this;
-+  updater->PromoteUpdater();
 +}
 +
 +void SparkleVersionUpdater::PromoteUpdater() {
@@ -1097,7 +1094,7 @@ index 992157e28e8f5..4df0133b28fdb 100644
  #include <memory>
  #include <string>
 @@ -74,6 +83,8 @@ void UpdateStatus(VersionUpdater::StatusCallback status_callback,
-                   : VersionUpdater::Status::UPDATED;
+                    : VersionUpdater::Status::UPDATED;
        break;
      case updater::UpdateService::UpdateState::State::kUpdateError:
 +      // Log only errors

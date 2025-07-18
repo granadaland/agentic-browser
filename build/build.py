@@ -79,6 +79,7 @@ def build_main(
     chromium_src_dir: Optional[Path] = None,
     slack_notifications: bool = False,
     patch_interactive: bool = False,
+    patch_commit: bool = False,
     upload_gcs: bool = True,  # Default to uploading to GCS
 ):
     """Main build orchestration"""
@@ -244,11 +245,11 @@ def build_main(
                     log_info("Skipping Sparkle setup (macOS only)")
 
                 # Apply patches
-                apply_patches(ctx, interactive=patch_interactive)
+                apply_patches(ctx, interactive=patch_interactive, commit_each=patch_commit)
 
 
                 # Copy resources
-                copy_resources(ctx)
+                copy_resources(ctx, commit_each=patch_commit)
                 
 
                 if slack_notifications:
@@ -471,6 +472,12 @@ def build_main(
     help="Ask for confirmation before applying each patch",
 )
 @click.option(
+    "--patch-commit",
+    is_flag=True,
+    default=False,
+    help="Create a git commit after applying each patch",
+)
+@click.option(
     "--no-gcs-upload",
     is_flag=True,
     default=False,
@@ -492,6 +499,7 @@ def main(
     add_replace,
     string_replace,
     patch_interactive,
+    patch_commit,
     no_gcs_upload,
 ):
     """Simple build system for Nxtscape Browser"""
@@ -583,6 +591,7 @@ def main(
         chromium_src_dir=chromium_src,
         slack_notifications=slack_notifications,
         patch_interactive=patch_interactive,
+        patch_commit=patch_commit,
         upload_gcs=not no_gcs_upload,  # Invert the flag
     )
 

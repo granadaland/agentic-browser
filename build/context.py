@@ -178,6 +178,13 @@ class BuildContext:
 
     def get_app_path(self) -> Path:
         """Get built app path"""
+        # For debug builds, check if the app has a different name
+        if self.build_type == "debug" and IS_MACOS:
+            # Check for debug-branded app name
+            debug_app_name = f"{self.NXTSCAPE_APP_BASE_NAME} Dev.app"
+            debug_app_path = join_paths(self.chromium_src, self.out_dir, debug_app_name)
+            if debug_app_path.exists():
+                return debug_app_path
         return join_paths(self.chromium_src, self.out_dir, self.NXTSCAPE_APP_NAME)
 
     def get_chromium_app_path(self) -> Path:

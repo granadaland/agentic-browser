@@ -12,7 +12,7 @@ from context import BuildContext
 from utils import log_info, log_error, log_success, log_warning, IS_WINDOWS
 
 
-def apply_patches(ctx: BuildContext, interactive: bool = False) -> bool:
+def apply_patches(ctx: BuildContext, interactive: bool = False, commit_each: bool = False) -> bool:
     """Apply Nxtscape patches"""
     if not ctx.apply_patches:
         log_info("\n⏭️  Skipping patches")
@@ -46,6 +46,9 @@ def apply_patches(ctx: BuildContext, interactive: bool = False) -> bool:
     if interactive:
         log_info("🔍 Interactive mode enabled - will ask for confirmation before each patch")
     
+    if commit_each:
+        log_info("📝 Git commit mode enabled - will create a commit after each patch")
+    
     # Apply each patch
     for i, patch_path in enumerate(patches, 1):
         if not patch_path.exists():
@@ -62,7 +65,7 @@ def apply_patches(ctx: BuildContext, interactive: bool = False) -> bool:
                 choice = input("\nOptions:\n  1) Apply this patch\n  2) Skip this patch\n  3) Stop patching here\nEnter your choice (1-3): ").strip()
                 
                 if choice == "1":
-                    apply_single_patch(patch_path, ctx.chromium_src, i, len(patches))
+                    apply_single_patch(patch_path, ctx.chromium_src, i, len(patches), commit_each)
                     break
                 elif choice == "2":
                     log_warning(f"⏭️  Skipping patch {patch_path.name}")
@@ -73,7 +76,7 @@ def apply_patches(ctx: BuildContext, interactive: bool = False) -> bool:
                 else:
                     log_error("Invalid choice. Please enter 1, 2, or 3.")
         else:
-            apply_single_patch(patch_path, ctx.chromium_src, i, len(patches))
+            apply_single_patch(patch_path, ctx.chromium_src, i, len(patches), commit_each)
     
     log_success("Patches applied")
     return True
@@ -103,7 +106,7 @@ def parse_series_file(patches_dir: Path) -> Iterator[Path]:
     return patches
 
 
-def apply_single_patch(patch_path: Path, tree_path: Path, current_num: int, total: int) -> bool:
+def apply_single_patch(patch_path: Path, tree_path: Path, current_num: int, total: int, commit_each: bool = False) -> bool:
     """Apply a single patch using git apply"""
     # Use git apply which is cross-platform and handles patch format better
     cmd = [
@@ -120,6 +123,8 @@ def apply_single_patch(patch_path: Path, tree_path: Path, current_num: int, tota
     result = subprocess.run(cmd, text=True, capture_output=True, cwd=tree_path)
     
     if result.returncode == 0:
+        if commit_each:
+            commit_patch(patch_path, tree_path)
         return True
     
     # Patch failed - try with --3way for better conflict resolution
@@ -129,6 +134,8 @@ def apply_single_patch(patch_path: Path, tree_path: Path, current_num: int, tota
     
     if result.returncode == 0:
         log_info(f"✓ Applied {patch_path.name} with 3-way merge")
+        if commit_each:
+            commit_patch(patch_path, tree_path)
         return True
     
     # Patch still failed
@@ -152,7 +159,7 @@ def apply_single_patch(patch_path: Path, tree_path: Path, current_num: int, tota
             log_warning(f"⏭️  Skipping patch {patch_path.name}")
             return True  # Continue with next patch
         elif choice == "2":
-            return apply_single_patch(patch_path, tree_path, current_num, total)
+            return apply_single_patch(patch_path, tree_path, current_num, total, commit_each)
         elif choice == "3":
             log_error("Aborting patch process")
             raise RuntimeError("Patch process aborted by user")
@@ -160,4 +167,38 @@ def apply_single_patch(patch_path: Path, tree_path: Path, current_num: int, tota
             log_info("\nPlease fix the issue manually, then press Enter to continue...")
             input("Press Enter when ready: ")
             # Retry after manual fix
-            return apply_single_patch(patch_path, tree_path, current_num, total)
+            return apply_single_patch(patch_path, tree_path, current_num, total, commit_each)
+
+
+def commit_patch(patch_path: Path, tree_path: Path) -> bool:
+    """Create a git commit for the applied patch"""
+    try:
+        # Stage all changes
+        cmd_add = ['git', 'add', '-A']
+        result = subprocess.run(cmd_add, capture_output=True, text=True, cwd=tree_path)
+        if result.returncode != 0:
+            log_warning(f"Failed to stage changes for patch {patch_path.name}")
+            if result.stderr:
+                log_warning(f"Error: {result.stderr}")
+            return False
+        
+        # Create commit message
+        patch_name = patch_path.stem  # Remove .patch extension
+        commit_message = f"patch: {patch_name}"
+        
+        # Create the commit
+        cmd_commit = ['git', 'commit', '-m', commit_message]
+        result = subprocess.run(cmd_commit, capture_output=True, text=True, cwd=tree_path)
+        
+        if result.returncode == 0:
+            log_success(f"📝 Created commit for patch: {patch_name}")
+            return True
+        else:
+            log_warning(f"Failed to commit patch {patch_path.name}")
+            if result.stderr:
+                log_warning(f"Error: {result.stderr}")
+            return False
+            
+    except Exception as e:
+        log_warning(f"Error creating commit for patch {patch_path.name}: {e}")
+        return False

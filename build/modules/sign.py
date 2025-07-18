@@ -19,6 +19,7 @@ from utils import (
     log_success,
     log_warning,
     IS_MACOS,
+    join_paths,
 )
 
 
@@ -115,27 +116,27 @@ def find_components_to_sign(
         "apps": [],
     }
 
-    framework_path = app_path / "Contents" / "Frameworks"
+    framework_path = join_paths(app_path, "Contents", "Frameworks")
 
     # Check both versioned and non-versioned paths for BrowserOS Framework
-    nxtscape_framework_paths = [framework_path / "BrowserOS Framework.framework"]
-
-    # Add versioned path if context is available
-    if ctx and ctx.nxtscape_chromium_version:
-        versioned_path = (
-            framework_path
-            / "BrowserOS Framework.framework"
-            / "Versions"
-            / ctx.nxtscape_chromium_version
-        )
-        if versioned_path.exists():
-            nxtscape_framework_paths.insert(
-                0, versioned_path
-            )  # Prioritize versioned path
+    # Handle both release and debug framework names
+    framework_names = ["BrowserOS Framework.framework", "BrowserOS Dev Framework.framework"]
+    nxtscape_framework_paths = []
+    
+    for fw_name in framework_names:
+        fw_path = join_paths(framework_path, fw_name)
+        if fw_path.exists():
+            nxtscape_framework_paths.append(fw_path)
+            
+            # Add versioned path if context is available
+            if ctx and ctx.nxtscape_chromium_version:
+                versioned_path = join_paths(fw_path, "Versions", ctx.nxtscape_chromium_version)
+                if versioned_path.exists():
+                    nxtscape_framework_paths.insert(0, versioned_path)  # Prioritize versioned path
 
     # Find all helper apps
     for nxtscape_fw_path in nxtscape_framework_paths:
-        helpers_dir = nxtscape_fw_path / "Helpers"
+        helpers_dir = join_paths(nxtscape_fw_path, "Helpers")
         if helpers_dir.exists():
             # Find all .app helpers
             components["helpers"].extend(helpers_dir.glob("*.app"))
@@ -156,16 +157,16 @@ def find_components_to_sign(
         # Special handling for Sparkle framework versioned structure
         if "Sparkle.framework" in str(fw_path):
             # Look for Sparkle's versioned executables at Versions/B/
-            sparkle_version_b = fw_path / "Versions" / "B"
+            sparkle_version_b = join_paths(fw_path, "Versions", "B")
             if sparkle_version_b.exists():
                 # Add Autoupdate executable if it exists
-                autoupdate = sparkle_version_b / "Autoupdate"
+                autoupdate = join_paths(sparkle_version_b, "Autoupdate")
                 if autoupdate.exists() and autoupdate.is_file():
                     components["executables"].append(autoupdate)
 
     # Find all dylibs (check versioned path for BrowserOS Framework libraries)
     for nxtscape_fw_path in nxtscape_framework_paths:
-        libraries_dir = nxtscape_fw_path / "Libraries"
+        libraries_dir = join_paths(nxtscape_fw_path, "Libraries")
         if libraries_dir.exists():
             components["dylibs"].extend(libraries_dir.glob("*.dylib"))
 
@@ -216,7 +217,7 @@ def get_identifier_for_component(
 
     # For frameworks
     if component_path.suffix == ".framework":
-        if name == "BrowserOS Framework":
+        if name == "BrowserOS Framework" or name == "BrowserOS Dev Framework":
             return f"{base_identifier}.framework"
         else:
             return f"{base_identifier}.{name.replace(' ', '_').lower()}"
@@ -355,7 +356,7 @@ def sign_all_components(
 
             if entitlements_name:
                 for ent_dir in entitlements_dirs:
-                    ent_path = ent_dir / entitlements_name
+                    ent_path = join_paths(ent_dir, entitlements_name)
                     if ent_path.exists():
                         entitlements = ent_path
                         break
@@ -379,7 +380,19 @@ def sign_all_components(
 
     # 7. Sign main executable
     log_info("\n🔏 Signing main executable...")
-    main_exe = app_path / "Contents" / "MacOS" / "BrowserOS"
+    # Handle both release and debug executable names
+    main_exe_names = ["BrowserOS", "BrowserOS Dev"]
+    main_exe = None
+    for exe_name in main_exe_names:
+        exe_path = join_paths(app_path, "Contents", "MacOS", exe_name)
+        if exe_path.exists():
+            main_exe = exe_path
+            break
+    
+    if not main_exe:
+        log_error(f"Main executable not found in {join_paths(app_path, 'Contents', 'MacOS')}")
+        return False
+        
     if not sign_component(main_exe, certificate_name, "com.browseros.BrowserOS"):
         return False
 
@@ -398,19 +411,19 @@ def sign_all_components(
     if ctx:
         entitlements_dirs.append(ctx.get_entitlements_dir())
     else:
-        entitlements_dirs.append(root_dir / "resources" / "entitlements")
+        entitlements_dirs.append(join_paths(root_dir, "resources", "entitlements"))
     # Add fallback locations
     entitlements_dirs.extend(
         [
-            root_dir / "entitlements",  # Legacy location
-            root_dir / "build" / "src" / "chrome" / "app",
-            app_path.parent.parent.parent / "chrome" / "app",  # Chromium source
+            join_paths(root_dir, "entitlements"),  # Legacy location
+            join_paths(root_dir, "build", "src", "chrome", "app"),
+            join_paths(app_path.parent.parent.parent, "chrome", "app"),  # Chromium source
         ]
     )
 
     for ent_name in entitlements_names:
         for ent_dir in entitlements_dirs:
-            ent_path = ent_dir / ent_name
+            ent_path = join_paths(ent_dir, ent_name)
             if ent_path.exists():
                 entitlements = ent_path
                 log_info(f"  Using entitlements: {entitlements}")
@@ -474,7 +487,7 @@ def notarize_app(
     log_info("\n📤 Preparing for notarization...")
 
     # Create zip for notarization
-    notarize_zip = ctx.get_notarization_zip() if ctx else root_dir / "notarize.zip"
+    notarize_zip = ctx.get_notarization_zip() if ctx else join_paths(root_dir, "notarize.zip")
     if notarize_zip.exists():
         notarize_zip.unlink()
 
@@ -600,7 +613,7 @@ def sign_app(ctx: BuildContext, create_dmg: bool = True) -> bool:
     if create_dmg:
         dmg_dir = ctx.get_dist_dir()
         dmg_name = ctx.get_dmg_name(True)
-        dmg_path = dmg_dir / dmg_name
+        dmg_path = join_paths(dmg_dir, dmg_name)
 
     # Verify app exists
     if not app_path.exists():
@@ -696,8 +709,8 @@ def sign_universal(contexts: List[BuildContext]) -> bool:
         log_info(f"✓ Found {ctx.architecture} build: {app_path}")
 
     # Create universal output directory
-    universal_dir = contexts[0].chromium_src / "out/Default_universal"
-    universal_app_path = universal_dir / contexts[0].NXTSCAPE_APP_NAME
+    universal_dir = join_paths(contexts[0].chromium_src, "out", "Default_universal")
+    universal_app_path = join_paths(universal_dir, contexts[0].NXTSCAPE_APP_NAME)
 
     if universal_dir.exists():
         log_info("Removing existing universal directory...")
@@ -706,7 +719,7 @@ def sign_universal(contexts: List[BuildContext]) -> bool:
     universal_dir.mkdir(parents=True, exist_ok=True)
 
     # Use universalizer script to merge architectures
-    universalizer_script = contexts[0].root_dir / "build" / "universalizer_patched.py"
+    universalizer_script = join_paths(contexts[0].root_dir, "build", "universalizer_patched.py")
 
     if not universalizer_script.exists():
         log_error(f"Universalizer script not found: {universalizer_script}")
