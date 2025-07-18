@@ -1,20 +1,8 @@
-# ParallelManus Agent
+# BrowserOS Agent
 
-Chrome extension for automated web tasks using LLM-powered agents.
+> **⚠️ Note:** This is only the submodule for the browserOS agent.  
+> **Main repository:** [https://github.com/browseros-ai/BrowserOS](https://github.com/browseros-ai/BrowserOS)
 
-## Features
-
-- **AI-Powered Web Agent**: Natural language commands for browser automation
-- **Multiple LLM Support**: Works with OpenAI GPT and Claude models
-- **Chrome Extension**: Seamless integration with your browser
-- **Browser Automation**: Powered by puppeteer-core for Chrome extension integration
-- **Streaming Responses**: Real-time feedback and responses
-- **Tool-Based Architecture**: Modular design for extensibility
-- **Real-time Logging**: Development logs appear in the options page
-- **Natural Language Tools**: Click, type, navigate using natural language descriptions
-- **Persistent UI**: Options page stays open unlike disappearing popups
-- **Robust Connectivity**: Heartbeat system keeps connections alive during long tasks
-- **Auto-Reconnection**: Automatically reconnects when port connections drop
 
 ## Development
 
@@ -26,10 +14,6 @@ The project includes comprehensive VS Code debugging support for Chrome extensio
 
 1. **Set breakpoints** in any file under `src/` (background scripts, options page, etc.)
 2. **Press F5** or select **"🚀 Debug Extension (One-Click)"** from the debug dropdown
-3. VS Code will:
-   - Build the extension in development mode with source maps
-   - Launch Chrome with the extension loaded
-   - Enable debugging for all extension contexts
 
 #### Debugging Different Contexts
 
@@ -89,15 +73,12 @@ export const config = {
 
 1. **Install Extension**: Load `dist/` directory in Chrome extensions
 2. **Open Control Panel**: Click extension icon to open options page
-3. **Run Tasks**: Enter natural language tasks or click "Run Example"
-4. **View Logs**: Development logs appear in real-time (when DEV_MODE: true)
+3. **View Logs**: Development logs appear in real-time (when DEV_MODE: true)
 
 ## Architecture
 
 - **Port Messaging**: Uses `OPTIONS_TO_BACKGROUND` for UI ↔ Background communication
 - **Centralized Logging**: `LogUtility` routes logs to options page when DEV_MODE enabled
-- **Browser Context**: `NxtscapeBrowserContext` manages puppeteer-core connections
-- **Agent System**: Specialized agents for different automation tasks
 
 ## License
 
