@@ -1,13 +1,25 @@
 
 ## Development
 
+### Getting Started
+
+This project uses Yarn as the package manager. Make sure you have it installed before starting.
+
+```bash
+# Install dependencies
+yarn install
+
+# Start development build with hot reload
+yarn dev:watch
+```
+
 ### Debugging with VS Code
 
-The project includes comprehensive VS Code debugging support for Chrome extensions:
+The project includes VS Code debugging support for Chrome extensions:
 
 #### 🚀 One-Click Debugging
 
-1. **Set breakpoints** in any file under `src/` (background scripts, options page, etc.)
+1. **Set breakpoints** in any file under `src/` (background scripts, sidepanel, content scripts, etc.)
 2. **Press F5** or select **"🚀 Debug Extension (One-Click)"** from the debug dropdown
 
 #### Debugging Different Contexts
@@ -15,7 +27,7 @@ The project includes comprehensive VS Code debugging support for Chrome extensio
 After launching the main debug configuration, you can attach to specific contexts:
 
 - **Background Script**: Use "Debug Background Script (Service Worker)" 
-- **Options Pages**: Use "Debug Extension Pages (Options)"
+- **Side Panel**: Use "Debug Extension Pages (Side Panel)"
 - **Content Scripts**: Use "Debug Content Scripts (Web Pages)"
 
 #### Setup Requirements
@@ -28,52 +40,76 @@ After launching the main debug configuration, you can attach to specific context
 
 ```bash
 # Production build
-npm run build
+yarn build
+
+# Chrome-specific production build
+yarn build:chrome
 
 # Development build (with source maps)
-npm run build:dev
+yarn build:dev
 
 # Development build with file watching
-npm run build:watch
+yarn dev:watch
 ```
 
 ### Project Structure
 
 ```
 src/
-├── background/          # Service worker (background script)
-├── options/            # Options page (main UI)
+├── background/         # Service worker (background script)
+├── sidepanel/          # Side panel UI (React app)
+│   ├── components/     # React components
+│   ├── hooks/          # Custom React hooks
+│   ├── pages/          # Page components
+│   ├── store/          # Zustand state management
+│   └── styles/         # SCSS modules
 ├── content/            # Content scripts
-├── lib/                # Shared libraries
+├── config/             # Configuration files
+│   └── visionConfig.ts # Vision-related settings
+├── lib/                # Core libraries
+│   ├── agent/          # LangChain agents (Answer, Browse, etc.)
 │   ├── browser/        # Browser automation (puppeteer-core)
-│   ├── agent/          # LLM agents
+│   ├── core/           # Core Nxtscape functionality
+│   ├── events/         # Event bus and streaming
+│   ├── graph/          # Agent graph implementation
+│   ├── llm/            # LLM provider factories
+│   ├── orchestrators/  # Agent orchestration
+│   ├── prompts/        # Agent prompts
+│   ├── runtime/        # Execution context and errors
 │   ├── tools/          # Browser automation tools
-│   └── utilities/      # Utilities (LogUtility, etc.)
-└── config.ts           # Global configuration (DEV_MODE, etc.)
+│   ├── types/          # TypeScript type definitions
+│   └── utils/          # Utility functions
+├── types/              # Global TypeScript declarations
+└── config.ts           # Main configuration file
 ```
 
 ### Configuration
 
-Key settings in `src/config.ts`:
-
-```typescript
-export const config = {
-  DEV_MODE: true,     // Shows logs in options page
-  VERSION: '0.1.0',
-  LOG_LEVEL: 'info'
-}
-```
+The main config file at `src/config.ts` controls global settings. You can also configure LLM providers and other settings through the extension's side panel.
 
 ## Usage
 
-1. **Install Extension**: Load `dist/` directory in Chrome extensions
-2. **Open Control Panel**: Click extension icon to open options page
-3. **View Logs**: Development logs appear in real-time (when DEV_MODE: true)
+1. **Install Extension**: Load the `dist/` directory as an unpacked extension in Chrome
+2. **Open Side Panel**: Click the extension icon to open the side panel
+3. **Configure LLM**: Set up your preferred LLM provider (OpenAI, Anthropic, etc.)
+4. **Start Using**: The agent will help you browse and interact with web pages
 
 ## Architecture
 
-- **Port Messaging**: Uses `OPTIONS_TO_BACKGROUND` for UI ↔ Background communication
-- **Centralized Logging**: `LogUtility` routes logs to options page when DEV_MODE enabled
+- **LangChain Integration**: Uses LangChain and LangGraph for agent orchestration
+- **Port Messaging**: Communication between background script, content scripts, and side panel
+- **Event Bus**: Streaming events and updates between components
+- **Modular Tools**: Each browser action is a separate tool that agents can use
+
+## Testing
+
+```bash
+# Run linting
+yarn lint
+
+# Fix linting issues
+yarn lint:fix
+```
 
 ## License
 
