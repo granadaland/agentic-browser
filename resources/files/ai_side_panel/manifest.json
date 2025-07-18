@@ -14,7 +14,8 @@
     "sidePanel",
     "bookmarks",
     "history",
-    "settingsPrivate"
+    "settingsPrivate",
+    "browserOS"
   ],
   "host_permissions": [
     "<all_urls>"
