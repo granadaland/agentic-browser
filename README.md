@@ -15,6 +15,9 @@
 <a href="https://bit.ly/browseros-windows">
   <img src="https://img.shields.io/badge/Download-Windows-0078D4?style=flat&logo=windows&logoColor=white" alt="Download for Windows (beta)" />
 </a>
+<a href="https://storage.googleapis.com/nxtscape/BrowserOS.AppImage">
+  <img src="https://img.shields.io/badge/Download-Linux-FCC624?style=flat&logo=linux&logoColor=black" alt="Download for Linux (beta)" />
+</a>
 <br />
 
 <br />
@@ -33,6 +36,7 @@
 1. Download and install BrowserOS:
    - [macOS](https://bit.ly/nxtscape)
    - [Windows](https://bit.ly/browseros-windows)
+   - [Linux](https://storage.googleapis.com/nxtscape/BrowserOS.AppImage)
 2. Import your Chrome data (optional)
 3. Connect your AI provider (OpenAI, Anthropic, or local Ollama)
 4. Start automating!
