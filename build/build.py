@@ -12,7 +12,7 @@ from typing import Optional
 
 # Import shared components
 from context import BuildContext
-from utils import load_config, log_info, log_warning, log_error, log_success, IS_MACOS, IS_WINDOWS
+from utils import load_config, log_info, log_warning, log_error, log_success, IS_MACOS, IS_WINDOWS, IS_LINUX
 
 # Import modules
 from modules.clean import clean
@@ -39,8 +39,16 @@ elif IS_WINDOWS:
         return True
     def run_postbuild(ctx: BuildContext) -> None:
         log_warning("Post-build tasks are not implemented for Windows yet")
+elif IS_LINUX:
+    from modules.package_linux import package, package_universal, sign_binaries as sign
+    # Linux doesn't have universal signing
+    def sign_universal(contexts: list[BuildContext]) -> bool:
+        log_warning("Universal signing is not supported on Linux")
+        return True
+    def run_postbuild(ctx: BuildContext) -> None:
+        log_warning("Post-build tasks are not implemented for Linux yet")
 else:
-    # Stub functions for other platforms (Linux, etc.)
+    # Stub functions for other platforms
     def sign(ctx: BuildContext) -> bool:
         log_warning("Signing is not implemented for this platform")
         return True
@@ -87,7 +95,7 @@ def build_main(
     log_info("=" * 50)
     
     # Check if sign flag is enabled and required environment variables are set
-    if sign_flag:
+    if sign_flag and IS_MACOS:
         if not check_signing_environment():
             sys.exit(1)
     
@@ -282,11 +290,11 @@ def build_main(
             if package_flag:
                 log_info(f"\n📦 Packaging {ctx.architecture} build...")
                 if slack_notifications:
-                    package_type = "DMG" if IS_MACOS else "package"
+                    package_type = "DMG" if IS_MACOS else "installer" if IS_WINDOWS else "AppImage"
                     notify_build_step(f"[{ctx.architecture}] Started {package_type} creation")
                 package(ctx)
                 if slack_notifications:
-                    package_type = "DMG" if IS_MACOS else "package"
+                    package_type = "DMG" if IS_MACOS else "installer" if IS_WINDOWS else "AppImage"
                     notify_build_step(f"[{ctx.architecture}] Completed {package_type} creation")
                 
                 # Upload to GCS after packaging
@@ -351,11 +359,11 @@ def build_main(
 
             if package_flag:
                 if slack_notifications:
-                    package_type = "DMG" if IS_MACOS else "package"
+                    package_type = "DMG" if IS_MACOS else "installer" if IS_WINDOWS else "AppImage"
                     notify_build_step(f"[Universal] Started {package_type} creation")
                 package_universal(built_contexts)
                 if slack_notifications:
-                    package_type = "DMG" if IS_MACOS else "package"
+                    package_type = "DMG" if IS_MACOS else "installer" if IS_WINDOWS else "AppImage"
                     notify_build_step(f"[Universal] Completed {package_type} creation")
                 
                 # Upload universal package to GCS
@@ -431,7 +439,7 @@ def build_main(
     default="debug",
     help="Build type",
 )
-@click.option("--package", "-P", is_flag=True, default=False, help="Create DMG package")
+@click.option("--package", "-P", is_flag=True, default=False, help="Create package (DMG/AppImage/Installer)")
 @click.option("--build", "-b", is_flag=True, default=False, help="Build")
 @click.option(
     "--chromium-src",

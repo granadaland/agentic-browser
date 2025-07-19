@@ -41,21 +41,10 @@ def build(ctx: BuildContext) -> bool:
     
     os.chdir(ctx.chromium_src)
     
-    # Try to detect CPU cores and optimize parallel jobs
+    # Use default autoninja parallelism (it handles this automatically)
     autoninja_cmd = "autoninja.bat" if IS_WINDOWS else "autoninja"
-    try:
-        if IS_MACOS:
-            log_info("On macOS, using default autoninja parallelism")
-            run_command([autoninja_cmd, "-C", ctx.out_dir, "chrome", "chromedriver"])
-        else:
-            cpu_count = multiprocessing.cpu_count()
-            parallel_jobs = cpu_count
-            log_info(f"🖥️  Detected {cpu_count} CPU cores, using {parallel_jobs} parallel jobs")
-            run_command([autoninja_cmd, f"-j{parallel_jobs}", "-C", ctx.out_dir, "chrome", "chromedriver"])
-    except Exception as e:
-        log_warning(f"Could not optimize parallel jobs: {e}")
-        log_info("Falling back to default autoninja settings")
-        run_command([autoninja_cmd, "-C", ctx.out_dir, "chrome", "chromedriver"])
+    log_info("Using default autoninja parallelism")
+    run_command([autoninja_cmd, "-C", ctx.out_dir, "chrome", "chromedriver"])
     
     # Rename Chromium.app to Nxtscape.app
     app_path = ctx.get_chromium_app_path()

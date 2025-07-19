@@ -1,0 +1,24 @@
+# Minimal Linux Release Build Flags for BrowserOS
+
+# Build type
+is_debug = false
+is_official_build = true
+is_component_build = false
+
+# Compiler
+use_sysroot = true
+use_custom_libcxx = true
+
+# Core features
+enable_nacl = false
+enable_widevine = true
+
+# Media
+proprietary_codecs = true
+ffmpeg_branding = "Chrome"
+
+# Optimization
+symbol_level = 0
+
+# Disable PGO (Profile-Guided Optimization)
+chrome_pgo_phase = 0

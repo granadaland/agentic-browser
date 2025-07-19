@@ -198,6 +198,17 @@ def get_platform_arch() -> str:
         # macOS can be arm64 or x64
         import platform
         return "arm64" if platform.machine() == "arm64" else "x64"
+    elif IS_LINUX:
+        # Linux can be x64 or arm64
+        import platform
+        machine = platform.machine()
+        if machine in ["x86_64", "AMD64"]:
+            return "x64"
+        elif machine in ["aarch64", "arm64"]:
+            return "arm64"
+        else:
+            # Default to x64 for unknown architectures
+            return "x64"
     return "x64"
 
 
