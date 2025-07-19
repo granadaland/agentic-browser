@@ -33,8 +33,3 @@ linux:
 # Notification settings
 notifications:
   slack: true # Enable Slack notifications for release builds
-
-# GCS upload settings
-gcs:
-  upload: true  # Enable automatic upload to Google Cloud Storage
-  bucket: browseros-releases  # GCS bucket for Linux releases

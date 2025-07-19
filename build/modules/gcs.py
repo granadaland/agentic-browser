@@ -122,6 +122,9 @@ def upload_package_artifacts(ctx: BuildContext) -> tuple[bool, List[str]]:
             # Look for installer and ZIP files
             artifacts.extend(dist_dir.glob("*.exe"))
             artifacts.extend(dist_dir.glob("*.zip"))
+        else:  # Linux
+            # Look for AppImage files
+            artifacts.extend(dist_dir.glob("*.AppImage"))
     
     if not artifacts:
         log_info("No package artifacts found to upload")

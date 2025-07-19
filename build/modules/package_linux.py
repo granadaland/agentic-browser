@@ -195,10 +195,10 @@ def create_appimage(ctx: BuildContext, appdir: Path, output_path: Path) -> bool:
 
 def package(ctx: BuildContext) -> bool:
     """Package BrowserOS for Linux as AppImage"""
-    log_info(f"📦 Packaging {ctx.NXTSCAPE_APP_BASE_NAME} {ctx.nxtscape_version} for Linux ({ctx.architecture})")
+    log_info(f"📦 Packaging {ctx.NXTSCAPE_APP_BASE_NAME} {ctx.get_nxtscape_chromium_version()} for Linux ({ctx.architecture})")
     
     # Create packaging directory
-    package_dir = Path(join_paths(ctx.root_dir, "out", "package", ctx.architecture))
+    package_dir = ctx.get_dist_dir()
     package_dir.mkdir(parents=True, exist_ok=True)
     
     # Prepare AppDir
@@ -210,7 +210,7 @@ def package(ctx: BuildContext) -> bool:
         return False
     
     # Define output filename
-    version = ctx.nxtscape_version.replace(" ", "_")
+    version = ctx.get_nxtscape_chromium_version().replace(" ", "_")
     arch_suffix = "x86_64" if ctx.architecture == "x64" else "arm64"
     filename = f"{ctx.NXTSCAPE_APP_BASE_NAME}-{version}-{arch_suffix}.AppImage"
     output_path = Path(join_paths(package_dir, filename))
