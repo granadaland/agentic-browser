@@ -7,7 +7,7 @@ import { UIEventHandler } from '@/lib/events/UIEventHandler'
 // Removed deprecated IStreamingCallbacks import
 import { IntentPredictionOrchestrator } from '@/lib/orchestrators/IntentPredictionOrchestrator'
 import { ExecutionContext } from '@/lib/runtime/ExecutionContext'
-import BrowserContext from '@/lib/browser/BrowserContextV2'
+import BrowserContext from '@/lib/browser/BrowserContext'
 import MessageManager from '@/lib/runtime/MessageManager'
 import posthog from 'posthog-js'
 import { isDevelopmentMode } from '@/config'
@@ -19,14 +19,20 @@ import { isDevelopmentMode } from '@/config'
 // Initialize LogUtility first
 Logging.initialize({ debugMode: isDevelopmentMode() })
 
-// Initialize PostHog for analytics
-posthog.init('phc_nWs0kBH4Kx4lYOQNFL4lzUncjnEHuDPsCwhewmEgOOJ', {
-  api_host: 'https://us.i.posthog.com',
-  person_profiles: 'identified_only',
-})
+// Initialize PostHog for analytics only if API key is provided
+const posthogApiKey = process.env.POSTHOG_API_KEY
+if (posthogApiKey) {
+  posthog.init(posthogApiKey, {
+    api_host: 'https://us.i.posthog.com',
+    person_profiles: 'identified_only',
+  })
+}
 
 // Function to capture events with ai_chat prefix
 function captureEvent(eventName: string, properties?: Record<string, any>) {
+  if (!posthogApiKey) {
+    return // Skip if PostHog is not configured
+  }
   const prefixedEventName = `ai_chat:${eventName}`
   posthog.capture(prefixedEventName, properties)
   // debugLog(`📊 PostHog event: ${prefixedEventName}`, 'info')
@@ -106,67 +112,6 @@ const connectedPorts = new Map<string, chrome.runtime.Port>();
 let isPanelOpen = false;
 let isToggling = false; // Prevent rapid toggle issues
 
-/**
- * Check if buildDomTree script is already injected in the tab
- * @param tabId - The tab to check
- * @returns True if script is already injected
- */
-async function isScriptInjected(tabId: number): Promise<boolean> {
-  try {
-    const results = await chrome.scripting.executeScript({
-      target: { tabId },
-      func: () => Object.prototype.hasOwnProperty.call(window, 'buildDomTree'),
-    })
-    return results[0]?.result || false
-  } catch (err) {
-    debugLog(`Failed to check script injection status for tab ${tabId}: ${err}`, 'warning')
-    return false
-  }
-}
-
-/**
- * Inject the buildDomTree script into a tab
- * @param tabId - The tab to inject into
- */
-async function injectBuildDomTree(tabId: number): Promise<void> {
-  try {
-    // Check if already injected
-    const alreadyInjected = await isScriptInjected(tabId)
-    if (alreadyInjected) {
-      // Scripts already injected, skipping
-      return
-    }
-
-    await chrome.scripting.executeScript({
-      target: { tabId },
-      files: ['buildDomTree.js'],
-    })
-    // buildDomTree.js successfully injected
-  } catch (err) {
-    debugLog(`Failed to inject scripts into tab ${tabId}: ${err}`, 'error')
-  }
-}
-
-/**
- * Ensure buildDomTree script is injected in specified tabs
- * @param tabIds - Array of tab IDs to check and inject if needed
- */
-async function ensureScriptInjected(tabIds?: number[]): Promise<void> {
-  if (!tabIds || tabIds.length === 0) {
-    // If no specific tabs, inject into all active HTTP/HTTPS tabs
-    const tabs = await chrome.tabs.query({ url: ['http://*/*', 'https://*/*'] })
-    tabIds = tabs.map(tab => tab.id).filter((id): id is number => id !== undefined)
-  }
-
-  // Ensuring buildDomTree script is injected
-  
-  // Inject script into each tab
-  await Promise.all(tabIds.map(tabId => 
-    injectBuildDomTree(tabId).catch(err => 
-      debugLog(`Failed to inject into tab ${tabId}: ${err}`, 'warning')
-    )
-  ))
-}
 
 /**
  * Handle intent bubble click from content script
@@ -221,17 +166,6 @@ function initialize(): void {
     debugLog(`Failed to initialize NxtScape at startup: ${error}`, 'error')
   })
   
-  // Inject buildDomTree script into all existing HTTP/HTTPS tabs
-  chrome.tabs.query({ url: ['http://*/*', 'https://*/*'] }, (tabs) => {
-    tabs.forEach(tab => {
-      if (tab.id) {
-        injectBuildDomTree(tab.id).catch(error => {
-          debugLog(`Failed to inject script into existing tab ${tab.id}: ${error}`, 'warning')
-        })
-      }
-    })
-    // Injected buildDomTree.js into existing tabs
-  })
   
   // Register port connection listener (port-based messaging only)
   chrome.runtime.onConnect.addListener(handlePortConnection)
@@ -317,10 +251,6 @@ function initialize(): void {
       //     triggerIntentPrediction(tabId)
       //   }
       //
-      //   // Inject buildDomTree script
-      //   injectBuildDomTree(tabId).catch(error => {
-      //     debugLog(`Error injecting script into tab ${tabId}: ${error}`, 'error')
-      //   })
       // }
     }
   })
@@ -652,8 +582,6 @@ async function handleExecuteQueryPort(
     // Initialize NxtScape if not already done
     await ensureNxtScapeInitialized()
     
-    // Ensure buildDomTree script is injected in the target tabs
-    await ensureScriptInjected(payload.tabIds)
     
     // Create EventBus for streaming
     const { eventBus, cleanup: cleanupFn } = createStreamingEventBus()
