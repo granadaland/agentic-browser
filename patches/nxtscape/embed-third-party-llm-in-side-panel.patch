@@ -1,7 +1,7 @@
-From 36ae8534f9afec25878e3e7f756f96c89b72474b Mon Sep 17 00:00:00 2001
+From b31b7e7e822c757d7984dc1c490d283c35a7e8e3 Mon Sep 17 00:00:00 2001
 From: Nikhil Sonti <nikhilsv92@gmail.com>
-Date: Sat, 28 Jun 2025 16:38:45 -0700
-Subject: [PATCH] embed third party LLM in side panel
+Date: Tue, 22 Jul 2025 21:36:10 -0700
+Subject: [PATCH 14/20] patch(M): embed-third-party-llm-in-side-panel
 
 ---
  chrome/app/chrome_command_ids.h               |   2 +
@@ -18,13 +18,13 @@ Subject: [PATCH] embed third party LLM in side panel
  .../ui/views/side_panel/side_panel_entry_id.h |   1 +
  .../ui/views/side_panel/side_panel_prefs.cc   |   6 +
  .../ui/views/side_panel/side_panel_util.cc    |   7 +
- .../third_party_llm_panel_coordinator.cc      | 796 ++++++++++++++++++
- .../third_party_llm_panel_coordinator.h       | 162 ++++
- .../third_party_llm/third_party_llm_view.cc   |  18 +
+ .../third_party_llm_panel_coordinator.cc      | 823 ++++++++++++++++++
+ .../third_party_llm_panel_coordinator.h       | 188 ++++
+ .../third_party_llm/third_party_llm_view.cc   |  11 +
  .../third_party_llm/third_party_llm_view.h    |  32 +
  .../customize_toolbar/customize_toolbar.mojom |   1 +
  .../customize_toolbar_handler.cc              |   6 +
- 20 files changed, 1092 insertions(+), 1 deletion(-)
+ 20 files changed, 1138 insertions(+), 1 deletion(-)
  create mode 100644 chrome/browser/ui/views/side_panel/third_party_llm/third_party_llm_panel_coordinator.cc
  create mode 100644 chrome/browser/ui/views/side_panel/third_party_llm/third_party_llm_panel_coordinator.h
  create mode 100644 chrome/browser/ui/views/side_panel/third_party_llm/third_party_llm_view.cc
@@ -44,7 +44,7 @@ index 7dbc937b376cc..91d055b22ce33 100644
  // Spell-check
  // Insert any additional suggestions before _LAST; these have to be consecutive.
 diff --git a/chrome/app/generated_resources.grd b/chrome/app/generated_resources.grd
-index 186d94b83cb9c..1bc2770975fc4 100644
+index a7e94095c4dc5..ea11ecc8060dd 100644
 --- a/chrome/app/generated_resources.grd
 +++ b/chrome/app/generated_resources.grd
 @@ -8840,6 +8840,9 @@ Keep your key file in a safe place. You will need it to create new versions of y
@@ -153,7 +153,7 @@ index 6f2feda3e7920..f0912a69e5c05 100644
    if (browser_->is_type_normal()) {
      // Reading list commands.
 diff --git a/chrome/browser/ui/toolbar/toolbar_pref_names.cc b/chrome/browser/ui/toolbar/toolbar_pref_names.cc
-index 4dd749643041a..98a0d4b0db1ea 100644
+index 5d3da32f57f81..7f09152198f12 100644
 --- a/chrome/browser/ui/toolbar/toolbar_pref_names.cc
 +++ b/chrome/browser/ui/toolbar/toolbar_pref_names.cc
 @@ -4,7 +4,9 @@
@@ -166,7 +166,7 @@ index 4dd749643041a..98a0d4b0db1ea 100644
  #include "chrome/common/chrome_features.h"
  #include "components/pref_registry/pref_registry_syncable.h"
  #include "components/prefs/pref_registry_simple.h"
-@@ -31,6 +33,15 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
+@@ -24,6 +26,15 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
      }
    }
  
@@ -300,10 +300,10 @@ index f93a373cd9e96..cc55483ad32d7 100644
  SidePanelContentProxy* SidePanelUtil::GetSidePanelContentProxy(
 diff --git a/chrome/browser/ui/views/side_panel/third_party_llm/third_party_llm_panel_coordinator.cc b/chrome/browser/ui/views/side_panel/third_party_llm/third_party_llm_panel_coordinator.cc
 new file mode 100644
-index 0000000000000..5bf96735160de
+index 0000000000000..21a1737b9bb83
 --- /dev/null
 +++ b/chrome/browser/ui/views/side_panel/third_party_llm/third_party_llm_panel_coordinator.cc
-@@ -0,0 +1,796 @@
+@@ -0,0 +1,823 @@
 +// Copyright 2024 The Chromium Authors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
@@ -318,6 +318,7 @@ index 0000000000000..5bf96735160de
 +#include "base/strings/utf_string_conversions.h"
 +#include "chrome/browser/profiles/profile.h"
 +#include "chrome/browser/ui/browser.h"
++#include "chrome/browser/ui/browser_list.h"
 +#include "chrome/browser/ui/browser_window.h"
 +#include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 +#include "chrome/browser/ui/views/chrome_layout_provider.h"
@@ -395,6 +396,10 @@ index 0000000000000..5bf96735160de
 +ThirdPartyLlmPanelCoordinator::ThirdPartyLlmPanelCoordinator(Browser* browser)
 +    : BrowserUserData<ThirdPartyLlmPanelCoordinator>(*browser),
 +      feedback_timer_(std::make_unique<base::OneShotTimer>()) {
++  // Register for early cleanup notifications
++  browser_list_observation_.Observe(BrowserList::GetInstance());
++  profile_observation_.Observe(browser->profile());
++
 +  // Load saved provider preference
 +  PrefService* prefs = browser->profile()->GetPrefs();
 +  if (prefs->HasPrefPath(kThirdPartyLlmProviderPref)) {
@@ -406,15 +411,8 @@ index 0000000000000..5bf96735160de
 +}
 +
 +ThirdPartyLlmPanelCoordinator::~ThirdPartyLlmPanelCoordinator() {
-+  // Cancel any pending timer callbacks
-+  if (feedback_timer_ && feedback_timer_->IsRunning()) {
-+    feedback_timer_->Stop();
-+  }
-+
-+  // Stop observing WebContents if we're still observing
-+  if (web_contents()) {
-+    Observe(nullptr);
-+  }
++  // Destructor should be minimal - cleanup already done in observer methods
++  // The ScopedObservation objects will automatically unregister
 +}
 +
 +void ThirdPartyLlmPanelCoordinator::CreateAndRegisterEntry(
@@ -533,12 +531,14 @@ index 0000000000000..5bf96735160de
 +  // Observe UI elements so we can reset pointers when they are destroyed.
 +  view_observation_.AddObservation(web_view_);
 +  
-+  // Create WebContents
-+  content::WebContents::CreateParams params(GetBrowser().profile());
-+  auto web_contents = content::WebContents::Create(params);
-+  
-+  // Set this as the delegate to handle keyboard events
-+  web_contents->SetDelegate(this);
++  // Create WebContents if we don't have one yet
++  if (!owned_web_contents_) {
++    content::WebContents::CreateParams params(GetBrowser().profile());
++    owned_web_contents_ = content::WebContents::Create(params);
++
++    // Set this as the delegate to handle keyboard events
++    owned_web_contents_->SetDelegate(this);
++  }
 +
 +  // Navigate to initial provider (use last URL if available)
 +  GURL provider_url;
@@ -548,23 +548,22 @@ index 0000000000000..5bf96735160de
 +  } else {
 +    provider_url = GetProviderUrl(current_provider_);
 +  }
-+  web_contents->GetController().LoadURL(
++  owned_web_contents_->GetController().LoadURL(
 +      provider_url, 
 +      content::Referrer(),
 +      ui::PAGE_TRANSITION_AUTO_TOPLEVEL,
 +      std::string());
 +
-+  // Set the WebContents in the WebView (WebView takes ownership)
-+  web_view_->SetWebContents(web_contents.release());
++  // Set the WebContents in the WebView (WebView does NOT take ownership)
++  // We pass the raw pointer but retain ownership via owned_web_contents_
++  web_view_->SetWebContents(owned_web_contents_.get());
 +  web_view_->SetVisible(true);
 +  
 +  // Tell our custom container about the WebView for proper cleanup
 +  container->SetWebView(web_view_);
 +
-+  // Now observe the WebContents AFTER WebView has taken ownership
-+  if (web_view_->web_contents()) {
-+    Observe(web_view_->web_contents());
-+  }
++  // Observe the WebContents
++  Observe(owned_web_contents_.get());
 +
 +  // Enable focus for the WebView to handle keyboard events properly
 +  web_view_->SetFocusBehavior(views::View::FocusBehavior::ALWAYS);
@@ -614,8 +613,8 @@ index 0000000000000..5bf96735160de
 +
 +  provider_change_in_progress_ = true;
 +
-+  if (web_view_ && web_view_->web_contents()) {
-+    GURL current_url = web_view_->web_contents()->GetURL();
++  if (owned_web_contents_) {
++    GURL current_url = owned_web_contents_->GetURL();
 +    if (current_url.is_valid()) {
 +      last_urls_[current_provider_] = current_url;
 +    }
@@ -634,8 +633,8 @@ index 0000000000000..5bf96735160de
 +  provider_url = (it != last_urls_.end() && it->second.is_valid()) ? it->second
 +                                                                    : GetProviderUrl(current_provider_);
 +
-+  if (web_view_ && web_view_->web_contents()) {
-+    web_view_->web_contents()->GetController().LoadURL(
++  if (owned_web_contents_) {
++    owned_web_contents_->GetController().LoadURL(
 +        provider_url, content::Referrer(), ui::PAGE_TRANSITION_AUTO_TOPLEVEL, std::string());
 +  }
 +
@@ -673,11 +672,11 @@ index 0000000000000..5bf96735160de
 +}
 +
 +void ThirdPartyLlmPanelCoordinator::OnOpenInNewTab() {
-+  if (!web_view_ || !web_view_->web_contents()) {
++  if (!owned_web_contents_) {
 +    return;
 +  }
 +  
-+  GURL current_url = web_view_->web_contents()->GetURL();
++  GURL current_url = owned_web_contents_->GetURL();
 +  if (!current_url.is_valid()) {
 +    return;
 +  }
@@ -798,11 +797,7 @@ index 0000000000000..5bf96735160de
 +
 +  if (observed_view == web_view_) {
 +    // Just clear our pointer. DO NOT call methods on the view being destroyed!
-+    // The WebView should handle its own WebContents cleanup in its destructor.
 +    web_view_ = nullptr;
-+    
-+    // Stop observing the WebContents since the WebView is being destroyed
-+    Observe(nullptr);
 +  }
 +
 +  // Remove observation for this view.
@@ -975,10 +970,10 @@ index 0000000000000..5bf96735160de
 +      prefs->SetInteger(kThirdPartyLlmProviderPref, next_provider);
 +    }
 +
-+    // Navigate to the new provider URL if web_view_ exists
-+    if (web_view_ && web_view_->web_contents()) {
++    // Navigate to the new provider URL if we have WebContents
++    if (owned_web_contents_) {
 +      GURL provider_url = GetProviderUrl(current_provider_);
-+      web_view_->web_contents()->GetController().LoadURL(
++      owned_web_contents_->GetController().LoadURL(
 +          provider_url,
 +          content::Referrer(),
 +          ui::PAGE_TRANSITION_AUTO_TOPLEVEL,
@@ -1004,13 +999,13 @@ index 0000000000000..5bf96735160de
 +}
 +
 +void ThirdPartyLlmPanelCoordinator::FocusInputField() {
-+  if (!web_view_ || !web_view_->web_contents()) {
++  if (!owned_web_contents_) {
 +    return;
 +  }
 +  
 +  // Get the main frame
 +  content::RenderFrameHost* main_frame = 
-+      web_view_->web_contents()->GetPrimaryMainFrame();
++      owned_web_contents_->GetPrimaryMainFrame();
 +  if (!main_frame || !main_frame->IsRenderFrameLive()) {
 +    return;
 +  }
@@ -1093,6 +1088,38 @@ index 0000000000000..5bf96735160de
 +  }
 +}
 +
++void ThirdPartyLlmPanelCoordinator::CleanupWebContents() {
++  // Cancel any pending timer callbacks first
++  if (feedback_timer_ && feedback_timer_->IsRunning()) {
++    feedback_timer_->Stop();
++  }
++
++  // Clear the WebView's association with WebContents
++  if (web_view_ && web_view_->web_contents()) {
++    web_view_->SetWebContents(nullptr);
++  }
++
++  // Destroy the WebContents we own
++  owned_web_contents_.reset();
++
++  // Stop observing
++  Observe(nullptr);
++}
++
++void ThirdPartyLlmPanelCoordinator::OnBrowserRemoved(Browser* browser) {
++  if (browser == &GetBrowser()) {
++    // Browser is being removed - clean up WebContents early
++    CleanupWebContents();
++  }
++}
++
++void ThirdPartyLlmPanelCoordinator::OnProfileWillBeDestroyed(Profile* profile) {
++  if (profile == GetBrowser().profile()) {
++    // Profile is being destroyed - clean up WebContents if not already done
++    CleanupWebContents();
++  }
++}
++
 +// static
 +void ThirdPartyLlmPanelCoordinator::RegisterProfilePrefs(
 +    user_prefs::PrefRegistrySyncable* registry) {
@@ -1103,10 +1130,10 @@ index 0000000000000..5bf96735160de
 \ No newline at end of file
 diff --git a/chrome/browser/ui/views/side_panel/third_party_llm/third_party_llm_panel_coordinator.h b/chrome/browser/ui/views/side_panel/third_party_llm/third_party_llm_panel_coordinator.h
 new file mode 100644
-index 0000000000000..7d1797f6a4a3e
+index 0000000000000..40a67af155c06
 --- /dev/null
 +++ b/chrome/browser/ui/views/side_panel/third_party_llm/third_party_llm_panel_coordinator.h
-@@ -0,0 +1,162 @@
+@@ -0,0 +1,188 @@
 +// Copyright 2026 The Chromium Authors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
@@ -1120,7 +1147,10 @@ index 0000000000000..7d1797f6a4a3e
 +#include "base/memory/weak_ptr.h"
 +#include "base/supports_user_data.h"
 +#include "base/scoped_multi_source_observation.h"
++#include "base/scoped_observation.h"
++#include "chrome/browser/ui/browser_list_observer.h"
 +#include "chrome/browser/ui/browser_user_data.h"
++#include "chrome/browser/profiles/profile_observer.h"
 +#include "components/prefs/pref_change_registrar.h"
 +#include "content/public/browser/web_contents_delegate.h"
 +#include "content/public/browser/web_contents_observer.h"
@@ -1132,6 +1162,8 @@ index 0000000000000..7d1797f6a4a3e
 +#include "ui/views/view_observer.h"
 +
 +class Browser;
++class BrowserList;
++class Profile;
 +class SidePanelEntryScope;
 +class SidePanelRegistry;
 +
@@ -1163,6 +1195,8 @@ index 0000000000000..7d1797f6a4a3e
 +// third-party LLM SidePanelEntry.
 +class ThirdPartyLlmPanelCoordinator
 +    : public BrowserUserData<ThirdPartyLlmPanelCoordinator>,
++      public BrowserListObserver,
++      public ProfileObserver,
 +      public content::WebContentsDelegate,
 +      public content::WebContentsObserver,
 +      public views::ViewObserver {
@@ -1199,6 +1233,12 @@ index 0000000000000..7d1797f6a4a3e
 +  // views::ViewObserver:
 +  void OnViewIsDeleting(views::View* observed_view) override;
 +
++  // BrowserListObserver:
++  void OnBrowserRemoved(Browser* browser) override;
++
++  // ProfileObserver:
++  void OnProfileWillBeDestroyed(Profile* profile) override;
++
 + private:
 +  friend class BrowserUserData<ThirdPartyLlmPanelCoordinator>;
 +  
@@ -1233,6 +1273,9 @@ index 0000000000000..7d1797f6a4a3e
 +  // reentrancy.
 +  void DoProviderChange(LlmProvider new_provider);
 +
++  // Clean up WebContents early to avoid shutdown crashes.
++  void CleanupWebContents();
++
 +  // Current provider selection
 +  LlmProvider current_provider_ = LlmProvider::kChatGPT;
 +  
@@ -1241,6 +1284,10 @@ index 0000000000000..7d1797f6a4a3e
 +  raw_ptr<views::Combobox> provider_selector_ = nullptr;
 +  raw_ptr<views::Label> copy_feedback_label_ = nullptr;
 +  
++  // We need to own the WebContents because WebView doesn't take ownership
++  // when we call SetWebContents with externally created WebContents
++  std::unique_ptr<content::WebContents> owned_web_contents_;
++
 +  // Store the last URL for each provider to restore state
 +  std::map<LlmProvider, GURL> last_urls_;
 +  
@@ -1264,6 +1311,12 @@ index 0000000000000..7d1797f6a4a3e
 +  base::ScopedMultiSourceObservation<views::View, views::ViewObserver>
 +      view_observation_{this};
 +
++  // Observer registrations for early cleanup notifications
++  base::ScopedObservation<BrowserList, BrowserListObserver>
++      browser_list_observation_{this};
++  base::ScopedObservation<Profile, ProfileObserver>
++      profile_observation_{this};
++
 +  // Weak pointer factory for callbacks
 +  base::WeakPtrFactory<ThirdPartyLlmPanelCoordinator> weak_factory_{this};
 +};
@@ -1272,10 +1325,10 @@ index 0000000000000..7d1797f6a4a3e
 \ No newline at end of file
 diff --git a/chrome/browser/ui/views/side_panel/third_party_llm/third_party_llm_view.cc b/chrome/browser/ui/views/side_panel/third_party_llm/third_party_llm_view.cc
 new file mode 100644
-index 0000000000000..8e87f38473c63
+index 0000000000000..dde4319c75b1d
 --- /dev/null
 +++ b/chrome/browser/ui/views/side_panel/third_party_llm/third_party_llm_view.cc
-@@ -0,0 +1,18 @@
+@@ -0,0 +1,11 @@
 +// Copyright 2024 The Chromium Authors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
@@ -1286,14 +1339,7 @@ index 0000000000000..8e87f38473c63
 +
 +ThirdPartyLlmView::ThirdPartyLlmView() = default;
 +
-+ThirdPartyLlmView::~ThirdPartyLlmView() {
-+  // Clean up WebContents to avoid crash on shutdown.
-+  // This ensures WebContents are destroyed before the Profile/BrowserContext.
-+  if (web_view_) {
-+    // This will destroy the WebContents owned by the WebView
-+    web_view_->SetWebContents(nullptr);
-+  }
-+}
++ThirdPartyLlmView::~ThirdPartyLlmView() = default;
 \ No newline at end of file
 diff --git a/chrome/browser/ui/views/side_panel/third_party_llm/third_party_llm_view.h b/chrome/browser/ui/views/side_panel/third_party_llm/third_party_llm_view.h
 new file mode 100644
