@@ -1,0 +1,820 @@
+From 6bfea4f6b2904bf6f596aef04cfe2b2767002531 Mon Sep 17 00:00:00 2001
+From: Nikhil Sonti <nikhilsv92@gmail.com>
+Date: Wed, 23 Jul 2025 14:04:16 -0700
+Subject: [PATCH 17/20] Updates to browserOS api
+
+Fixes `sendKeys`, change monitor, HTML click
+---
+ chrome/browser/extensions/BUILD.gn            |   2 +
+ .../api/browser_os/browser_os_api.cc          | 110 ++++++-
+ .../api/browser_os/browser_os_api_utils.cc    |  91 ++++++
+ .../api/browser_os/browser_os_api_utils.h     |  14 +
+ .../browser_os/browser_os_change_detector.cc  | 271 ++++++++++++++++++
+ .../browser_os/browser_os_change_detector.h   | 120 ++++++++
+ .../browser_os_snapshot_processor.cc          |  16 +-
+ chrome/common/extensions/api/browser_os.idl   |  11 +-
+ 8 files changed, 624 insertions(+), 11 deletions(-)
+ create mode 100644 chrome/browser/extensions/api/browser_os/browser_os_change_detector.cc
+ create mode 100644 chrome/browser/extensions/api/browser_os/browser_os_change_detector.h
+
+diff --git a/chrome/browser/extensions/BUILD.gn b/chrome/browser/extensions/BUILD.gn
+index 7b601eb14acab..37fc8b1650ca4 100644
+--- a/chrome/browser/extensions/BUILD.gn
++++ b/chrome/browser/extensions/BUILD.gn
+@@ -522,6 +522,8 @@ source_set("extensions") {
+       "api/browser_os/browser_os_api_helpers.h",
+       "api/browser_os/browser_os_api_utils.cc",
+       "api/browser_os/browser_os_api_utils.h",
++      "api/browser_os/browser_os_change_detector.cc",
++      "api/browser_os/browser_os_change_detector.h",
+       "api/browser_os/browser_os_content_processor.cc",
+       "api/browser_os/browser_os_content_processor.h",
+       "api/browser_os/browser_os_snapshot_processor.cc",
+diff --git a/chrome/browser/extensions/api/browser_os/browser_os_api.cc b/chrome/browser/extensions/api/browser_os/browser_os_api.cc
+index 6bee5ce12bb9e..ac60786981033 100644
+--- a/chrome/browser/extensions/api/browser_os/browser_os_api.cc
++++ b/chrome/browser/extensions/api/browser_os/browser_os_api.cc
+@@ -18,6 +18,7 @@
+ #include "base/values.h"
+ #include "chrome/browser/extensions/api/browser_os/browser_os_api_helpers.h"
+ #include "chrome/browser/extensions/api/browser_os/browser_os_api_utils.h"
++#include "chrome/browser/extensions/api/browser_os/browser_os_change_detector.h"
+ #include "chrome/browser/extensions/api/browser_os/browser_os_content_processor.h"
+ #include "chrome/browser/extensions/api/browser_os/browser_os_snapshot_processor.h"
+ #include "chrome/browser/extensions/extension_tab_util.h"
+@@ -254,15 +255,104 @@ ExtensionFunction::ResponseAction BrowserOSClickFunction::Run() {
+   
+   const NodeInfo& node_info = node_it->second;
+   
+-  // Calculate click point (center of the element)
++  // Enable accessibility if needed for change detection
++  // Note: Accessibility is enabled via RequestAXTreeSnapshot in getInteractiveSnapshot
++  // which already sets the appropriate mode
++  
++  // Create change detector and start monitoring
++  auto change_detector = std::make_unique<BrowserOSChangeDetector>(web_contents);
++  change_detector->StartMonitoring(node_info.ax_tree_id);
++  
++  // Perform the click action
+   gfx::PointF click_point(
+       node_info.bounds.x() + node_info.bounds.width() / 2.0f,
+       node_info.bounds.y() + node_info.bounds.height() / 2.0f);
+-  
+-  // Perform the click
+   PerformClick(web_contents, click_point);
+   
+-  return RespondNow(NoArguments());
++  // Wait for changes with timeout
++  ChangeDetectionResult change_result = 
++      change_detector->WaitForChanges(base::Milliseconds(500));
++  
++  // If no change detected via coordinate click, try HTML click as fallback
++  if (!change_result.detected) {
++    VLOG(1) << "No change detected with coordinate click, trying HTML click";
++    PerformHtmlClick(web_contents, node_info);
++    
++    // Wait again for changes
++    change_result = change_detector->WaitForChanges(base::Milliseconds(300));
++  }
++  
++  // Build response with change detection information
++  base::Value::Dict response;
++  response.Set("success", true);
++  response.Set("changeDetected", change_result.detected);
++  
++  if (change_result.detected) {
++    // Convert change type to string
++    std::string primary_change_str;
++    switch (change_result.primary_change) {
++      case ChangeType::kDomChanged:
++        primary_change_str = "dom_changed";
++        break;
++      case ChangeType::kPopupOpened:
++        primary_change_str = "popup_opened";
++        break;
++      case ChangeType::kNewTabOpened:
++        primary_change_str = "new_tab_opened";
++        break;
++      case ChangeType::kDialogShown:
++        primary_change_str = "dialog_shown";
++        break;
++      case ChangeType::kFocusChanged:
++        primary_change_str = "focus_changed";
++        break;
++      case ChangeType::kElementExpanded:
++        primary_change_str = "element_expanded";
++        break;
++      default:
++        primary_change_str = "unknown";
++    }
++    response.Set("primaryChange", primary_change_str);
++    response.Set("timeToChangeMs", 
++                static_cast<int>(change_result.time_to_change.InMilliseconds()));
++    
++    // Add all detected changes
++    base::Value::List all_changes;
++    for (const auto& change : change_result.all_changes) {
++      switch (change) {
++        case ChangeType::kDomChanged:
++          all_changes.Append("dom_changed");
++          break;
++        case ChangeType::kPopupOpened:
++          all_changes.Append("popup_opened");
++          break;
++        case ChangeType::kNewTabOpened:
++          all_changes.Append("new_tab_opened");
++          break;
++        case ChangeType::kDialogShown:
++          all_changes.Append("dialog_shown");
++          break;
++        case ChangeType::kFocusChanged:
++          all_changes.Append("focus_changed");
++          break;
++        case ChangeType::kElementExpanded:
++          all_changes.Append("element_expanded");
++          break;
++        default:
++          break;
++      }
++    }
++    response.Set("allChanges", std::move(all_changes));
++    
++    // Add action required hints
++    if (change_result.primary_change == ChangeType::kNewTabOpened) {
++      response.Set("actionRequired", "switch_to_new_tab");
++    } else if (change_result.primary_change == ChangeType::kPopupOpened) {
++      response.Set("actionRequired", "interact_with_popup");
++    }
++  }
++  
++  return RespondNow(WithArguments(std::move(response)));
+ }
+ 
+ // Implementation of BrowserOSInputTextFunction
+@@ -298,12 +388,14 @@ ExtensionFunction::ResponseAction BrowserOSInputTextFunction::Run() {
+   const NodeInfo& node_info = node_it->second;
+   
+   
+-  // First, click on the element to focus it
+-  gfx::PointF click_point(
+-      node_info.bounds.x() + node_info.bounds.width() / 2.0f,
+-      node_info.bounds.y() + node_info.bounds.height() / 2.0f);
++  // First, click on the element to focus it using HTML-based click
++  PerformHtmlClick(web_contents, node_info);
+   
+-  PerformClick(web_contents, click_point);
++  // Note: If we want to fallback to coordinate-based click, we can uncomment below:
++  // gfx::PointF click_point(
++  //     node_info.bounds.x() + node_info.bounds.width() / 2.0f,
++  //     node_info.bounds.y() + node_info.bounds.height() / 2.0f);
++  // PerformClick(web_contents, click_point);
+   
+   // Get render widget host for text input
+   content::RenderFrameHost* rfh = web_contents->GetPrimaryMainFrame();
+diff --git a/chrome/browser/extensions/api/browser_os/browser_os_api_utils.cc b/chrome/browser/extensions/api/browser_os/browser_os_api_utils.cc
+index 0d83f4da95ba9..8667dcf0675ac 100644
+--- a/chrome/browser/extensions/api/browser_os/browser_os_api_utils.cc
++++ b/chrome/browser/extensions/api/browser_os/browser_os_api_utils.cc
+@@ -7,6 +7,7 @@
+ #include "base/hash/hash.h"
+ #include "base/no_destructor.h"
+ #include "base/strings/string_number_conversions.h"
++#include "base/strings/utf_string_conversions.h"
+ #include "content/public/browser/render_frame_host.h"
+ #include "content/public/browser/render_widget_host.h"
+ #include "content/public/browser/render_widget_host_view.h"
+@@ -26,6 +27,14 @@
+ namespace extensions {
+ namespace api {
+ 
++// NodeInfo implementation
++NodeInfo::NodeInfo() : ax_node_id(0), ax_tree_id() {}
++NodeInfo::~NodeInfo() = default;
++NodeInfo::NodeInfo(const NodeInfo&) = default;
++NodeInfo& NodeInfo::operator=(const NodeInfo&) = default;
++NodeInfo::NodeInfo(NodeInfo&&) = default;
++NodeInfo& NodeInfo::operator=(NodeInfo&&) = default;
++
+ // Global node ID mappings storage
+ // Use NoDestructor to avoid exit-time destructor
+ std::unordered_map<int, std::unordered_map<uint32_t, NodeInfo>>& 
+@@ -83,6 +92,70 @@ void PerformClick(content::WebContents* web_contents,
+   rwh->ForwardMouseEvent(mouse_up);
+ }
+ 
++// Helper to perform HTML-based click using JS (uses ID, class, or tag)
++void PerformHtmlClick(content::WebContents* web_contents,
++                      const NodeInfo& node_info) {
++  content::RenderFrameHost* rfh = web_contents->GetPrimaryMainFrame();
++  if (!rfh)
++    return;
++    
++  // Build the JavaScript to find and click the element
++  std::u16string js_code = u"(function() {";
++  
++  // Try to find element by ID first
++  auto id_it = node_info.attributes.find("id");
++  if (id_it != node_info.attributes.end() && !id_it->second.empty()) {
++    js_code += u"  var element = document.getElementById('" + 
++               base::UTF8ToUTF16(id_it->second) + u"');";
++    js_code += u"  if (element) {";
++    js_code += u"    element.click();";
++    js_code += u"    return 'clicked by id';";
++    js_code += u"  }";
++  }
++  
++  // Try to find by class and tag combination
++  auto class_it = node_info.attributes.find("class");
++  auto tag_it = node_info.attributes.find("html-tag");
++  
++  if (class_it != node_info.attributes.end() && !class_it->second.empty() &&
++      tag_it != node_info.attributes.end() && !tag_it->second.empty()) {
++    // Split class names and create selector
++    std::string class_selector = "." + class_it->second;
++    // Replace spaces with dots for multiple classes
++    for (size_t i = 0; i < class_selector.length(); ++i) {
++      if (class_selector[i] == ' ') {
++        class_selector[i] = '.';
++      }
++    }
++    
++    js_code += u"  var elements = document.querySelectorAll('" + 
++               base::UTF8ToUTF16(tag_it->second + class_selector) + u"');";
++    js_code += u"  if (elements.length > 0) {";
++    js_code += u"    elements[0].click();";
++    js_code += u"    return 'clicked by class and tag';";
++    js_code += u"  }";
++  }
++  
++  // Fallback: try just by tag name if available
++  if (tag_it != node_info.attributes.end() && !tag_it->second.empty()) {
++    js_code += u"  var elements = document.getElementsByTagName('" + 
++               base::UTF8ToUTF16(tag_it->second) + u"');";
++    js_code += u"  if (elements.length > 0) {";
++    js_code += u"    elements[0].click();";
++    js_code += u"    return 'clicked by tag';";
++    js_code += u"  }";
++  }
++  
++  js_code += u"  return 'no element found';";
++  js_code += u"})();";
++  
++  // Execute the JavaScript
++  rfh->ExecuteJavaScriptForTests(
++      js_code,
++      base::NullCallback(),
++      /*honor_js_content_settings=*/false);
++}
++
+ // Helper to determine if a node is interactive (clickable/typeable/selectable)
+ browser_os::InteractiveNodeType GetInteractiveNodeType(
+     const ui::AXNodeData& node_data) {
+@@ -358,6 +431,24 @@ void SendSpecialKey(content::WebContents* web_contents,
+   // Send key down
+   rwh->ForwardKeyboardEvent(key_down);
+   
++  // For Enter key, also send char event
++  // This is for `input` elements on web pages expect this to trigger submit
++  if (key == "Enter") {
++    input::NativeWebKeyboardEvent char_event(
++        blink::WebInputEvent::Type::kChar,
++        blink::WebInputEvent::kNoModifiers,
++        ui::EventTimeForNow());
++    
++    char_event.windows_key_code = windows_key_code;
++    char_event.native_key_code = windows_key_code;
++    char_event.dom_code = static_cast<int>(dom_code);
++    char_event.dom_key = static_cast<int>(dom_key);
++    char_event.text[0] = '\r';  // Carriage return character
++    char_event.unmodified_text[0] = '\r';
++    
++    rwh->ForwardKeyboardEvent(char_event);
++  }
++  
+   // For most keys, also send key up
+   if (key != "Tab") {  // Tab usually doesn't need key up for focus change
+     input::NativeWebKeyboardEvent key_up(
+diff --git a/chrome/browser/extensions/api/browser_os/browser_os_api_utils.h b/chrome/browser/extensions/api/browser_os/browser_os_api_utils.h
+index 2070807877455..521e22bb15dbf 100644
+--- a/chrome/browser/extensions/api/browser_os/browser_os_api_utils.h
++++ b/chrome/browser/extensions/api/browser_os/browser_os_api_utils.h
+@@ -10,6 +10,7 @@
+ 
+ #include "chrome/common/extensions/api/browser_os.h"
+ #include "ui/accessibility/ax_node_data.h"
++#include "ui/accessibility/ax_tree_id.h"
+ #include "ui/gfx/geometry/rect_f.h"
+ 
+ namespace content {
+@@ -22,8 +23,17 @@ namespace api {
+ 
+ // Stores mapping information for a node
+ struct NodeInfo {
++  NodeInfo();
++  ~NodeInfo();
++  NodeInfo(const NodeInfo&);
++  NodeInfo& operator=(const NodeInfo&);
++  NodeInfo(NodeInfo&&);
++  NodeInfo& operator=(NodeInfo&&);
++
+   int32_t ax_node_id;
++  ui::AXTreeID ax_tree_id;  // Tree ID for change detection
+   gfx::RectF bounds;  // Absolute bounds in CSS pixels
++  std::unordered_map<std::string, std::string> attributes;  // All computed attributes
+ };
+ 
+ // Global node ID mappings storage
+@@ -34,6 +44,10 @@ GetNodeIdMappings();
+ void PerformClick(content::WebContents* web_contents, 
+                   const gfx::PointF& point);
+ 
++// Helper to perform HTML-based click using JS (uses ID, class, or tag)
++void PerformHtmlClick(content::WebContents* web_contents,
++                      const NodeInfo& node_info);
++
+ // Helper to determine if a node is interactive (clickable/typable)
+ browser_os::InteractiveNodeType GetInteractiveNodeType(
+     const ui::AXNodeData& node_data);
+diff --git a/chrome/browser/extensions/api/browser_os/browser_os_change_detector.cc b/chrome/browser/extensions/api/browser_os/browser_os_change_detector.cc
+new file mode 100644
+index 0000000000000..7962fb78b6e48
+--- /dev/null
++++ b/chrome/browser/extensions/api/browser_os/browser_os_change_detector.cc
+@@ -0,0 +1,271 @@
++// Copyright 2024 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "chrome/browser/extensions/api/browser_os/browser_os_change_detector.h"
++
++#include "base/functional/bind.h"
++#include "base/logging.h"
++#include "base/run_loop.h"
++#include "content/public/browser/focused_node_details.h"
++#include "content/public/browser/render_frame_host.h"
++#include "content/public/browser/web_contents.h"
++#include "ui/accessibility/ax_enums.mojom.h"
++#include "ui/accessibility/ax_node_data.h"
++#include "ui/accessibility/ax_tree_update.h"
++#include "ui/accessibility/ax_updates_and_events.h"
++
++namespace extensions {
++namespace api {
++
++// ChangeDetectionResult implementation
++ChangeDetectionResult::ChangeDetectionResult() = default;
++ChangeDetectionResult::~ChangeDetectionResult() = default;
++ChangeDetectionResult::ChangeDetectionResult(const ChangeDetectionResult&) = default;
++ChangeDetectionResult& ChangeDetectionResult::operator=(const ChangeDetectionResult&) = default;
++ChangeDetectionResult::ChangeDetectionResult(ChangeDetectionResult&&) = default;
++ChangeDetectionResult& ChangeDetectionResult::operator=(ChangeDetectionResult&&) = default;
++
++BrowserOSChangeDetector::BrowserOSChangeDetector(
++    content::WebContents* web_contents)
++    : content::WebContentsObserver(web_contents) {}
++
++BrowserOSChangeDetector::~BrowserOSChangeDetector() {
++  LOG(INFO) << "BrowserOSChangeDetector destroyed";
++  StopMonitoring();
++}
++
++void BrowserOSChangeDetector::StartMonitoring(
++    const ui::AXTreeID& initial_tree_id) {
++  DCHECK(!monitoring_active_);
++  
++  monitoring_active_ = true;
++  change_detected_ = false;
++  initial_tree_id_ = initial_tree_id;
++  current_tree_id_ = initial_tree_id;
++  detected_changes_.clear();
++  start_time_ = base::TimeTicks::Now();
++  time_to_first_change_ = base::TimeDelta();
++  
++  VLOG(1) << "Started monitoring for changes, initial tree ID: " 
++          << initial_tree_id.ToString();
++}
++
++ChangeDetectionResult BrowserOSChangeDetector::WaitForChanges(
++    base::TimeDelta timeout) {
++  DCHECK(monitoring_active_);
++  
++  // If changes already detected, return immediately
++  if (change_detected_) {
++    return GetResult();
++  }
++  
++  // Set up a run loop to wait for changes or timeout
++  base::RunLoop run_loop(base::RunLoop::Type::kNestableTasksAllowed);
++  wait_callback_ = run_loop.QuitClosure();
++  
++  // Start timeout timer
++  timeout_timer_.Start(FROM_HERE, timeout,
++                      base::BindOnce(&BrowserOSChangeDetector::OnTimeout,
++                                    weak_factory_.GetWeakPtr()));
++  
++  // Wait for changes or timeout
++  run_loop.Run();
++  
++  // Clean up
++  timeout_timer_.Stop();
++  wait_callback_.Reset();
++  
++  return GetResult();
++}
++
++ChangeDetectionResult BrowserOSChangeDetector::GetResult() const {
++  ChangeDetectionResult result;
++  result.detected = change_detected_;
++  result.all_changes = detected_changes_;
++  result.new_tree_id = current_tree_id_;
++  result.time_to_change = time_to_first_change_;
++  
++  // Determine primary change type
++  if (!detected_changes_.empty()) {
++    VLOG(1) << "BrowserOSChangeDetector detected changes: "
++              << static_cast<int>(detected_changes_.size());
++    // Priority order for primary change
++    if (detected_changes_.count(ChangeType::kNewTabOpened)) {
++      result.primary_change = ChangeType::kNewTabOpened;
++    } else if (detected_changes_.count(ChangeType::kPopupOpened)) {
++      result.primary_change = ChangeType::kPopupOpened;
++    } else if (detected_changes_.count(ChangeType::kDialogShown)) {
++      result.primary_change = ChangeType::kDialogShown;
++    } else if (detected_changes_.count(ChangeType::kElementExpanded)) {
++      result.primary_change = ChangeType::kElementExpanded;
++    } else if (detected_changes_.count(ChangeType::kDomChanged)) {
++      result.primary_change = ChangeType::kDomChanged;
++    } else if (detected_changes_.count(ChangeType::kFocusChanged)) {
++      result.primary_change = ChangeType::kFocusChanged;
++    }
++  }
++  else {
++    LOG(INFO) << "BrowserOSChangeDetector empty detected changes";
++  }
++  
++  return result;
++}
++
++void BrowserOSChangeDetector::AccessibilityEventReceived(
++    const ui::AXUpdatesAndEvents& details) {
++  if (!monitoring_active_) {
++    return;
++  }
++  
++  ProcessAccessibilityEvent(details);
++}
++
++void BrowserOSChangeDetector::ProcessAccessibilityEvent(
++    const ui::AXUpdatesAndEvents& details) {
++  bool significant_change = false;
++  
++  // Process each tree update
++  for (size_t i = 0; i < details.updates.size(); ++i) {
++    const ui::AXTreeUpdate& update = details.updates[i];
++    
++    // Check if tree ID changed
++    if (update.has_tree_data && update.tree_data.tree_id != initial_tree_id_) {
++      current_tree_id_ = update.tree_data.tree_id;
++      significant_change = true;
++      VLOG(1) << "Tree ID changed from " << initial_tree_id_.ToString() 
++              << " to " << current_tree_id_.ToString();
++    }
++    
++    // Check for specific event types from the corresponding event
++    if (i < details.events.size()) {
++      const ui::AXEvent& event = details.events[i];
++      switch (event.event_type) {
++        case ax::mojom::Event::kChildrenChanged:
++        case ax::mojom::Event::kLayoutComplete:
++        case ax::mojom::Event::kLoadComplete:
++          detected_changes_.insert(ChangeType::kDomChanged);
++          significant_change = true;
++          break;
++          
++        case ax::mojom::Event::kFocus:
++        case ax::mojom::Event::kFocusContext:
++        case ax::mojom::Event::kDocumentSelectionChanged:
++          detected_changes_.insert(ChangeType::kFocusChanged);
++          significant_change = true;
++          break;
++          
++        case ax::mojom::Event::kExpandedChanged:
++        case ax::mojom::Event::kRowExpanded:
++        case ax::mojom::Event::kRowCollapsed:
++          detected_changes_.insert(ChangeType::kElementExpanded);
++          significant_change = true;
++          break;
++          
++        default:
++          break;
++      }
++    }
++    
++    // Check for popup/dialog indicators in node data
++    for (const auto& node : update.nodes) {
++      if (node.role == ax::mojom::Role::kDialog ||
++          node.role == ax::mojom::Role::kAlertDialog ||
++          node.role == ax::mojom::Role::kAlert) {
++        // Check if this is a new node (not in initial tree)
++        if (!node.IsInvisibleOrIgnored()) {
++          detected_changes_.insert(ChangeType::kPopupOpened);
++          significant_change = true;
++        }
++      }
++      
++      if (node.role == ax::mojom::Role::kMenu ||
++          node.role == ax::mojom::Role::kMenuBar ||
++          node.role == ax::mojom::Role::kMenuListPopup) {
++        if (!node.IsInvisibleOrIgnored()) {
++          detected_changes_.insert(ChangeType::kPopupOpened);
++          significant_change = true;
++        }
++      }
++    }
++  }
++  
++  if (significant_change && !change_detected_) {
++    change_detected_ = true;
++    time_to_first_change_ = base::TimeTicks::Now() - start_time_;
++    VLOG(1) << "Change detected after " << time_to_first_change_.InMilliseconds() << " ms";
++    
++    // If waiting, quit the run loop
++    if (wait_callback_) {
++      std::move(wait_callback_).Run();
++    }
++  }
++}
++
++void BrowserOSChangeDetector::DidOpenRequestedURL(
++    content::WebContents* new_contents,
++    content::RenderFrameHost* source_render_frame_host,
++    const GURL& url,
++    const content::Referrer& referrer,
++    WindowOpenDisposition disposition,
++    ui::PageTransition transition,
++    bool started_from_context_menu,
++    bool renderer_initiated) {
++  if (!monitoring_active_) {
++    return;
++  }
++  
++  if (disposition == WindowOpenDisposition::NEW_POPUP ||
++      disposition == WindowOpenDisposition::NEW_FOREGROUND_TAB ||
++      disposition == WindowOpenDisposition::NEW_BACKGROUND_TAB ||
++      disposition == WindowOpenDisposition::NEW_WINDOW) {
++    detected_changes_.insert(ChangeType::kNewTabOpened);
++    change_detected_ = true;
++    
++    if (!time_to_first_change_.is_positive()) {
++      time_to_first_change_ = base::TimeTicks::Now() - start_time_;
++    }
++    
++    VLOG(1) << "New tab/window detected with disposition: " 
++            << static_cast<int>(disposition);
++    
++    if (wait_callback_) {
++      std::move(wait_callback_).Run();
++    }
++  }
++}
++
++void BrowserOSChangeDetector::OnFocusChangedInPage(
++    content::FocusedNodeDetails* details) {
++  if (!monitoring_active_ || !details) {
++    return;
++  }
++  
++  detected_changes_.insert(ChangeType::kFocusChanged);
++  
++  if (!change_detected_) {
++    change_detected_ = true;
++    time_to_first_change_ = base::TimeTicks::Now() - start_time_;
++    
++    if (wait_callback_) {
++      std::move(wait_callback_).Run();
++    }
++  }
++}
++
++void BrowserOSChangeDetector::OnTimeout() {
++  VLOG(1) << "Change detection timeout reached";
++  
++  if (wait_callback_) {
++    std::move(wait_callback_).Run();
++  }
++}
++
++void BrowserOSChangeDetector::StopMonitoring() {
++  monitoring_active_ = false;
++  timeout_timer_.Stop();
++  wait_callback_.Reset();
++}
++
++}  // namespace api
++}  // namespace extensions
+diff --git a/chrome/browser/extensions/api/browser_os/browser_os_change_detector.h b/chrome/browser/extensions/api/browser_os/browser_os_change_detector.h
+new file mode 100644
+index 0000000000000..f4a902e1b4970
+--- /dev/null
++++ b/chrome/browser/extensions/api/browser_os/browser_os_change_detector.h
+@@ -0,0 +1,120 @@
++// Copyright 2024 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef CHROME_BROWSER_EXTENSIONS_API_BROWSER_OS_BROWSER_OS_CHANGE_DETECTOR_H_
++#define CHROME_BROWSER_EXTENSIONS_API_BROWSER_OS_BROWSER_OS_CHANGE_DETECTOR_H_
++
++#include <set>
++#include <string>
++
++#include "base/functional/callback.h"
++#include "base/memory/weak_ptr.h"
++#include "base/time/time.h"
++#include "base/timer/timer.h"
++#include "content/public/browser/web_contents_observer.h"
++#include "ui/accessibility/ax_enums.mojom.h"
++#include "ui/accessibility/ax_tree_id.h"
++
++namespace content {
++class WebContents;
++}  // namespace content
++
++namespace ui {
++struct AXUpdatesAndEvents;
++}  // namespace ui
++
++namespace extensions {
++namespace api {
++
++// Types of changes that can be detected after user actions
++enum class ChangeType {
++  kNone,              // No change detected
++  kDomChanged,        // Regular DOM updates
++  kPopupOpened,       // Modal/dropdown/menu appeared
++  kNewTabOpened,      // New tab/window created
++  kDialogShown,       // JS alert/confirm/prompt
++  kFocusChanged,      // Focus moved to different element
++  kElementExpanded,   // Dropdown/accordion expanded
++};
++
++// Result of change detection
++struct ChangeDetectionResult {
++  ChangeDetectionResult();
++  ~ChangeDetectionResult();
++  ChangeDetectionResult(const ChangeDetectionResult&);
++  ChangeDetectionResult& operator=(const ChangeDetectionResult&);
++  ChangeDetectionResult(ChangeDetectionResult&&);
++  ChangeDetectionResult& operator=(ChangeDetectionResult&&);
++
++  bool detected = false;
++  ChangeType primary_change = ChangeType::kNone;
++  std::set<ChangeType> all_changes;
++  ui::AXTreeID new_tree_id;
++  int new_tab_id = -1;
++  std::string dialog_type;
++  int popup_node_id = -1;
++  base::TimeDelta time_to_change;
++};
++
++// Detects changes in the DOM after user actions using accessibility events
++class BrowserOSChangeDetector : public content::WebContentsObserver {
++ public:
++  explicit BrowserOSChangeDetector(content::WebContents* web_contents);
++  ~BrowserOSChangeDetector() override;
++
++  BrowserOSChangeDetector(const BrowserOSChangeDetector&) = delete;
++  BrowserOSChangeDetector& operator=(const BrowserOSChangeDetector&) = delete;
++
++  // Start monitoring for changes with a specific tree ID
++  void StartMonitoring(const ui::AXTreeID& initial_tree_id);
++
++  // Wait for changes with timeout, returns result
++  ChangeDetectionResult WaitForChanges(base::TimeDelta timeout);
++
++  // Check if changes were detected (non-blocking)
++  bool HasChangesDetected() const { return change_detected_; }
++
++  // Get the result without waiting
++  ChangeDetectionResult GetResult() const;
++
++ private:
++  // WebContentsObserver overrides
++  void AccessibilityEventReceived(
++      const ui::AXUpdatesAndEvents& details) override;
++  void DidOpenRequestedURL(content::WebContents* new_contents,
++                          content::RenderFrameHost* source_render_frame_host,
++                          const GURL& url,
++                          const content::Referrer& referrer,
++                          WindowOpenDisposition disposition,
++                          ui::PageTransition transition,
++                          bool started_from_context_menu,
++                          bool renderer_initiated) override;
++  void OnFocusChangedInPage(content::FocusedNodeDetails* details) override;
++
++  // Helper methods
++  void OnTimeout();
++  void ProcessAccessibilityEvent(const ui::AXUpdatesAndEvents& details);
++  void StopMonitoring();
++
++  // State tracking
++  bool monitoring_active_ = false;
++  bool change_detected_ = false;
++  ui::AXTreeID initial_tree_id_;
++  ui::AXTreeID current_tree_id_;
++  std::set<ChangeType> detected_changes_;
++  base::TimeTicks start_time_;
++  base::TimeDelta time_to_first_change_;
++  
++  // Timer for timeout handling
++  base::OneShotTimer timeout_timer_;
++  base::OnceClosure wait_callback_;
++
++  // Weak pointer factory
++  base::WeakPtrFactory<BrowserOSChangeDetector> weak_factory_{this};
++};
++
++}  // namespace api
++}  // namespace extensions
++
++#endif  // CHROME_BROWSER_EXTENSIONS_API_BROWSER_OS_BROWSER_OS_CHANGE_DETECTOR_H_
+\ No newline at end of file
+diff --git a/chrome/browser/extensions/api/browser_os/browser_os_snapshot_processor.cc b/chrome/browser/extensions/api/browser_os/browser_os_snapshot_processor.cc
+index 7523bf7881787..ee9da99ed9bc7 100644
+--- a/chrome/browser/extensions/api/browser_os/browser_os_snapshot_processor.cc
++++ b/chrome/browser/extensions/api/browser_os/browser_os_snapshot_processor.cc
+@@ -235,6 +235,7 @@ struct SnapshotProcessor::ProcessingContext
+   std::unordered_map<int32_t, int32_t> parent_map;  // child_id -> parent_id  
+   std::unordered_map<int32_t, std::vector<int32_t>> children_map;  // parent_id -> child_ids
+   int tab_id;
++  ui::AXTreeID tree_id;  // Tree ID for change detection
+   base::TimeTicks start_time;
+   size_t total_nodes;
+   size_t processed_batches;
+@@ -401,6 +402,12 @@ void PopulateNodeAttributes(
+     std::string html_id = node_data.GetStringAttribute(ax::mojom::StringAttribute::kHtmlId);
+     attributes["id"] = SanitizeStringForOutput(html_id);
+   }
++  
++  // Add HTML class names
++  if (node_data.HasStringAttribute(ax::mojom::StringAttribute::kClassName)) {
++    std::string class_name = node_data.GetStringAttribute(ax::mojom::StringAttribute::kClassName);
++    attributes["class"] = SanitizeStringForOutput(class_name);
++  }
+ }
+ 
+ // Process a batch of nodes
+@@ -488,10 +495,12 @@ void SnapshotProcessor::OnBatchProcessed(
+     std::vector<ProcessedNode> batch_results) {
+   // Process batch results
+   for (const auto& node_data : batch_results) {
+-    // Store mapping from our nodeId to AX node ID and bounds
++    // Store mapping from our nodeId to AX node ID, bounds, and attributes
+     NodeInfo info;
+     info.ax_node_id = node_data.node_data->id;
++    info.ax_tree_id = context->tree_id;  // Store tree ID for change detection
+     info.bounds = node_data.absolute_bounds;
++    info.attributes = node_data.attributes;  // Store all computed attributes
+     GetNodeIdMappings()[context->tab_id][node_data.node_id] = info;
+     
+     // Log the mapping for debugging
+@@ -595,6 +604,11 @@ void SnapshotProcessor::ProcessAccessibilityTree(
+   context->children_map = std::move(children_map);
+   context->start_time = start_time;
+   
++  // Store the tree ID for change detection
++  if (tree_update.has_tree_data) {
++    context->tree_id = tree_update.tree_data.tree_id;
++  }
++  
+   // Convert viewport size to document viewport bounds
+   // Find the root node and get its scroll offset
+   gfx::Rect doc_viewport_bounds;
+diff --git a/chrome/common/extensions/api/browser_os.idl b/chrome/common/extensions/api/browser_os.idl
+index c34c96484ccbf..6934ee144987d 100644
+--- a/chrome/common/extensions/api/browser_os.idl
++++ b/chrome/common/extensions/api/browser_os.idl
+@@ -72,10 +72,19 @@ namespace browserOS {
+     boolean isPageComplete;
+   };
+ 
++  // Response from click action with change detection
++  dictionary ClickResponse {
++    boolean success;
++    boolean changeDetected;
++    DOMString? primaryChange;
++    long? timeToChangeMs;
++    DOMString[]? allChanges;
++    DOMString? actionRequired;
++  };
+ 
+   callback GetAccessibilityTreeCallback = void(AccessibilityTree tree);
+   callback GetInteractiveSnapshotCallback = void(InteractiveSnapshot snapshot);
+-  callback ClickCallback = void();
++  callback ClickCallback = void(ClickResponse response);
+   callback InputTextCallback = void();
+   callback ClearCallback = void();
+   callback GetPageLoadStatusCallback = void(PageLoadStatus status);
+-- 
+2.49.0
+
