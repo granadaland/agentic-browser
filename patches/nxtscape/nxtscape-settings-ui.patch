@@ -1,7 +1,7 @@
-From aaf6fb842007637034346c89eab3d3642d343262 Mon Sep 17 00:00:00 2001
+From 231cb919a8a1b0ad03280a1e3330f4711d29f847 Mon Sep 17 00:00:00 2001
 From: Nikhil Sonti <nikhilsv92@gmail.com>
-Date: Fri, 13 Jun 2025 16:00:31 -0700
-Subject: [PATCH] settings ui for byok
+Date: Tue, 22 Jul 2025 21:33:35 -0700
+Subject: [PATCH 01/20] patch(M): nxtscape-settings-ui
 
 ---
  .../api/settings_private/prefs_util.cc        |  26 +
@@ -21,7 +21,7 @@ Subject: [PATCH] settings ui for byok
  create mode 100644 chrome/browser/resources/settings/nxtscape_page/nxtscape_page.ts
 
 diff --git a/chrome/browser/extensions/api/settings_private/prefs_util.cc b/chrome/browser/extensions/api/settings_private/prefs_util.cc
-index 97bb4be60af93..1803d96b758e1 100644
+index c27e0e96e4bce..1869a54c5b4e4 100644
 --- a/chrome/browser/extensions/api/settings_private/prefs_util.cc
 +++ b/chrome/browser/extensions/api/settings_private/prefs_util.cc
 @@ -580,6 +580,32 @@ const PrefsUtil::TypedPrefMap& PrefsUtil::GetAllowlistedKeys() {
@@ -1052,14 +1052,14 @@ index 0000000000000..8c4421ef76e45
 +    SettingsNxtscapePageElement.is, SettingsNxtscapePageElement); 
 \ No newline at end of file
 diff --git a/chrome/browser/resources/settings/route.ts b/chrome/browser/resources/settings/route.ts
-index 2458ecb3791b0..275e8eafe33a2 100644
+index 2458ecb3791b0..e8dd01dc3e7b6 100644
 --- a/chrome/browser/resources/settings/route.ts
 +++ b/chrome/browser/resources/settings/route.ts
 @@ -183,6 +183,7 @@ function createRoutes(): SettingsRoutes {
    // Root pages.
    r.BASIC = new Route('/');
    r.ABOUT = new Route('/help', loadTimeData.getString('aboutPageTitle'));
-+  r.NXTSCAPE = new Route('/browseros', 'BrowserOS Settings');
++  r.NXTSCAPE = new Route('/browseros-ai', 'BrowserOS AI Settings');
  
    r.SEARCH = r.BASIC.createSection(
        '/search', 'search', loadTimeData.getString('searchPageTitle'));
@@ -1149,17 +1149,17 @@ index 43fd55ea0b83c..433afef3be384 100644
  
    private onShowingSubpage_() {
 diff --git a/chrome/browser/resources/settings/settings_menu/settings_menu.html b/chrome/browser/resources/settings/settings_menu/settings_menu.html
-index 79aad7032abc7..70651dd5e15c8 100644
+index 79aad7032abc7..8f123acf9b322 100644
 --- a/chrome/browser/resources/settings/settings_menu/settings_menu.html
 +++ b/chrome/browser/resources/settings/settings_menu/settings_menu.html
 @@ -57,6 +57,12 @@
            $i18n{peoplePageTitle}
            <cr-ripple></cr-ripple>
          </a>
-+        <a role="menuitem" id="nxtscape-menu" href="/browseros"
++        <a role="menuitem" id="nxtscape-menu" href="/browseros-ai"
 +            class="cr-nav-menu-item">
 +          <cr-icon icon="[[aiPageIcon_]]"></cr-icon>
-+          BrowserOS
++          BrowserOS AI
 +          <cr-ripple></cr-ripple>
 +        </a>
          <a role="menuitem" id="autofill" href="/autofill"
