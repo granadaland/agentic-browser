@@ -24,9 +24,8 @@ patches/nxtscape/updates-to-browseros-api.patch
 nxtscape/nxtscape-updater-sparkle.patch
 nxtscape/add-sparkle-info-plist-keys.patch
 
-# new views
 nxtscape/adding-new-vector-icons.patch
 nxtscape/embed-third-party-llm-in-side-panel.patch
-nxtscape/pin-nxtscape-agents-together.patch
 nxtscape/clash-of-gpts.patch
 patches/nxtscape/updates-to-llm-chat-and-hub.patch
+nxtscape/pin-nxtscape-agents-together.patch
