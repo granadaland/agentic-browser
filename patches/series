@@ -3,7 +3,6 @@ nxtscape/first-run-nxtscape.patch
 # features
 nxtscape/add-importer-supporter-for-chrome.patch #skip:linux
 nxtscape/nxtscape-settings-ui.patch
-patches/nxtscape/browseros-settings.patch
 
 # chromium
 nxtscape/disable-user-gesture-restriction-on-sidepanel.patch
@@ -18,14 +17,18 @@ nxtscape/bug-reporter-extension.patch
 nxtscape/pin-nxtscape-ai-chat.patch
 nxtscape/browserOS-API.patch
 nxtscape/new-snapshot-API.patch
-patches/nxtscape/updates-to-browseros-api.patch
 
 # updater
 nxtscape/nxtscape-updater-sparkle.patch
 nxtscape/add-sparkle-info-plist-keys.patch
 
 nxtscape/adding-new-vector-icons.patch
+
 nxtscape/embed-third-party-llm-in-side-panel.patch
 nxtscape/clash-of-gpts.patch
-patches/nxtscape/updates-to-llm-chat-and-hub.patch
+
 nxtscape/pin-nxtscape-agents-together.patch
+
+nxtscape/browseros-settings.patch
+nxtscape/updates-to-llm-chat-and-hub.patch
+nxtscape/updates-to-browseros-api.patch
