@@ -9,6 +9,24 @@
 
     <!-- Updates -->
     <item>
+      <title>Nxtscape - 0.15.0</title>
+      <description sparkle:format="plain-text">
+- Support for screenshot in LLM chat.
+- New settings page `chrome://settings/browseros-settings` for configuring BrowserOS internals. Today, it supports hiding labels in toolbar.
+- Various fixes and improvesments.
+      </description>
+      <sparkle:version>7189.69</sparkle:version>
+      <sparkle:shortVersionString>0.15.0</sparkle:shortVersionString>
+      <pubDate>Sat, 26 Jul 2025 08:56:00 -0700</pubDate>
+      <link>https://nxtscape.ai</link>
+      <enclosure
+        url="http://cdn.browseros.com/dmg/BrowserOS_v0.15.0_x64.dmg"
+        sparkle:edSignature="ec0s8SskrESAKC0RfdjyK/CKO1Qg2pkEuzlZaU8mgQGh+4t0xrS/SGq7aWZyqjVcGNCLd59/uT82H93Ay42WCA==" 
+        length="136245910"
+        type="application/octet-stream" />
+      <sparkle:minimumSystemVersion>10.15</sparkle:minimumSystemVersion>
+    </item>
+    <item>
       <title>Nxtscape - 0.14.0</title>
       <description sparkle:format="plain-text">
       </description>
