@@ -9,13 +9,13 @@
 [![Discord](https://img.shields.io/badge/Discord-Join%20us-blue)](https://discord.gg/YKwjt5vuKr)
 [![Twitter](https://img.shields.io/twitter/follow/browserOS_ai?style=social)](https://twitter.com/browseros_ai)
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)
-<a href="https://bit.ly/nxtscape">
+<a href="https://files.browseros.com/download/BrowserOS.dmg">
   <img src="https://img.shields.io/badge/Download-macOS-black?style=flat&logo=apple&logoColor=white" alt="Download for macOS (beta)" />
 </a>
-<a href="https://bit.ly/browseros-windows">
+<a href="https://files.browseros.com/download/BrowserOS_installer.exe">
   <img src="https://img.shields.io/badge/Download-Windows-0078D4?style=flat&logo=windows&logoColor=white" alt="Download for Windows (beta)" />
 </a>
-<a href="https://storage.googleapis.com/nxtscape/BrowserOS.AppImage">
+<a href="https://files.browseros.com/download/BrowserOS.AppImage">
   <img src="https://img.shields.io/badge/Download-Linux-FCC624?style=flat&logo=linux&logoColor=black" alt="Download for Linux (beta)" />
 </a>
 <br />
@@ -34,9 +34,9 @@
 ## Quick start
 
 1. Download and install BrowserOS:
-   - [macOS](https://bit.ly/nxtscape)
-   - [Windows](https://bit.ly/browseros-windows)
-   - [Linux](https://storage.googleapis.com/nxtscape/BrowserOS.AppImage)
+   - [macOS](https://files.browseros.com/download/BrowserOS.dmg)
+   - [Windows](https://files.browseros.com/download/BrowserOS_installer.exe)
+   - [Linux](https://files.browseros.com/download/BrowserOS.AppImage)
 2. Import your Chrome data (optional)
 3. Connect your AI provider (OpenAI, Anthropic, or local Ollama)
 4. Start automating!
