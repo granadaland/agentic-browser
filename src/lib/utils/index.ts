@@ -1,3 +1,2 @@
 export * from './Logging';
-export * from './MessageUtils';
-export * from './Profiler';
+export * from './profiler';

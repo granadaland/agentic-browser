@@ -48,8 +48,8 @@ declare global {
  * - 'ollama' - Requires local Ollama server running
  */
 const MOCK_PREFERENCES: Record<string, string | undefined> = {
-  'nxtscape.default_provider': 'gemini',  // Change this to test different providers
-  'nxtscape.nxtscape_model': 'claude-3-5-sonnet',
+  'nxtscape.default_provider': 'nxtscape',  // Change this to test different providers
+  'nxtscape.nxtscape_model': 'gpt-4o-mini',
   'nxtscape.openai_api_key': 'TBD',
   'nxtscape.openai_model': 'gpt-4o',
   'nxtscape.openai_base_url': undefined,

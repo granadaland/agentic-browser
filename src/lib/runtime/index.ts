@@ -22,4 +22,4 @@ export {
 } from '@/lib/utils/MessageUtils'
 
 // Export message manager
-export { default as MessageManager, MessageManagerSettings } from '@/lib/runtime/MessageManager' 
+export { MessageManager } from './MessageManager' 

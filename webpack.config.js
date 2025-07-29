@@ -58,8 +58,16 @@ module.exports = {
     rules: [
       {
         test: /\.tsx?$/,
-        use: 'ts-loader',
-        exclude: /node_modules/
+        use: {
+          loader: 'ts-loader',
+          options: {
+            onlyCompileBundledFiles: true
+          }
+        },
+        exclude: [
+          /node_modules/,
+          /\.(test|spec)\.(ts|tsx)$/
+        ]
       },
       {
         test: /\.scss$/,

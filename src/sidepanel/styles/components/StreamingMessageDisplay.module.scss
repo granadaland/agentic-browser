@@ -27,6 +27,10 @@ $message-bg-light: #F4F4F5; // Light theme message background
   &--tool,
   &--error {
     .messageContent {
+      // Fallback for systems without prefers-color-scheme (declare first)
+      background: $message-bg-dark;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      
       // Use the centralized color based on theme
       @media (prefers-color-scheme: dark) {
         background: $message-bg-dark;
@@ -37,10 +41,6 @@ $message-bg-light: #F4F4F5; // Light theme message background
         background: $message-bg-light;
         border: 1px solid var(--border-color);
       }
-      
-      // Fallback for systems without prefers-color-scheme
-      background: $message-bg-dark;
-      border: 1px solid rgba(255, 255, 255, 0.1);
     }
   }
   

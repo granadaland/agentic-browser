@@ -10,35 +10,23 @@ import { cn } from '@/sidepanel/lib/utils'
 interface MarkdownContentProps {
   content: string
   className?: string
-  forceMarkdown?: boolean  // Force markdown rendering even if not detected
-  skipMarkdown?: boolean  // Skip markdown rendering even if detected
-}
-
-// Lightweight regex to detect markdown patterns
-// Includes common markdown indicators and double newlines
-const MARKDOWN_PATTERNS = /[#_*~`>|!\[\]-]|\n\n/
-
-/**
- * Checks if content looks like markdown
- */
-function looksLikeMarkdown(content: string): boolean {
-  return MARKDOWN_PATTERNS.test(content)
+  forceMarkdown?: boolean  // Kept for backward compatibility but ignored
+  skipMarkdown?: boolean  // Skip markdown rendering - plain text only
 }
 
 /**
- * Component that intelligently renders markdown or plain text content
+ * Component that renders content as markdown by default.
+ * Plain text is rendered fine in markdown, so we always use markdown
+ * unless explicitly told to skip it.
  */
 export function MarkdownContent({ 
   content, 
   className, 
-  forceMarkdown = false,
+  forceMarkdown = false,  // Ignored - we always render as markdown
   skipMarkdown = false
 }: MarkdownContentProps): JSX.Element {
-  // Determine if we should render as markdown
-  const shouldRenderMarkdown = forceMarkdown || (!skipMarkdown && looksLikeMarkdown(content))
-  
-  // Plain text rendering path
-  if (!shouldRenderMarkdown) {
+  // Only render as plain text if explicitly requested
+  if (skipMarkdown) {
     return (
       <div className={cn(
         styles.container, 
@@ -53,14 +41,11 @@ export function MarkdownContent({
 
   // Build remark plugins array
   const remarkPlugins = [
-    remarkGfm,
+    remarkGfm,  // GitHub Flavored Markdown (tables, strikethrough, etc.)
     remarkSqueezeParagraphs  // Automatically removes empty paragraphs and excessive blank lines
   ]
-  
-  // For tool results, we might want to apply additional formatting in the future
-  // For now, the squeeze paragraphs plugin will handle the whitespace cleanup
 
-  // Markdown rendering path with react-markdown
+  // Always render as markdown - plain text renders fine in markdown
   return (
     <div className={cn(
       styles.container, 

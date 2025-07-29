@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { type BrowserContextConfig } from './BrowserContext';
 import { Logging } from '../utils/Logging';
 import { getBrowserOSAdapter, type InteractiveNode, type InteractiveSnapshot, type Snapshot, type SnapshotOptions } from './BrowserOSAdapter';
-import { profileAsync, profileSync } from '../utils/Profiler';
+import { profileAsync, profileSync } from '../utils/profiler';
 
 // Attributes to include in the compact format
 // Comment out any attributes you want to exclude

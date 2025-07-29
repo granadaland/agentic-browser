@@ -1,4 +1,4 @@
-import { StreamEventBus, StreamEvent } from './EventBus';
+import { EventBus, StreamEvent } from './EventBus';
 import { MessageType } from '@/lib/types/messaging';
 
 /**
@@ -39,12 +39,12 @@ export interface UIMessage {
  * This bridges the EventBus to the UI port messaging system
  */
 export class UIEventHandler {
-  private eventBus: StreamEventBus;
+  private eventBus: EventBus;
   private sendToUI: (type: MessageType, payload: any) => void;
   private messageIdMap: Map<number, string> = new Map();
 
   constructor(
-    eventBus: StreamEventBus,
+    eventBus: EventBus,
     sendToUI: (type: MessageType, payload: any) => void
   ) {
     this.eventBus = eventBus;
