@@ -1,8 +1,8 @@
 nxtscape/first-run-nxtscape.patch
 
 # features
-nxtscape/add-importer-supporter-for-chrome.patch
 nxtscape/importer-updates.patch
+nxtscape/add-importer-supporter-for-chrome.patch
 nxtscape/nxtscape-settings-ui.patch
 
 # chromium
@@ -13,23 +13,19 @@ nxtscape/disable-chrome-labs-pinning.patch
 nxtscape/fixes-to-branding.patch
 
 # agents
+nxtscape/pin-nxtscape-ai-chat.patch
 nxtscape/ai-chat-extension.patch
 nxtscape/bug-reporter-extension.patch
-nxtscape/pin-nxtscape-ai-chat.patch
 nxtscape/browserOS-API.patch
 nxtscape/new-snapshot-API.patch
 
 # updater
 nxtscape/nxtscape-updater-sparkle.patch
+nxtscape/pin-nxtscape-agents-together.patch
 nxtscape/add-sparkle-info-plist-keys.patch
-
 nxtscape/adding-new-vector-icons.patch
-
 nxtscape/embed-third-party-llm-in-side-panel.patch
 nxtscape/clash-of-gpts.patch
-
-nxtscape/pin-nxtscape-agents-together.patch
-
 nxtscape/browseros-settings.patch
 nxtscape/updates-to-llm-chat-and-hub.patch
 nxtscape/updates-to-browseros-api.patch

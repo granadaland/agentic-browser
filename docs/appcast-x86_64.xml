@@ -9,6 +9,21 @@
 
     <!-- Updates -->
     <item>
+      <title>Nxtscape - 0.16.0</title>
+      <description sparkle:format="plain-text">
+      </description>
+      <sparkle:version>7192.69</sparkle:version>
+      <sparkle:shortVersionString>0.16.0</sparkle:shortVersionString>
+      <pubDate>Tue, 29 Jul 2025 12:00:00 -0700</pubDate>
+      <link>https://nxtscape.ai</link>
+      <enclosure
+        url="http://cdn.browseros.com/dmg/BrowserOS_v0.16.0_x64.dmg"
+        sparkle:edSignature="hYJC8JIGrYiyikmtR7tCCiUJ1jQuKb7IaZm1PQNxl9gcM1YDMoSgQtmHeQocwC6+DmHrJJaC7QStiFsQS3mAAQ==" 
+        length="136273553"
+        type="application/octet-stream" />
+      <sparkle:minimumSystemVersion>10.15</sparkle:minimumSystemVersion>
+    </item>
+    <item>
       <title>Nxtscape - 0.15.0</title>
       <description sparkle:format="plain-text">
 - Support for screenshot in LLM chat.
