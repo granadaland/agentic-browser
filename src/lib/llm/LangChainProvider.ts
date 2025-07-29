@@ -11,7 +11,7 @@
 import { z } from "zod"
 import { ChatOpenAI } from "@langchain/openai"
 import { ChatAnthropic } from "@langchain/anthropic"
-import { ChatOllama } from "@langchain/community/chat_models/ollama"
+import { ChatOllama } from "@langchain/ollama"
 import { BaseChatModel } from "@langchain/core/language_models/chat_models"
 import { LLMSettingsReader } from "@/lib/llm/settings/LLMSettingsReader"
 import type { LLMSettings } from '@/lib/llm/settings/types'
@@ -57,9 +57,7 @@ export class LangChainProvider {
   // Public getter methods
   async getLLM(options?: { temperature?: number; maxTokens?: number }): Promise<BaseChatModel> {
     // Load settings if not already loaded
-    if (!this.settings) {
-      this.settings = await LLMSettingsReader.read()
-    }
+    this.settings = await LLMSettingsReader.read()
     
     // Create config from settings
     const config = this._createConfigFromSettings(this.settings, options)
@@ -197,7 +195,9 @@ export class LangChainProvider {
         
       case "ollama":
         return new ChatOllama({
-          ...baseConfig,
+          model: config.model,
+          temperature: config.temperature,
+          maxRetries: 2,
           baseUrl: config.baseURL,
         })
         
