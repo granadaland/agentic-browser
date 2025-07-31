@@ -9,15 +9,15 @@
 
 copy_operations:
   # Extensions
-  - name: "AI Side Panel Extension"
-    source: "resources/files/ai_side_panel"
-    destination: "chrome/browser/resources/ai_side_panel"
-    type: "directory"
+  # - name: "AI Side Panel Extension"
+  #   source: "resources/files/ai_side_panel"
+  #   destination: "chrome/browser/resources/ai_side_panel"
+  #   type: "directory"
 
-  - name: "Bug Reporter Extension"
-    source: "resources/files/bug_reporter"
-    destination: "chrome/browser/resources/bug_reporter"
-    type: "directory"
+  # - name: "Bug Reporter Extension"
+  #   source: "resources/files/bug_reporter"
+  #   destination: "chrome/browser/resources/bug_reporter"
+  #   type: "directory"
 
   # Icons - General
   - name: "Product Logo Icons"
