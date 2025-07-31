@@ -45,11 +45,13 @@ def inject_version_to_manifest(manifest_path: Path, browser_version: str, nxtsca
         with open(manifest_path, 'r', encoding='utf-8') as f:
             manifest_data = json.load(f)
         
-        # Set version to NXTSCAPE_VERSION
+        # Set version to NXTSCAPE_VERSION formatted as X.0.0.0
         if 'version' in manifest_data:
             current_version = manifest_data['version']
-            manifest_data['version'] = nxtscape_version
-            log_info(f"  Manifest version updated: {current_version} → {nxtscape_version}")
+            # Format version as X.0.0.0
+            formatted_version = f"{nxtscape_version}.0.0.0"
+            manifest_data['version'] = formatted_version
+            log_info(f"  Manifest version updated: {current_version} → {formatted_version}")
         
         # Add browser_version field
         manifest_data['browser_version'] = browser_version
