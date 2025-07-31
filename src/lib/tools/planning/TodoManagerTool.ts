@@ -5,9 +5,9 @@ import { toolSuccess, toolError } from '@/lib/tools/Tool.interface'
 
 // Input schema for TODO operations
 const TodoInputSchema = z.object({
-  action: z.enum(['list', 'add_multiple', 'complete_multiple', 'skip', 'replace_all']),  // Action to perform
+  action: z.enum(['list', 'add_multiple', 'complete', 'skip', 'go_back', 'replace_all']),  // Action to perform
   todos: z.array(z.object({ content: z.string() })).optional(),  // For add/replace actions
-  ids: z.array(z.number().int()).optional()  // For complete/skip actions
+  ids: z.array(z.number().int()).optional()  // For complete/skip/go_back actions
 })
 
 type TodoInput = z.infer<typeof TodoInputSchema>
@@ -18,7 +18,7 @@ type TodoInput = z.infer<typeof TodoInputSchema>
 export function createTodoManagerTool(executionContext: ExecutionContext): DynamicStructuredTool {
   return new DynamicStructuredTool({
     name: 'todo_manager',
-    description: 'Manage TODO list for complex tasks. Actions: list (returns current TODOs as XML), add_multiple (add new TODOs), complete_multiple (mark TODOs as done), skip (skip a single TODO by removing it - pass array with single ID), replace_all (clear and add new TODOs).',
+    description: 'Manage TODO list for complex tasks. Actions: list (returns current TODOs as XML), add_multiple (add new TODOs), complete (mark a single TODO as done - pass array with single ID), skip (skip a single TODO by removing it - pass array with single ID), go_back (mark a TODO and all subsequent ones as not done - pass array with single ID), replace_all (clear and add new TODOs).',
     schema: TodoInputSchema,
     func: async (args: TodoInput): Promise<string> => {
       const todoStore = executionContext.todoStore
@@ -42,12 +42,14 @@ export function createTodoManagerTool(executionContext: ExecutionContext): Dynam
             resultMessage = `Added ${args.todos.length} TODOs`
             break
           
-          case 'complete_multiple':
-            if (!args.ids || args.ids.length === 0) {
-              throw new Error('ids array is required for complete_multiple action')
+          case 'complete':
+            // Validate single ID only
+            if (!args.ids || args.ids.length !== 1) {
+              throw new Error('complete action requires exactly one ID in the ids array')
             }
-            todoStore.completeMultiple(args.ids)
-            resultMessage = `Completed TODOs: ${args.ids.join(', ')}`
+            const completeId = args.ids[0]
+            todoStore.complete(completeId)
+            resultMessage = `Completed TODO: ${completeId}`
             break
           
           case 'skip':
@@ -58,6 +60,16 @@ export function createTodoManagerTool(executionContext: ExecutionContext): Dynam
             const skipId = args.ids[0]
             todoStore.skip(skipId)
             resultMessage = `Skipped TODO: ${skipId}`
+            break
+          
+          case 'go_back':
+            // Validate single ID only
+            if (!args.ids || args.ids.length !== 1) {
+              throw new Error('go_back action requires exactly one ID in the ids array')
+            }
+            const goBackId = args.ids[0]
+            todoStore.goBack(goBackId)
+            resultMessage = `Went back to TODO: ${goBackId} and marked it and all subsequent TODOs as not done`
             break
           
           case 'replace_all':

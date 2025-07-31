@@ -55,6 +55,31 @@ export class TodoStore {
   }
 
   /**
+   * Mark a single TODO as complete
+   */
+  complete(id: number): void {
+    const todo = this.todos.find(t => t.id === id)
+    if (todo) {
+      todo.status = 'done'
+    }
+  }
+
+  /**
+   * Go back to a TODO - marks it and all subsequent TODOs as 'todo'
+   */
+  goBack(id: number): void {
+    const todoIndex = this.todos.findIndex(t => t.id === id)
+    if (todoIndex === -1) {
+      throw new Error(`TODO with id ${id} not found`)
+    }
+    
+    // Mark this TODO and all subsequent ones as 'todo'
+    for (let i = todoIndex; i < this.todos.length; i++) {
+      this.todos[i].status = 'todo'
+    }
+  }
+
+  /**
    * Skip a single TODO (removes it and reindexes)
    */
   skip(id: number): void {

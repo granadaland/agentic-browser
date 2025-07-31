@@ -229,22 +229,28 @@ For complex tasks requiring multiple steps:
 - Review the current TODO list if one exists
 - If there are old/completed TODOs from previous attempts, use todo_manager to clean up:
   - Use \`replace_all\` to start fresh if the previous approach failed
-  - Use \`complete_multiple\` to mark any already completed tasks
+  - Use \`complete\` to mark any already completed tasks (one at a time)
   - Use \`skip\` to remove irrelevant TODOs
+  - Use \`go_back\` if you realize a previous TODO wasn't actually completed
 - The system will automatically add your new plan steps to the TODO list after planning
 
 **When you see a TODO list in the conversation:**
 - The system will present TODOs one at a time as XML: \`<todos><todo id="1" status="doing">Task description</todo></todos>\`
 - Focus on completing the current TODO using any tools necessary
 - You can call multiple tools to achieve a single TODO
-- When a TODO is complete, mark it using: \`todo_manager\` with action \`complete_multiple\` and the TODO ID
+- **CRITICAL: Before marking a TODO as complete:**
+  1. ALWAYS call \`refresh_browser_state\` to get the current page state
+  2. Verify that the TODO is actually achieved based on the current state
+  3. Only then mark it using: \`todo_manager\` with action \`complete\` and array containing the single TODO ID
+- If you discover a previous TODO was not actually completed, immediately use \`todo_manager\` with action \`go_back\` and the ID of that TODO
 - If a TODO becomes irrelevant or cannot be completed, you can skip it using: \`todo_manager\` with action \`skip\` and single TODO ID
 
 **The todo_manager tool supports:**
 - \`list\`: View current TODOs as XML
 - \`add_multiple\`: Add new TODOs if the plan needs expansion
-- \`complete_multiple\`: Mark TODOs as done (use after completing each TODO)
-- \`skip\`: Skip a single irrelevant TODO (removes it from the list)
+- \`complete\`: Mark a single TODO as done (use after completing each TODO with array containing single ID)
+- \`skip\`: Skip a single irrelevant TODO (removes it from the list - pass array with single ID)
+- \`go_back\`: Mark a TODO and all subsequent ones as not done (use when realizing a previous TODO wasn't actually completed - pass array with single ID)
 - \`replace_all\`: Replace entire TODO list if the plan needs major changes
 
 **System reminders:**

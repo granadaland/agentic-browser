@@ -88,12 +88,11 @@ export class BrowserAgent {
   private static readonly MAX_STEPS_FOR_SIMPLE_TASKS = 10;
   private static readonly MAX_STEPS_FOR_COMPLEX_TASKS = PLANNING_CONFIG.STEPS_PER_PLAN;
 
-  // Total steps the entire execution can run for, including sub-loops
-  private static readonly MAX_TOTAL_STEPS = 100;
+  // Outer loop is -- plan -> execute -> validate
+  private static readonly MAX_STEPS_OUTER_LOOP = 100;
 
-  // this is the max steps for sub-loop for executing TODOs
-  // let's keep it at 15, if it's not done in this, let's re-plan.
-  private static readonly MAX_STEPS_FOR_EXECUTING_TODOS_SUB_LOOP  = 15; 
+  // Inner loop is -- execute TODOs, one after the other.
+  private static readonly MAX_STEPS_INNER_LOOP  = 15; 
 
   private readonly executionContext: ExecutionContext;
   private readonly toolManager: ToolManager;
@@ -271,11 +270,11 @@ export class BrowserAgent {
   // ===================================================================
   @Abortable
   private async _executeMultiStepStrategy(task: string): Promise<void> {
-    this.eventEmitter.debug('Executing as a complex multi-step task. Max steps: ' + BrowserAgent.MAX_TOTAL_STEPS);
-    let step_index = 0;
+    this.eventEmitter.debug('Executing as a complex multi-step task. Max steps: ' + BrowserAgent.MAX_STEPS_OUTER_LOOP);
+    let outer_loop_index = 0;
     const todoStore = this.executionContext.todoStore;
 
-    while (step_index < BrowserAgent.MAX_TOTAL_STEPS) {
+    while (outer_loop_index < BrowserAgent.MAX_STEPS_OUTER_LOOP) {
       this.checkIfAborted();  // Check if the user has cancelled the task before executing
 
       // Inject current TODO state
@@ -299,19 +298,24 @@ export class BrowserAgent {
       this.eventEmitter.info(formatTodoList(todoStore.getJson()));
 
       // 2. EXECUTE: Execute TODOs
-      let sub_step_index = 0;
-      while (sub_step_index < BrowserAgent.MAX_STEPS_FOR_EXECUTING_TODOS_SUB_LOOP && !todoStore.isAllDoneOrSkipped()) {
+      let inner_loop_index = 0;
+      while (inner_loop_index < BrowserAgent.MAX_STEPS_INNER_LOOP && !todoStore.isAllDoneOrSkipped()) {
         this.checkIfAborted();
         
         const todo = todoStore.getNextTodo();
         if (!todo) break;
         
-        sub_step_index++;
-        step_index++; 
+        inner_loop_index++;
+        outer_loop_index++; 
 
         this.eventEmitter.info(`Executing - ${todo.content}...`);
         
-        const instruction = `Current TODO: "${todo.content}". Complete this TODO. If TODO is done, mark it as complete using todo_manager. If not, let's continue executing on this TODO.`;
+        const instruction = `Current TODO: "${todo.content}". Complete this TODO. Before marking it as complete, you MUST:
+1. Call refresh_browser_state to get the current page state
+2. Verify that the TODO is actually achieved based on the current state
+3. If TODO is done, mark it as complete using todo_manager with action 'complete'
+4. If you discover that a previous TODO was not actually completed, use todo_manager with action 'go_back' to mark that TODO and all subsequent ones as not done
+5. If this TODO is not yet done, continue executing on it`;
         const isTaskCompleted = await this._executeSingleTurn(instruction);
         
         if (isTaskCompleted) {
@@ -336,7 +340,7 @@ export class BrowserAgent {
       }
       
     }
-    throw new Error(`Task did not complete within the maximum of ${BrowserAgent.MAX_TOTAL_STEPS} steps.`);
+    throw new Error(`Task did not complete within the maximum of ${BrowserAgent.MAX_STEPS_OUTER_LOOP} steps.`);
   }
 
   // ===================================================================
