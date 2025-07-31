@@ -1,7 +1,7 @@
-From 135d0931bce5d386837145cfc3fb3054bb13e9ff Mon Sep 17 00:00:00 2001
+From 41d77486e0399b493f577cc207750f13ccf24558 Mon Sep 17 00:00:00 2001
 From: Nikhil Sonti <nikhilsv92@gmail.com>
 Date: Thu, 24 Jul 2025 16:14:27 -0700
-Subject: [PATCH 20/20] BrowserOS settings page
+Subject: [PATCH] BrowserOS settings page
 
 ---
  .../api/settings_private/prefs_util.cc        |   4 +
@@ -15,10 +15,10 @@ Subject: [PATCH 20/20] BrowserOS settings page
  .../settings/settings_main/settings_main.html |   6 +
  .../settings/settings_main/settings_main.ts   |  10 +-
  .../settings/settings_menu/settings_menu.html |   6 +
- .../toolbar/pinned_action_toolbar_button.cc   |  48 ++-
+ .../toolbar/pinned_action_toolbar_button.cc   |  24 +-
  .../toolbar/pinned_action_toolbar_button.h    |   1 +
  chrome/common/pref_names.h                    |  12 +
- 14 files changed, 672 insertions(+), 11 deletions(-)
+ 14 files changed, 652 insertions(+), 7 deletions(-)
  create mode 100644 chrome/browser/resources/settings/browseros_prefs_page/browseros_prefs_page.html
  create mode 100644 chrome/browser/resources/settings/browseros_prefs_page/browseros_prefs_page.ts
 
@@ -778,7 +778,7 @@ index 8f123acf9b322..a1f1454c2bf2a 100644
              hidden="[[!pageVisibility.autofill]]"
              class="cr-nav-menu-item">
 diff --git a/chrome/browser/ui/views/toolbar/pinned_action_toolbar_button.cc b/chrome/browser/ui/views/toolbar/pinned_action_toolbar_button.cc
-index 68804e8740063..568542f056fbd 100644
+index 06259d2817b4e..6d54a267d75b0 100644
 --- a/chrome/browser/ui/views/toolbar/pinned_action_toolbar_button.cc
 +++ b/chrome/browser/ui/views/toolbar/pinned_action_toolbar_button.cc
 @@ -45,6 +45,8 @@
@@ -790,40 +790,16 @@ index 68804e8740063..568542f056fbd 100644
  
  DEFINE_UI_CLASS_PROPERTY_TYPE(PinnedToolbarActionFlexPriority)
  DEFINE_UI_CLASS_PROPERTY_KEY(
-@@ -81,10 +83,28 @@ PinnedActionToolbarButton::PinnedActionToolbarButton(
-   // Set text from action item if available for BrowserOS actions
-   if (auto* action_item = container_->GetActionItemFor(action_id)) {
-     if (browseros::IsBrowserOSAction(action_id)) {
--      // Use LabelButton::SetText directly to set permanent text
--      views::LabelButton::SetText(action_item->GetText());
--      // Ensure the text is visible
--      SetTextSubpixelRenderingEnabled(false);
-+      // Check if labels should be shown
-+      bool show_labels = true;
-+      if (browser_ && browser_->profile()) {
-+        show_labels = browser_->profile()->GetPrefs()->GetBoolean(
-+            prefs::kBrowserOSShowToolbarLabels);
-+        LOG(INFO) << "nikhil: PinnedActionToolbarButton::PinnedActionToolbarButton: "
-+                  << "show_labels = " << show_labels;
-+      }
+@@ -87,6 +89,8 @@ PinnedActionToolbarButton::PinnedActionToolbarButton(
+         show_labels = browser_->profile()->GetPrefs()->GetBoolean(
+             prefs::kBrowserOSShowToolbarLabels);
+       }
 +      else {
-+        LOG(INFO) << "nikhil: PinnedActionToolbarButton::PinnedActionToolbarButton: "
-+                  << "false";
 +      }
-+      
-+      if (show_labels) {
-+        // Use LabelButton::SetText directly to set permanent text
-+        views::LabelButton::SetText(action_item->GetText());
-+        // Ensure the text is visible
-+        SetTextSubpixelRenderingEnabled(false);
-+      } else {
-+        // Clear the text if labels are disabled
-+        views::LabelButton::SetText(std::u16string());
-+      }
-     }
-   }
- 
-@@ -349,10 +369,22 @@ void PinnedActionToolbarButtonActionViewInterface::ActionItemChangedImpl(
+       
+       if (show_labels) {
+         // Use LabelButton::SetText directly to set permanent text
+@@ -361,10 +365,22 @@ void PinnedActionToolbarButtonActionViewInterface::ActionItemChangedImpl(
  
    // Update the text from the action item for BrowserOS actions
    if (browseros::IsBrowserOSAction(action_view_->GetActionId())) {
