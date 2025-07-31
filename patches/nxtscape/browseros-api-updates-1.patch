@@ -1,19 +1,20 @@
-From 6bfea4f6b2904bf6f596aef04cfe2b2767002531 Mon Sep 17 00:00:00 2001
+From f6633fe1ba5d2ff7277be736204ee1358e22c0fa Mon Sep 17 00:00:00 2001
 From: Nikhil Sonti <nikhilsv92@gmail.com>
 Date: Wed, 23 Jul 2025 14:04:16 -0700
-Subject: [PATCH 17/20] Updates to browserOS api
+Subject: [PATCH] browseros api updates - 1
 
-Fixes `sendKeys`, change monitor, HTML click
 ---
  chrome/browser/extensions/BUILD.gn            |   2 +
- .../api/browser_os/browser_os_api.cc          | 110 ++++++-
- .../api/browser_os/browser_os_api_utils.cc    |  91 ++++++
- .../api/browser_os/browser_os_api_utils.h     |  14 +
- .../browser_os/browser_os_change_detector.cc  | 271 ++++++++++++++++++
- .../browser_os/browser_os_change_detector.h   | 120 ++++++++
+ .../api/browser_os/browser_os_api.cc          |  82 +---
+ .../api/browser_os/browser_os_api_helpers.cc  | 432 ++++++++++++++++--
+ .../api/browser_os/browser_os_api_helpers.h   |  53 ++-
+ .../api/browser_os/browser_os_api_utils.cc    | 359 ++++-----------
+ .../api/browser_os/browser_os_api_utils.h     |  54 ++-
+ .../browser_os/browser_os_change_detector.cc  | 271 +++++++++++
+ .../browser_os/browser_os_change_detector.h   | 120 +++++
  .../browser_os_snapshot_processor.cc          |  16 +-
  chrome/common/extensions/api/browser_os.idl   |  11 +-
- 8 files changed, 624 insertions(+), 11 deletions(-)
+ 10 files changed, 990 insertions(+), 410 deletions(-)
  create mode 100644 chrome/browser/extensions/api/browser_os/browser_os_change_detector.cc
  create mode 100644 chrome/browser/extensions/api/browser_os/browser_os_change_detector.h
 
@@ -31,7 +32,7 @@ index 7b601eb14acab..37fc8b1650ca4 100644
        "api/browser_os/browser_os_content_processor.h",
        "api/browser_os/browser_os_snapshot_processor.cc",
 diff --git a/chrome/browser/extensions/api/browser_os/browser_os_api.cc b/chrome/browser/extensions/api/browser_os/browser_os_api.cc
-index 6bee5ce12bb9e..ac60786981033 100644
+index 6bee5ce12bb9e..31d54b9d0fb58 100644
 --- a/chrome/browser/extensions/api/browser_os/browser_os_api.cc
 +++ b/chrome/browser/extensions/api/browser_os/browser_os_api.cc
 @@ -18,6 +18,7 @@
@@ -42,168 +43,240 @@ index 6bee5ce12bb9e..ac60786981033 100644
  #include "chrome/browser/extensions/api/browser_os/browser_os_content_processor.h"
  #include "chrome/browser/extensions/api/browser_os/browser_os_snapshot_processor.h"
  #include "chrome/browser/extensions/extension_tab_util.h"
-@@ -254,15 +255,104 @@ ExtensionFunction::ResponseAction BrowserOSClickFunction::Run() {
+@@ -254,15 +255,13 @@ ExtensionFunction::ResponseAction BrowserOSClickFunction::Run() {
    
    const NodeInfo& node_info = node_it->second;
    
 -  // Calculate click point (center of the element)
-+  // Enable accessibility if needed for change detection
-+  // Note: Accessibility is enabled via RequestAXTreeSnapshot in getInteractiveSnapshot
-+  // which already sets the appropriate mode
-+  
-+  // Create change detector and start monitoring
-+  auto change_detector = std::make_unique<BrowserOSChangeDetector>(web_contents);
-+  change_detector->StartMonitoring(node_info.ax_tree_id);
-+  
-+  // Perform the click action
-   gfx::PointF click_point(
-       node_info.bounds.x() + node_info.bounds.width() / 2.0f,
-       node_info.bounds.y() + node_info.bounds.height() / 2.0f);
--  
+-  gfx::PointF click_point(
+-      node_info.bounds.x() + node_info.bounds.width() / 2.0f,
+-      node_info.bounds.y() + node_info.bounds.height() / 2.0f);
++  // Perform click with change detection and retrying
++  ChangeDetectionResult change_result = Click(web_contents, node_info);
+   
 -  // Perform the click
-   PerformClick(web_contents, click_point);
+-  PerformClick(web_contents, click_point);
++  // Convert result to API response
++  base::Value::Dict response = ChangeDetectionResultToDict(change_result);
    
 -  return RespondNow(NoArguments());
-+  // Wait for changes with timeout
-+  ChangeDetectionResult change_result = 
-+      change_detector->WaitForChanges(base::Milliseconds(500));
-+  
-+  // If no change detected via coordinate click, try HTML click as fallback
-+  if (!change_result.detected) {
-+    VLOG(1) << "No change detected with coordinate click, trying HTML click";
-+    PerformHtmlClick(web_contents, node_info);
-+    
-+    // Wait again for changes
-+    change_result = change_detector->WaitForChanges(base::Milliseconds(300));
-+  }
-+  
-+  // Build response with change detection information
-+  base::Value::Dict response;
-+  response.Set("success", true);
-+  response.Set("changeDetected", change_result.detected);
-+  
-+  if (change_result.detected) {
-+    // Convert change type to string
-+    std::string primary_change_str;
-+    switch (change_result.primary_change) {
-+      case ChangeType::kDomChanged:
-+        primary_change_str = "dom_changed";
-+        break;
-+      case ChangeType::kPopupOpened:
-+        primary_change_str = "popup_opened";
-+        break;
-+      case ChangeType::kNewTabOpened:
-+        primary_change_str = "new_tab_opened";
-+        break;
-+      case ChangeType::kDialogShown:
-+        primary_change_str = "dialog_shown";
-+        break;
-+      case ChangeType::kFocusChanged:
-+        primary_change_str = "focus_changed";
-+        break;
-+      case ChangeType::kElementExpanded:
-+        primary_change_str = "element_expanded";
-+        break;
-+      default:
-+        primary_change_str = "unknown";
-+    }
-+    response.Set("primaryChange", primary_change_str);
-+    response.Set("timeToChangeMs", 
-+                static_cast<int>(change_result.time_to_change.InMilliseconds()));
-+    
-+    // Add all detected changes
-+    base::Value::List all_changes;
-+    for (const auto& change : change_result.all_changes) {
-+      switch (change) {
-+        case ChangeType::kDomChanged:
-+          all_changes.Append("dom_changed");
-+          break;
-+        case ChangeType::kPopupOpened:
-+          all_changes.Append("popup_opened");
-+          break;
-+        case ChangeType::kNewTabOpened:
-+          all_changes.Append("new_tab_opened");
-+          break;
-+        case ChangeType::kDialogShown:
-+          all_changes.Append("dialog_shown");
-+          break;
-+        case ChangeType::kFocusChanged:
-+          all_changes.Append("focus_changed");
-+          break;
-+        case ChangeType::kElementExpanded:
-+          all_changes.Append("element_expanded");
-+          break;
-+        default:
-+          break;
-+      }
-+    }
-+    response.Set("allChanges", std::move(all_changes));
-+    
-+    // Add action required hints
-+    if (change_result.primary_change == ChangeType::kNewTabOpened) {
-+      response.Set("actionRequired", "switch_to_new_tab");
-+    } else if (change_result.primary_change == ChangeType::kPopupOpened) {
-+      response.Set("actionRequired", "interact_with_popup");
-+    }
-+  }
-+  
 +  return RespondNow(WithArguments(std::move(response)));
  }
  
  // Implementation of BrowserOSInputTextFunction
-@@ -298,12 +388,14 @@ ExtensionFunction::ResponseAction BrowserOSInputTextFunction::Run() {
-   const NodeInfo& node_info = node_it->second;
+@@ -299,62 +298,11 @@ ExtensionFunction::ResponseAction BrowserOSInputTextFunction::Run() {
    
    
--  // First, click on the element to focus it
+   // First, click on the element to focus it
 -  gfx::PointF click_point(
 -      node_info.bounds.x() + node_info.bounds.width() / 2.0f,
 -      node_info.bounds.y() + node_info.bounds.height() / 2.0f);
-+  // First, click on the element to focus it using HTML-based click
-+  PerformHtmlClick(web_contents, node_info);
++  Click(web_contents, node_info);
    
 -  PerformClick(web_contents, click_point);
-+  // Note: If we want to fallback to coordinate-based click, we can uncomment below:
-+  // gfx::PointF click_point(
-+  //     node_info.bounds.x() + node_info.bounds.width() / 2.0f,
-+  //     node_info.bounds.y() + node_info.bounds.height() / 2.0f);
-+  // PerformClick(web_contents, click_point);
+-  
+-  // Get render widget host for text input
+-  content::RenderFrameHost* rfh = web_contents->GetPrimaryMainFrame();
+-  if (!rfh) {
+-    return RespondNow(Error("No render frame"));
+-  }
+-  
+-  content::RenderWidgetHost* rwh = rfh->GetRenderWidgetHost();
+-  if (!rwh) {
+-    return RespondNow(Error("No render widget host"));
+-  }
+-  
+-  // Convert text to UTF16
+-  std::u16string text16 = base::UTF8ToUTF16(params->text);
+-  
+-  // Add a small delay to ensure the element is focused after click
+-  // Then send the text using ImeCommitText
+-  base::SequencedTaskRunner::GetCurrentDefault()->PostDelayedTask(
+-      FROM_HERE,
+-      base::BindOnce(
+-          [](content::RenderWidgetHost* rwh, const std::u16string& text) {
+-            if (!rwh)
+-              return;
+-            
+-            content::RenderWidgetHostImpl* rwhi = 
+-                static_cast<content::RenderWidgetHostImpl*>(rwh);
+-            
+-            // Ensure the widget has focus
+-            rwhi->Focus();
+-            
+-            // Try multiple approaches to input text
+-            // 1. First try ImeSetComposition to simulate typing
+-            rwhi->ImeSetComposition(text,
+-                                   std::vector<ui::ImeTextSpan>(),
+-                                   gfx::Range::InvalidRange(),
+-                                   text.length(),  // selection_start at end
+-                                   text.length()); // selection_end at end
+-            
+-            // 2. Then commit the text
+-            rwhi->ImeCommitText(text,
+-                                std::vector<ui::ImeTextSpan>(),
+-                                gfx::Range::InvalidRange(),
+-                                0);  // relative_cursor_pos = 0 means after the text
+-            
+-            // 3. Finish composing to ensure text is committed
+-            rwhi->ImeFinishComposingText(false);
+-            
+-          },
+-          rwh, text16),
+-      base::Milliseconds(100));  // Increase delay to 100ms for better focus handling
    
-   // Get render widget host for text input
++  // Type the text into the focused element
++  Type(web_contents, params->text);
+   
+   return RespondNow(NoArguments());
+ }
+@@ -392,11 +340,7 @@ ExtensionFunction::ResponseAction BrowserOSClearFunction::Run() {
+   const NodeInfo& node_info = node_it->second;
+   
+   // First, click on the element to focus it
+-  gfx::PointF click_point(
+-      node_info.bounds.x() + node_info.bounds.width() / 2.0f,
+-      node_info.bounds.y() + node_info.bounds.height() / 2.0f);
+-  
+-  PerformClick(web_contents, click_point);
++  Click(web_contents, node_info);
+   
+   // Get render widget host for keyboard events
    content::RenderFrameHost* rfh = web_contents->GetPrimaryMainFrame();
-diff --git a/chrome/browser/extensions/api/browser_os/browser_os_api_utils.cc b/chrome/browser/extensions/api/browser_os/browser_os_api_utils.cc
-index 0d83f4da95ba9..8667dcf0675ac 100644
---- a/chrome/browser/extensions/api/browser_os/browser_os_api_utils.cc
-+++ b/chrome/browser/extensions/api/browser_os/browser_os_api_utils.cc
-@@ -7,6 +7,7 @@
- #include "base/hash/hash.h"
- #include "base/no_destructor.h"
- #include "base/strings/string_number_conversions.h"
+@@ -508,7 +452,7 @@ ExtensionFunction::ResponseAction BrowserOSScrollUpFunction::Run() {
+   int scroll_amount = viewport_bounds.height() * 0.9;  // 90% of viewport height
+   
+   // Perform scroll up (negative delta_y)
+-  PerformScroll(web_contents, 0, -scroll_amount, true);
++  Scroll(web_contents, 0, -scroll_amount, true);
+   
+   return RespondNow(NoArguments());
+ }
+@@ -551,7 +495,7 @@ ExtensionFunction::ResponseAction BrowserOSScrollDownFunction::Run() {
+   int scroll_amount = viewport_bounds.height() * 0.9;  // 90% of viewport height
+   
+   // Perform scroll down (positive delta_y)
+-  PerformScroll(web_contents, 0, scroll_amount, true);
++  Scroll(web_contents, 0, scroll_amount, true);
+   
+   return RespondNow(NoArguments());
+ }
+@@ -664,7 +608,7 @@ ExtensionFunction::ResponseAction BrowserOSSendKeysFunction::Run() {
+   }
+   
+   // Send the key
+-  SendSpecialKey(web_contents, params->key);
++  KeyPress(web_contents, params->key);
+   
+   return RespondNow(NoArguments());
+ }
+diff --git a/chrome/browser/extensions/api/browser_os/browser_os_api_helpers.cc b/chrome/browser/extensions/api/browser_os/browser_os_api_helpers.cc
+index e66c5004440ae..2e2c9a875dd09 100644
+--- a/chrome/browser/extensions/api/browser_os/browser_os_api_helpers.cc
++++ b/chrome/browser/extensions/api/browser_os/browser_os_api_helpers.cc
+@@ -4,60 +4,406 @@
+ 
+ #include "chrome/browser/extensions/api/browser_os/browser_os_api_helpers.h"
+ 
+-#include "chrome/browser/extensions/extension_tab_util.h"
+-#include "chrome/browser/extensions/window_controller.h"
+-#include "chrome/browser/ui/browser.h"
+-#include "chrome/browser/ui/browser_finder.h"
+-#include "chrome/browser/ui/tabs/tab_strip_model.h"
++#include "base/strings/string_number_conversions.h"
 +#include "base/strings/utf_string_conversions.h"
- #include "content/public/browser/render_frame_host.h"
- #include "content/public/browser/render_widget_host.h"
- #include "content/public/browser/render_widget_host_view.h"
-@@ -26,6 +27,14 @@
++#include "base/task/sequenced_task_runner.h"
++#include "chrome/browser/extensions/api/browser_os/browser_os_api_utils.h"
++#include "chrome/browser/extensions/api/browser_os/browser_os_change_detector.h"
++#include "components/input/native_web_keyboard_event.h"
++#include "content/public/browser/render_frame_host.h"
++#include "content/browser/renderer_host/render_widget_host_impl.h"
++#include "content/public/browser/render_widget_host.h"
++#include "content/public/browser/render_widget_host_view.h"
+ #include "content/public/browser/web_contents.h"
++#include "third_party/blink/public/common/input/web_input_event.h"
++#include "third_party/blink/public/common/input/web_keyboard_event.h"
++#include "third_party/blink/public/common/input/web_mouse_event.h"
++#include "third_party/blink/public/common/input/web_mouse_wheel_event.h"
++#include "ui/base/ime/ime_text_span.h"
++#include "ui/events/base_event_utils.h"
++#include "ui/events/keycodes/dom/dom_code.h"
++#include "ui/events/keycodes/dom/dom_key.h"
++#include "ui/events/keycodes/keyboard_codes.h"
++#include "ui/gfx/geometry/point_f.h"
++#include "ui/gfx/range/range.h"
+ 
  namespace extensions {
  namespace api {
  
-+// NodeInfo implementation
-+NodeInfo::NodeInfo() : ax_node_id(0), ax_tree_id() {}
-+NodeInfo::~NodeInfo() = default;
-+NodeInfo::NodeInfo(const NodeInfo&) = default;
-+NodeInfo& NodeInfo::operator=(const NodeInfo&) = default;
-+NodeInfo::NodeInfo(NodeInfo&&) = default;
-+NodeInfo& NodeInfo::operator=(NodeInfo&&) = default;
+-std::optional<TabInfo> GetTabFromOptionalId(
+-    std::optional<int> tab_id_param,
+-    content::BrowserContext* browser_context,
+-    bool include_incognito_information,
+-    std::string* error_message) {
+-  content::WebContents* web_contents = nullptr;
+-  int tab_id = -1;
+-  
+-  if (tab_id_param) {
+-    // Get specific tab by ID
+-    WindowController* controller = nullptr;
+-    int tab_index = -1;
+-    if (!ExtensionTabUtil::GetTabById(*tab_id_param, browser_context,
+-                                      include_incognito_information,
+-                                      &controller, &web_contents,
+-                                      &tab_index)) {
+-      if (error_message) {
+-        *error_message = "Tab not found";
++// Helper to create and dispatch mouse events for clicking
++void PointClick(content::WebContents* web_contents, 
++                  const gfx::PointF& point) {
++  content::RenderFrameHost* rfh = web_contents->GetPrimaryMainFrame();
++  if (!rfh)
++    return;
++    
++  content::RenderWidgetHost* rwh = rfh->GetRenderWidgetHost();
++  if (!rwh)
++    return;
++    
++  content::RenderWidgetHostView* rwhv = rwh->GetView();
++  if (!rwhv)
++    return;
 +
- // Global node ID mappings storage
- // Use NoDestructor to avoid exit-time destructor
- std::unordered_map<int, std::unordered_map<uint32_t, NodeInfo>>& 
-@@ -83,6 +92,70 @@ void PerformClick(content::WebContents* web_contents,
-   rwh->ForwardMouseEvent(mouse_up);
- }
- 
++  // Get viewport bounds for screen position calculation
++  gfx::Rect viewport_bounds = rwhv->GetViewBounds();
++  gfx::PointF viewport_origin(viewport_bounds.x(), viewport_bounds.y());
++  
++  // The coordinates are already in widget space (CSS pixels)
++  gfx::PointF widget_point = point;
++
++  // Create mouse down event
++  blink::WebMouseEvent mouse_down;
++  mouse_down.SetType(blink::WebInputEvent::Type::kMouseDown);
++  mouse_down.button = blink::WebPointerProperties::Button::kLeft;
++  mouse_down.click_count = 1;
++  mouse_down.SetPositionInWidget(widget_point.x(), widget_point.y());
++  mouse_down.SetPositionInScreen(widget_point.x() + viewport_origin.x(), 
++                                widget_point.y() + viewport_origin.y());
++  mouse_down.SetTimeStamp(ui::EventTimeForNow());
++  mouse_down.SetModifiers(blink::WebInputEvent::kLeftButtonDown);
++  
++  // Create mouse up event
++  blink::WebMouseEvent mouse_up;
++  mouse_up.SetType(blink::WebInputEvent::Type::kMouseUp);
++  mouse_up.button = blink::WebPointerProperties::Button::kLeft;
++  mouse_up.click_count = 1;
++  mouse_up.SetPositionInWidget(widget_point.x(), widget_point.y());
++  mouse_up.SetPositionInScreen(widget_point.x() + viewport_origin.x(),
++                              widget_point.y() + viewport_origin.y());
++  mouse_up.SetTimeStamp(ui::EventTimeForNow());
++  
++  // Send the events
++  rwh->ForwardMouseEvent(mouse_down);
++  rwh->ForwardMouseEvent(mouse_up);
++}
++
 +// Helper to perform HTML-based click using JS (uses ID, class, or tag)
-+void PerformHtmlClick(content::WebContents* web_contents,
++void HtmlClick(content::WebContents* web_contents,
 +                      const NodeInfo& node_info) {
 +  content::RenderFrameHost* rfh = web_contents->GetPrimaryMainFrame();
 +  if (!rfh)
@@ -235,8 +308,10 @@ index 0d83f4da95ba9..8667dcf0675ac 100644
 +    for (size_t i = 0; i < class_selector.length(); ++i) {
 +      if (class_selector[i] == ' ') {
 +        class_selector[i] = '.';
-+      }
-+    }
+       }
+-      return std::nullopt;
+     }
+-    tab_id = *tab_id_param;
 +    
 +    js_code += u"  var elements = document.querySelectorAll('" + 
 +               base::UTF8ToUTF16(tag_it->second + class_selector) + u"');";
@@ -266,13 +341,171 @@ index 0d83f4da95ba9..8667dcf0675ac 100644
 +      /*honor_js_content_settings=*/false);
 +}
 +
- // Helper to determine if a node is interactive (clickable/typeable/selectable)
- browser_os::InteractiveNodeType GetInteractiveNodeType(
-     const ui::AXNodeData& node_data) {
-@@ -358,6 +431,24 @@ void SendSpecialKey(content::WebContents* web_contents,
-   // Send key down
-   rwh->ForwardKeyboardEvent(key_down);
-   
++// Helper to perform scroll actions using mouse wheel events
++void Scroll(content::WebContents* web_contents,
++                   int delta_x,
++                   int delta_y,
++                   bool precise) {
++  content::RenderFrameHost* rfh = web_contents->GetPrimaryMainFrame();
++  if (!rfh)
++    return;
++    
++  content::RenderWidgetHost* rwh = rfh->GetRenderWidgetHost();
++  if (!rwh)
++    return;
++    
++  content::RenderWidgetHostView* rwhv = rwh->GetView();
++  if (!rwhv)
++    return;
++
++  // Get viewport bounds and center point
++  gfx::Rect viewport_bounds = rwhv->GetViewBounds();
++  gfx::PointF center_point(viewport_bounds.width() / 2.0f,
++                          viewport_bounds.height() / 2.0f);
++  
++  // Create mouse wheel event
++  blink::WebMouseWheelEvent wheel_event;
++  wheel_event.SetType(blink::WebInputEvent::Type::kMouseWheel);
++  wheel_event.SetPositionInWidget(center_point.x(), center_point.y());
++  wheel_event.SetPositionInScreen(center_point.x() + viewport_bounds.x(),
++                                 center_point.y() + viewport_bounds.y());
++  wheel_event.SetTimeStamp(ui::EventTimeForNow());
++  
++  // Set the scroll deltas
++  wheel_event.delta_x = delta_x;
++  wheel_event.delta_y = delta_y;
++  
++  // Set wheel tick values (120 = one notch)
++  wheel_event.wheel_ticks_x = delta_x / 120.0f;
++  wheel_event.wheel_ticks_y = delta_y / 120.0f;
++  
++  // Phase information for smooth scrolling
++  wheel_event.phase = blink::WebMouseWheelEvent::kPhaseBegan;
++  
++  // Precise scrolling for touchpad, non-precise for mouse wheel
++  if (precise) {
++    // For precise scrolling, deltas are in pixels
++    wheel_event.delta_units = ui::ScrollGranularity::kScrollByPrecisePixel;
+   } else {
+-    // Get active tab
+-    Browser* browser = chrome::FindLastActive();
+-    if (!browser) {
+-      if (error_message) {
+-        *error_message = "No active browser";
+-      }
+-      return std::nullopt;
+-    }
++    // For non-precise scrolling, deltas are in lines
++    wheel_event.delta_units = ui::ScrollGranularity::kScrollByLine;
++  }
++  
++  // Send the wheel event
++  rwh->ForwardWheelEvent(wheel_event);
++  
++  // Send phase ended event for smooth scrolling
++  wheel_event.phase = blink::WebMouseWheelEvent::kPhaseEnded;
++  wheel_event.delta_x = 0;
++  wheel_event.delta_y = 0;
++  wheel_event.wheel_ticks_x = 0;
++  wheel_event.wheel_ticks_y = 0;
++  rwh->ForwardWheelEvent(wheel_event);
++}
+ 
+-    web_contents = browser->tab_strip_model()->GetActiveWebContents();
+-    if (!web_contents) {
+-      if (error_message) {
+-        *error_message = "No active tab";
+-      }
+-      return std::nullopt;
+-    }
+-    tab_id = ExtensionTabUtil::GetTabId(web_contents);
++// Helper to send special key events
++void KeyPress(content::WebContents* web_contents,
++                    const std::string& key) {
++  content::RenderFrameHost* rfh = web_contents->GetPrimaryMainFrame();
++  if (!rfh)
++    return;
++    
++  content::RenderWidgetHost* rwh = rfh->GetRenderWidgetHost();
++  if (!rwh)
++    return;
++
++  // Map key names to Windows key codes and DOM codes/keys
++  ui::KeyboardCode windows_key_code;
++  ui::DomCode dom_code;
++  ui::DomKey dom_key;
++  
++  // Use if-else chain to avoid static initialization
++  if (key == "Enter") {
++    windows_key_code = ui::VKEY_RETURN;
++    dom_code = ui::DomCode::ENTER;
++    dom_key = ui::DomKey::ENTER;
++  } else if (key == "Delete") {
++    windows_key_code = ui::VKEY_DELETE;
++    dom_code = ui::DomCode::DEL;
++    dom_key = ui::DomKey::DEL;
++  } else if (key == "Backspace") {
++    windows_key_code = ui::VKEY_BACK;
++    dom_code = ui::DomCode::BACKSPACE;
++    dom_key = ui::DomKey::BACKSPACE;
++  } else if (key == "Tab") {
++    windows_key_code = ui::VKEY_TAB;
++    dom_code = ui::DomCode::TAB;
++    dom_key = ui::DomKey::TAB;
++  } else if (key == "Escape") {
++    windows_key_code = ui::VKEY_ESCAPE;
++    dom_code = ui::DomCode::ESCAPE;
++    dom_key = ui::DomKey::ESCAPE;
++  } else if (key == "ArrowUp") {
++    windows_key_code = ui::VKEY_UP;
++    dom_code = ui::DomCode::ARROW_UP;
++    dom_key = ui::DomKey::ARROW_UP;
++  } else if (key == "ArrowDown") {
++    windows_key_code = ui::VKEY_DOWN;
++    dom_code = ui::DomCode::ARROW_DOWN;
++    dom_key = ui::DomKey::ARROW_DOWN;
++  } else if (key == "ArrowLeft") {
++    windows_key_code = ui::VKEY_LEFT;
++    dom_code = ui::DomCode::ARROW_LEFT;
++    dom_key = ui::DomKey::ARROW_LEFT;
++  } else if (key == "ArrowRight") {
++    windows_key_code = ui::VKEY_RIGHT;
++    dom_code = ui::DomCode::ARROW_RIGHT;
++    dom_key = ui::DomKey::ARROW_RIGHT;
++  } else if (key == "Home") {
++    windows_key_code = ui::VKEY_HOME;
++    dom_code = ui::DomCode::HOME;
++    dom_key = ui::DomKey::HOME;
++  } else if (key == "End") {
++    windows_key_code = ui::VKEY_END;
++    dom_code = ui::DomCode::END;
++    dom_key = ui::DomKey::END;
++  } else if (key == "PageUp") {
++    windows_key_code = ui::VKEY_PRIOR;
++    dom_code = ui::DomCode::PAGE_UP;
++    dom_key = ui::DomKey::PAGE_UP;
++  } else if (key == "PageDown") {
++    windows_key_code = ui::VKEY_NEXT;
++    dom_code = ui::DomCode::PAGE_DOWN;
++    dom_key = ui::DomKey::PAGE_DOWN;
++  } else {
++    return;  // Unsupported key
++  }
++  
++  // Create keyboard event
++  input::NativeWebKeyboardEvent key_down(
++      blink::WebInputEvent::Type::kKeyDown,
++      blink::WebInputEvent::kNoModifiers,
++      ui::EventTimeForNow());
++  
++  key_down.windows_key_code = windows_key_code;
++  key_down.native_key_code = windows_key_code;
++  key_down.dom_code = static_cast<int>(dom_code);
++  key_down.dom_key = static_cast<int>(dom_key);
++  
++  // Send key down
++  rwh->ForwardKeyboardEvent(key_down);
++  
 +  // For Enter key, also send char event
 +  // This is for `input` elements on web pages expect this to trigger submit
 +  if (key == "Enter") {
@@ -291,23 +524,630 @@ index 0d83f4da95ba9..8667dcf0675ac 100644
 +    rwh->ForwardKeyboardEvent(char_event);
 +  }
 +  
-   // For most keys, also send key up
-   if (key != "Tab") {  // Tab usually doesn't need key up for focus change
-     input::NativeWebKeyboardEvent key_up(
++  // For most keys, also send key up
++  if (key != "Tab") {  // Tab usually doesn't need key up for focus change
++    input::NativeWebKeyboardEvent key_up(
++        blink::WebInputEvent::Type::kKeyUp,
++        blink::WebInputEvent::kNoModifiers,
++        ui::EventTimeForNow());
++    
++    key_up.windows_key_code = windows_key_code;
++    key_up.native_key_code = windows_key_code;
++    key_up.dom_code = static_cast<int>(dom_code);
++    key_up.dom_key = static_cast<int>(dom_key);
++    
++    rwh->ForwardKeyboardEvent(key_up);
+   }
++}
+ 
+-  return TabInfo(web_contents, tab_id);
++// Helper to type text into a focused element
++void Type(content::WebContents* web_contents,
++          const std::string& text) {
++  content::RenderFrameHost* rfh = web_contents->GetPrimaryMainFrame();
++  if (!rfh)
++    return;
++    
++  content::RenderWidgetHost* rwh = rfh->GetRenderWidgetHost();
++  if (!rwh)
++    return;
++  
++  // Convert text to UTF16
++  std::u16string text16 = base::UTF8ToUTF16(text);
++  
++  // Add a small delay to ensure the element is focused after click
++  // Then send the text using ImeCommitText
++  base::SequencedTaskRunner::GetCurrentDefault()->PostDelayedTask(
++      FROM_HERE,
++      base::BindOnce(
++          [](content::RenderWidgetHost* rwh, const std::u16string& text) {
++            if (!rwh)
++              return;
++            
++            content::RenderWidgetHostImpl* rwhi = 
++                static_cast<content::RenderWidgetHostImpl*>(rwh);
++            
++            // Ensure the widget has focus
++            rwhi->Focus();
++            
++            // Try multiple approaches to input text
++            // 1. First try ImeSetComposition to simulate typing
++            rwhi->ImeSetComposition(text,
++                                   std::vector<ui::ImeTextSpan>(),
++                                   gfx::Range::InvalidRange(),
++                                   text.length(),  // selection_start at end
++                                   text.length()); // selection_end at end
++            
++            // 2. Then commit the text
++            rwhi->ImeCommitText(text,
++                                std::vector<ui::ImeTextSpan>(),
++                                gfx::Range::InvalidRange(),
++                                0);  // relative_cursor_pos = 0 means after the text
++            
++            // 3. Finish composing to ensure text is committed
++            rwhi->ImeFinishComposingText(false);
++            
++          },
++          rwh, text16),
++      base::Milliseconds(100));  // Increase delay to 100ms for better focus handling
++}
++
++// Helper to perform a click with change detection and retrying
++ChangeDetectionResult Click(content::WebContents* web_contents,
++                           const NodeInfo& node_info) {
++  // Create change detector and start monitoring
++  auto change_detector = std::make_unique<BrowserOSChangeDetector>(web_contents);
++  change_detector->StartMonitoring(node_info.ax_tree_id);
++  
++  // Perform the click action using coordinate-based click
++  gfx::PointF click_point(
++      node_info.bounds.x() + node_info.bounds.width() / 2.0f,
++      node_info.bounds.y() + node_info.bounds.height() / 2.0f);
++  PointClick(web_contents, click_point);
++  
++  // Wait for changes with timeout
++  ChangeDetectionResult change_result = 
++      change_detector->WaitForChanges(base::Milliseconds(500));
++  
++  // If no change detected via coordinate click, try HTML click as fallback
++  if (!change_result.detected) {
++    VLOG(1) << "No change detected with coordinate click, trying HTML click";
++    HtmlClick(web_contents, node_info);
++    
++    // Wait again for changes
++    change_result = change_detector->WaitForChanges(base::Milliseconds(300));
++  }
++  
++  return change_result;
+ }
+ 
+ }  // namespace api
+-}  // namespace extensions
+\ No newline at end of file
++}  // namespace extensions
+diff --git a/chrome/browser/extensions/api/browser_os/browser_os_api_helpers.h b/chrome/browser/extensions/api/browser_os/browser_os_api_helpers.h
+index 142874b3d0374..ab8eb164a11c3 100644
+--- a/chrome/browser/extensions/api/browser_os/browser_os_api_helpers.h
++++ b/chrome/browser/extensions/api/browser_os/browser_os_api_helpers.h
+@@ -5,40 +5,49 @@
+ #ifndef CHROME_BROWSER_EXTENSIONS_API_BROWSER_OS_BROWSER_OS_API_HELPERS_H_
+ #define CHROME_BROWSER_EXTENSIONS_API_BROWSER_OS_BROWSER_OS_API_HELPERS_H_
+ 
+-#include <optional>
+ #include <string>
+ 
+-#include "base/memory/raw_ptr.h"
++#include "base/functional/callback.h"
++#include "chrome/browser/extensions/api/browser_os/browser_os_change_detector.h"
++#include "ui/gfx/geometry/point_f.h"
+ 
+ namespace content {
+-class BrowserContext;
+ class WebContents;
+ }  // namespace content
+ 
+ namespace extensions {
++namespace api {
+ 
+-class WindowController;
++struct NodeInfo;
+ 
+-namespace api {
++// Helper to create and dispatch mouse events for clicking
++void PointClick(content::WebContents* web_contents, 
++                  const gfx::PointF& point);
++
++// Helper to perform HTML-based click using JS (uses ID, class, or tag)
++void HtmlClick(content::WebContents* web_contents,
++                      const NodeInfo& node_info);
++
++// Helper to perform scroll actions using mouse wheel events
++void Scroll(content::WebContents* web_contents,
++                   int delta_x,
++                   int delta_y,
++                   bool precise = false);
++
++// Helper to send special key events
++void KeyPress(content::WebContents* web_contents,
++                    const std::string& key);
++
++// Helper to type text into a focused element
++void Type(content::WebContents* web_contents,
++          const std::string& text);
+ 
+-// Result structure for tab retrieval
+-struct TabInfo {
+-  raw_ptr<content::WebContents> web_contents;
+-  int tab_id;
+-  
+-  TabInfo(content::WebContents* wc, int id) 
+-      : web_contents(wc), tab_id(id) {}
+-};
+-
+-// Helper to get WebContents and tab ID from optional tab_id parameter
+-// Returns nullptr if tab is not found, with error message set
+-std::optional<TabInfo> GetTabFromOptionalId(
+-    std::optional<int> tab_id_param,
+-    content::BrowserContext* browser_context,
+-    bool include_incognito_information,
+-    std::string* error_message);
++// Helper to perform a click with change detection and retrying
++// This combines change detection logic with click actions (coordinate and HTML)
++ChangeDetectionResult Click(content::WebContents* web_contents,
++                           const NodeInfo& node_info);
+ 
+ }  // namespace api
+ }  // namespace extensions
+ 
+-#endif  // CHROME_BROWSER_EXTENSIONS_API_BROWSER_OS_BROWSER_OS_API_HELPERS_H_
+\ No newline at end of file
++#endif  // CHROME_BROWSER_EXTENSIONS_API_BROWSER_OS_BROWSER_OS_API_HELPERS_H_
+diff --git a/chrome/browser/extensions/api/browser_os/browser_os_api_utils.cc b/chrome/browser/extensions/api/browser_os/browser_os_api_utils.cc
+index 0d83f4da95ba9..1b2f83a233844 100644
+--- a/chrome/browser/extensions/api/browser_os/browser_os_api_utils.cc
++++ b/chrome/browser/extensions/api/browser_os/browser_os_api_utils.cc
+@@ -7,25 +7,26 @@
+ #include "base/hash/hash.h"
+ #include "base/no_destructor.h"
+ #include "base/strings/string_number_conversions.h"
+-#include "content/public/browser/render_frame_host.h"
+-#include "content/public/browser/render_widget_host.h"
+-#include "content/public/browser/render_widget_host_view.h"
++#include "base/strings/utf_string_conversions.h"
++#include "chrome/browser/extensions/extension_tab_util.h"
++#include "chrome/browser/extensions/window_controller.h"
++#include "chrome/browser/ui/browser.h"
++#include "chrome/browser/ui/browser_finder.h"
++#include "chrome/browser/ui/tabs/tab_strip_model.h"
+ #include "content/public/browser/web_contents.h"
+-#include "components/input/native_web_keyboard_event.h"
+-#include "third_party/blink/public/common/input/web_input_event.h"
+-#include "third_party/blink/public/common/input/web_keyboard_event.h"
+-#include "third_party/blink/public/common/input/web_mouse_event.h"
+-#include "third_party/blink/public/common/input/web_mouse_wheel_event.h"
+ #include "ui/accessibility/ax_role_properties.h"
+-#include "ui/events/base_event_utils.h"
+-#include "ui/events/keycodes/dom/dom_code.h"
+-#include "ui/events/keycodes/dom/dom_key.h"
+-#include "ui/events/keycodes/keyboard_codes.h"
+-#include "ui/gfx/geometry/point_f.h"
+ 
+ namespace extensions {
+ namespace api {
+ 
++// NodeInfo implementation
++NodeInfo::NodeInfo() : ax_node_id(0), ax_tree_id() {}
++NodeInfo::~NodeInfo() = default;
++NodeInfo::NodeInfo(const NodeInfo&) = default;
++NodeInfo& NodeInfo::operator=(const NodeInfo&) = default;
++NodeInfo::NodeInfo(NodeInfo&&) = default;
++NodeInfo& NodeInfo::operator=(NodeInfo&&) = default;
++
+ // Global node ID mappings storage
+ // Use NoDestructor to avoid exit-time destructor
+ std::unordered_map<int, std::unordered_map<uint32_t, NodeInfo>>& 
+@@ -35,52 +36,49 @@ GetNodeIdMappings() {
+   return *g_node_id_mappings;
+ }
+ 
+-// Helper to create and dispatch mouse events for clicking
+-void PerformClick(content::WebContents* web_contents, 
+-                  const gfx::PointF& point) {
+-  content::RenderFrameHost* rfh = web_contents->GetPrimaryMainFrame();
+-  if (!rfh)
+-    return;
+-    
+-  content::RenderWidgetHost* rwh = rfh->GetRenderWidgetHost();
+-  if (!rwh)
+-    return;
+-    
+-  content::RenderWidgetHostView* rwhv = rwh->GetView();
+-  if (!rwhv)
+-    return;
++std::optional<TabInfo> GetTabFromOptionalId(
++    std::optional<int> tab_id_param,
++    content::BrowserContext* browser_context,
++    bool include_incognito_information,
++    std::string* error_message) {
++  content::WebContents* web_contents = nullptr;
++  int tab_id = -1;
++  
++  if (tab_id_param) {
++    // Get specific tab by ID
++    WindowController* controller = nullptr;
++    int tab_index = -1;
++    if (!ExtensionTabUtil::GetTabById(*tab_id_param, browser_context,
++                                      include_incognito_information,
++                                      &controller, &web_contents,
++                                      &tab_index)) {
++      if (error_message) {
++        *error_message = "Tab not found";
++      }
++      return std::nullopt;
++    }
++    tab_id = *tab_id_param;
++  } else {
++    // Get active tab
++    Browser* browser = chrome::FindLastActive();
++    if (!browser) {
++      if (error_message) {
++        *error_message = "No active browser";
++      }
++      return std::nullopt;
++    }
+ 
+-  // Get viewport bounds for screen position calculation
+-  gfx::Rect viewport_bounds = rwhv->GetViewBounds();
+-  gfx::PointF viewport_origin(viewport_bounds.x(), viewport_bounds.y());
+-  
+-  // The coordinates are already in widget space (CSS pixels)
+-  gfx::PointF widget_point = point;
++    web_contents = browser->tab_strip_model()->GetActiveWebContents();
++    if (!web_contents) {
++      if (error_message) {
++        *error_message = "No active tab";
++      }
++      return std::nullopt;
++    }
++    tab_id = ExtensionTabUtil::GetTabId(web_contents);
++  }
+ 
+-  // Create mouse down event
+-  blink::WebMouseEvent mouse_down;
+-  mouse_down.SetType(blink::WebInputEvent::Type::kMouseDown);
+-  mouse_down.button = blink::WebPointerProperties::Button::kLeft;
+-  mouse_down.click_count = 1;
+-  mouse_down.SetPositionInWidget(widget_point.x(), widget_point.y());
+-  mouse_down.SetPositionInScreen(widget_point.x() + viewport_origin.x(), 
+-                                widget_point.y() + viewport_origin.y());
+-  mouse_down.SetTimeStamp(ui::EventTimeForNow());
+-  mouse_down.SetModifiers(blink::WebInputEvent::kLeftButtonDown);
+-  
+-  // Create mouse up event
+-  blink::WebMouseEvent mouse_up;
+-  mouse_up.SetType(blink::WebInputEvent::Type::kMouseUp);
+-  mouse_up.button = blink::WebPointerProperties::Button::kLeft;
+-  mouse_up.click_count = 1;
+-  mouse_up.SetPositionInWidget(widget_point.x(), widget_point.y());
+-  mouse_up.SetPositionInScreen(widget_point.x() + viewport_origin.x(),
+-                              widget_point.y() + viewport_origin.y());
+-  mouse_up.SetTimeStamp(ui::EventTimeForNow());
+-  
+-  // Send the events
+-  rwh->ForwardMouseEvent(mouse_down);
+-  rwh->ForwardMouseEvent(mouse_up);
++  return TabInfo(web_contents, tab_id);
+ }
+ 
+ // Helper to determine if a node is interactive (clickable/typeable/selectable)
+@@ -128,50 +126,6 @@ browser_os::InteractiveNodeType GetInteractiveNodeType(
+   return browser_os::InteractiveNodeType::kOther;
+ }
+ 
+-// Helper to compute branch path hash for an AX node
+-uint64_t ComputeBranchPath(const ui::AXNodeData& node_data,
+-                           const std::unordered_map<int32_t, ui::AXNodeData>& node_map,
+-                           std::unordered_map<int32_t, uint64_t>& path_cache) {
+-  // Check cache first
+-  auto it = path_cache.find(node_data.id);
+-  if (it != path_cache.end()) {
+-    return it->second;
+-  }
+-  
+-  // Build path from root to this node
+-  std::vector<int32_t> path;
+-  int32_t current_id = node_data.id;
+-  
+-  while (current_id != 0) {
+-    path.push_back(current_id);
+-    
+-    // Find parent
+-    bool found_parent = false;
+-    for (const auto& [id, data] : node_map) {
+-      if (std::find(data.child_ids.begin(), data.child_ids.end(), current_id) != 
+-          data.child_ids.end()) {
+-        current_id = id;
+-        found_parent = true;
+-        break;
+-      }
+-    }
+-    
+-    if (!found_parent) {
+-      break;
+-    }
+-  }
+-  
+-  // Compute hash from path
+-  std::string path_str;
+-  for (auto path_it = path.rbegin(); path_it != path.rend(); ++path_it) {
+-    path_str += base::NumberToString(*path_it) + "/";
+-  }
+-  
+-  uint64_t hash = base::PersistentHash(path_str);
+-  path_cache[node_data.id] = hash;
+-  return hash;
+-}
+-
+ // Helper to get the HTML tag name from AX role
+ std::string GetTagFromRole(ax::mojom::Role role) {
+   switch (role) {
+@@ -209,169 +163,58 @@ std::string GetTagFromRole(ax::mojom::Role role) {
+   }
+ }
+ 
+-// Helper to perform scroll actions using mouse wheel events
+-void PerformScroll(content::WebContents* web_contents,
+-                   int delta_x,
+-                   int delta_y,
+-                   bool precise) {
+-  content::RenderFrameHost* rfh = web_contents->GetPrimaryMainFrame();
+-  if (!rfh)
+-    return;
+-    
+-  content::RenderWidgetHost* rwh = rfh->GetRenderWidgetHost();
+-  if (!rwh)
+-    return;
+-    
+-  content::RenderWidgetHostView* rwhv = rwh->GetView();
+-  if (!rwhv)
+-    return;
+-
+-  // Get viewport bounds and center point
+-  gfx::Rect viewport_bounds = rwhv->GetViewBounds();
+-  gfx::PointF center_point(viewport_bounds.width() / 2.0f,
+-                          viewport_bounds.height() / 2.0f);
+-  
+-  // Create mouse wheel event
+-  blink::WebMouseWheelEvent wheel_event;
+-  wheel_event.SetType(blink::WebInputEvent::Type::kMouseWheel);
+-  wheel_event.SetPositionInWidget(center_point.x(), center_point.y());
+-  wheel_event.SetPositionInScreen(center_point.x() + viewport_bounds.x(),
+-                                 center_point.y() + viewport_bounds.y());
+-  wheel_event.SetTimeStamp(ui::EventTimeForNow());
+-  
+-  // Set the scroll deltas
+-  wheel_event.delta_x = delta_x;
+-  wheel_event.delta_y = delta_y;
+-  
+-  // Set wheel tick values (120 = one notch)
+-  wheel_event.wheel_ticks_x = delta_x / 120.0f;
+-  wheel_event.wheel_ticks_y = delta_y / 120.0f;
+-  
+-  // Phase information for smooth scrolling
+-  wheel_event.phase = blink::WebMouseWheelEvent::kPhaseBegan;
+-  
+-  // Precise scrolling for touchpad, non-precise for mouse wheel
+-  if (precise) {
+-    // For precise scrolling, deltas are in pixels
+-    wheel_event.delta_units = ui::ScrollGranularity::kScrollByPrecisePixel;
+-  } else {
+-    // For non-precise scrolling, deltas are in lines
+-    wheel_event.delta_units = ui::ScrollGranularity::kScrollByLine;
++// Helper to convert ChangeType enum to string
++std::string ChangeTypeToString(ChangeType change_type) {
++  switch (change_type) {
++    case ChangeType::kDomChanged:
++      return "dom_changed";
++    case ChangeType::kPopupOpened:
++      return "popup_opened";
++    case ChangeType::kNewTabOpened:
++      return "new_tab_opened";
++    case ChangeType::kDialogShown:
++      return "dialog_shown";
++    case ChangeType::kFocusChanged:
++      return "focus_changed";
++    case ChangeType::kElementExpanded:
++      return "element_expanded";
++    case ChangeType::kNone:
++    default:
++      return "unknown";
+   }
+-  
+-  // Send the wheel event
+-  rwh->ForwardWheelEvent(wheel_event);
+-  
+-  // Send phase ended event for smooth scrolling
+-  wheel_event.phase = blink::WebMouseWheelEvent::kPhaseEnded;
+-  wheel_event.delta_x = 0;
+-  wheel_event.delta_y = 0;
+-  wheel_event.wheel_ticks_x = 0;
+-  wheel_event.wheel_ticks_y = 0;
+-  rwh->ForwardWheelEvent(wheel_event);
+ }
+ 
+-// Helper to send special key events
+-void SendSpecialKey(content::WebContents* web_contents,
+-                    const std::string& key) {
+-  content::RenderFrameHost* rfh = web_contents->GetPrimaryMainFrame();
+-  if (!rfh)
+-    return;
++// Helper to convert ChangeDetectionResult to API response
++base::Value::Dict ChangeDetectionResultToDict(const ChangeDetectionResult& result) {
++  base::Value::Dict response;
++  response.Set("success", true);
++  response.Set("changeDetected", result.detected);
++  
++  if (result.detected) {
++    // Convert primary change type to string
++    response.Set("primaryChange", ChangeTypeToString(result.primary_change));
++    response.Set("timeToChangeMs", 
++                static_cast<int>(result.time_to_change.InMilliseconds()));
+     
+-  content::RenderWidgetHost* rwh = rfh->GetRenderWidgetHost();
+-  if (!rwh)
+-    return;
+-
+-  // Map key names to Windows key codes and DOM codes/keys
+-  ui::KeyboardCode windows_key_code;
+-  ui::DomCode dom_code;
+-  ui::DomKey dom_key;
+-  
+-  // Use if-else chain to avoid static initialization
+-  if (key == "Enter") {
+-    windows_key_code = ui::VKEY_RETURN;
+-    dom_code = ui::DomCode::ENTER;
+-    dom_key = ui::DomKey::ENTER;
+-  } else if (key == "Delete") {
+-    windows_key_code = ui::VKEY_DELETE;
+-    dom_code = ui::DomCode::DEL;
+-    dom_key = ui::DomKey::DEL;
+-  } else if (key == "Backspace") {
+-    windows_key_code = ui::VKEY_BACK;
+-    dom_code = ui::DomCode::BACKSPACE;
+-    dom_key = ui::DomKey::BACKSPACE;
+-  } else if (key == "Tab") {
+-    windows_key_code = ui::VKEY_TAB;
+-    dom_code = ui::DomCode::TAB;
+-    dom_key = ui::DomKey::TAB;
+-  } else if (key == "Escape") {
+-    windows_key_code = ui::VKEY_ESCAPE;
+-    dom_code = ui::DomCode::ESCAPE;
+-    dom_key = ui::DomKey::ESCAPE;
+-  } else if (key == "ArrowUp") {
+-    windows_key_code = ui::VKEY_UP;
+-    dom_code = ui::DomCode::ARROW_UP;
+-    dom_key = ui::DomKey::ARROW_UP;
+-  } else if (key == "ArrowDown") {
+-    windows_key_code = ui::VKEY_DOWN;
+-    dom_code = ui::DomCode::ARROW_DOWN;
+-    dom_key = ui::DomKey::ARROW_DOWN;
+-  } else if (key == "ArrowLeft") {
+-    windows_key_code = ui::VKEY_LEFT;
+-    dom_code = ui::DomCode::ARROW_LEFT;
+-    dom_key = ui::DomKey::ARROW_LEFT;
+-  } else if (key == "ArrowRight") {
+-    windows_key_code = ui::VKEY_RIGHT;
+-    dom_code = ui::DomCode::ARROW_RIGHT;
+-    dom_key = ui::DomKey::ARROW_RIGHT;
+-  } else if (key == "Home") {
+-    windows_key_code = ui::VKEY_HOME;
+-    dom_code = ui::DomCode::HOME;
+-    dom_key = ui::DomKey::HOME;
+-  } else if (key == "End") {
+-    windows_key_code = ui::VKEY_END;
+-    dom_code = ui::DomCode::END;
+-    dom_key = ui::DomKey::END;
+-  } else if (key == "PageUp") {
+-    windows_key_code = ui::VKEY_PRIOR;
+-    dom_code = ui::DomCode::PAGE_UP;
+-    dom_key = ui::DomKey::PAGE_UP;
+-  } else if (key == "PageDown") {
+-    windows_key_code = ui::VKEY_NEXT;
+-    dom_code = ui::DomCode::PAGE_DOWN;
+-    dom_key = ui::DomKey::PAGE_DOWN;
+-  } else {
+-    return;  // Unsupported key
+-  }
+-  
+-  // Create keyboard event
+-  input::NativeWebKeyboardEvent key_down(
+-      blink::WebInputEvent::Type::kKeyDown,
+-      blink::WebInputEvent::kNoModifiers,
+-      ui::EventTimeForNow());
+-  
+-  key_down.windows_key_code = windows_key_code;
+-  key_down.native_key_code = windows_key_code;
+-  key_down.dom_code = static_cast<int>(dom_code);
+-  key_down.dom_key = static_cast<int>(dom_key);
+-  
+-  // Send key down
+-  rwh->ForwardKeyboardEvent(key_down);
+-  
+-  // For most keys, also send key up
+-  if (key != "Tab") {  // Tab usually doesn't need key up for focus change
+-    input::NativeWebKeyboardEvent key_up(
+-        blink::WebInputEvent::Type::kKeyUp,
+-        blink::WebInputEvent::kNoModifiers,
+-        ui::EventTimeForNow());
+-    
+-    key_up.windows_key_code = windows_key_code;
+-    key_up.native_key_code = windows_key_code;
+-    key_up.dom_code = static_cast<int>(dom_code);
+-    key_up.dom_key = static_cast<int>(dom_key);
++    // Add all detected changes
++    base::Value::List all_changes;
++    for (const auto& change : result.all_changes) {
++      std::string change_str = ChangeTypeToString(change);
++      if (change_str != "unknown") {
++        all_changes.Append(change_str);
++      }
++    }
++    response.Set("allChanges", std::move(all_changes));
+     
+-    rwh->ForwardKeyboardEvent(key_up);
++    // Add action required hints
++    if (result.primary_change == ChangeType::kNewTabOpened) {
++      response.Set("actionRequired", "switch_to_new_tab");
++    } else if (result.primary_change == ChangeType::kPopupOpened) {
++      response.Set("actionRequired", "interact_with_popup");
++    }
+   }
++  
++  return response;
+ }
+ 
+ }  // namespace api
 diff --git a/chrome/browser/extensions/api/browser_os/browser_os_api_utils.h b/chrome/browser/extensions/api/browser_os/browser_os_api_utils.h
-index 2070807877455..521e22bb15dbf 100644
+index 2070807877455..403633772e2fe 100644
 --- a/chrome/browser/extensions/api/browser_os/browser_os_api_utils.h
 +++ b/chrome/browser/extensions/api/browser_os/browser_os_api_utils.h
-@@ -10,6 +10,7 @@
+@@ -5,56 +5,78 @@
+ #ifndef CHROME_BROWSER_EXTENSIONS_API_BROWSER_OS_BROWSER_OS_API_UTILS_H_
+ #define CHROME_BROWSER_EXTENSIONS_API_BROWSER_OS_BROWSER_OS_API_UTILS_H_
  
++#include <optional>
+ #include <string>
+ #include <unordered_map>
+ 
++#include "base/memory/raw_ptr.h"
++#include "base/values.h"
++#include "chrome/browser/extensions/api/browser_os/browser_os_change_detector.h"
  #include "chrome/common/extensions/api/browser_os.h"
  #include "ui/accessibility/ax_node_data.h"
 +#include "ui/accessibility/ax_tree_id.h"
  #include "ui/gfx/geometry/rect_f.h"
  
  namespace content {
-@@ -22,8 +23,17 @@ namespace api {
++class BrowserContext;
+ class RenderWidgetHost;
+ class WebContents;
+ }  // namespace content
  
+ namespace extensions {
++
++class WindowController;
++
+ namespace api {
+ 
++// Result structure for tab retrieval
++struct TabInfo {
++  raw_ptr<content::WebContents> web_contents;
++  int tab_id;
++  
++  TabInfo(content::WebContents* wc, int id) 
++      : web_contents(wc), tab_id(id) {}
++};
++
  // Stores mapping information for a node
  struct NodeInfo {
 +  NodeInfo();
@@ -324,17 +1164,48 @@ index 2070807877455..521e22bb15dbf 100644
  };
  
  // Global node ID mappings storage
-@@ -34,6 +44,10 @@ GetNodeIdMappings();
- void PerformClick(content::WebContents* web_contents, 
-                   const gfx::PointF& point);
+ std::unordered_map<int, std::unordered_map<uint32_t, NodeInfo>>& 
+ GetNodeIdMappings();
  
-+// Helper to perform HTML-based click using JS (uses ID, class, or tag)
-+void PerformHtmlClick(content::WebContents* web_contents,
-+                      const NodeInfo& node_info);
-+
+-// Helper to create and dispatch mouse events for clicking
+-void PerformClick(content::WebContents* web_contents, 
+-                  const gfx::PointF& point);
++// Helper to get WebContents and tab ID from optional tab_id parameter
++// Returns nullptr if tab is not found, with error message set
++std::optional<TabInfo> GetTabFromOptionalId(
++    std::optional<int> tab_id_param,
++    content::BrowserContext* browser_context,
++    bool include_incognito_information,
++    std::string* error_message);
+ 
  // Helper to determine if a node is interactive (clickable/typable)
  browser_os::InteractiveNodeType GetInteractiveNodeType(
      const ui::AXNodeData& node_data);
+ 
+-// Helper to compute branch path hash for an AX node
+-uint64_t ComputeBranchPath(const ui::AXNodeData& node_data,
+-                          const std::unordered_map<int32_t, ui::AXNodeData>& node_map,
+-                          std::unordered_map<int32_t, uint64_t>& path_cache);
+-
+ // Helper to get the HTML tag name from AX role
+ std::string GetTagFromRole(ax::mojom::Role role);
+ 
+-// Helper to perform scroll actions using mouse wheel events
+-void PerformScroll(content::WebContents* web_contents,
+-                   int delta_x,
+-                   int delta_y,
+-                   bool precise = false);
++// Helper to convert ChangeType enum to string
++std::string ChangeTypeToString(ChangeType change_type);
+ 
+-// Helper to send special key events
+-void SendSpecialKey(content::WebContents* web_contents,
+-                    const std::string& key);
++// Helper to convert ChangeDetectionResult to API response
++base::Value::Dict ChangeDetectionResultToDict(const ChangeDetectionResult& result);
+ 
+ }  // namespace api
+ }  // namespace extensions
 diff --git a/chrome/browser/extensions/api/browser_os/browser_os_change_detector.cc b/chrome/browser/extensions/api/browser_os/browser_os_change_detector.cc
 new file mode 100644
 index 0000000000000..7962fb78b6e48
