@@ -7,6 +7,7 @@ import { UIEventHandler } from '@/lib/events/UIEventHandler'
 // Removed deprecated IStreamingCallbacks import
 import posthog from 'posthog-js'
 import { isDevelopmentMode } from '@/config'
+import { GlowAnimationService } from '@/lib/services/GlowAnimationService'
 
 /**
  * Background script for the ParallelManus extension
@@ -84,6 +85,9 @@ let isToggling = false; // Prevent rapid toggle issues
 
 
 
+// Get the GlowAnimationService instance
+const glowService = GlowAnimationService.getInstance()
+
 // Initialize the extension
 function initialize(): void {
   debugLog('ParallelManus extension initialized')
@@ -99,6 +103,11 @@ function initialize(): void {
   
   // Register port connection listener (port-based messaging only)
   chrome.runtime.onConnect.addListener(handlePortConnection)
+  
+  // Register tab removal listener for glow cleanup
+  chrome.tabs.onRemoved.addListener((tabId) => {
+    glowService.handleTabClosed(tabId)
+  })
   
   
   // Register action click listener to toggle side panel
@@ -300,6 +309,14 @@ function handlePortMessage(message: PortMessage, port: chrome.runtime.Port): voi
       case MessageType.AGENT_STREAM_UPDATE:
         // This is an outgoing message type, not incoming
         // Received AGENT_STREAM_UPDATE (shouldn't happen)
+        break
+        
+      case MessageType.GLOW_START:
+        handleGlowStartPort(payload as { tabId: number }, port, id)
+        break
+        
+      case MessageType.GLOW_STOP:
+        handleGlowStopPort(payload as { tabId: number }, port, id)
         break
         
       default:
@@ -746,6 +763,84 @@ function broadcastWorkflowStatus(payload: Record<string, unknown> | unknown): vo
 }
 
 
+
+/**
+ * Handles glow start requests via port messaging
+ * @param payload - Glow start payload
+ * @param port - Port to send response through
+ * @param id - Optional message ID for correlation
+ */
+function handleGlowStartPort(
+  payload: { tabId: number },
+  port: chrome.runtime.Port,
+  id?: string
+): void {
+  const { tabId } = payload
+  
+  debugLog(`Glow start requested for tab ${tabId}`)
+  
+  glowService.startGlow(tabId)
+    .then(() => {
+      port.postMessage({
+        type: MessageType.WORKFLOW_STATUS,
+        payload: {
+          status: 'success',
+          message: `Glow started on tab ${tabId}`
+        },
+        id
+      })
+    })
+    .catch(error => {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      port.postMessage({
+        type: MessageType.WORKFLOW_STATUS,
+        payload: {
+          status: 'error',
+          error: `Failed to start glow: ${errorMessage}`
+        },
+        id
+      })
+    })
+}
+
+/**
+ * Handles glow stop requests via port messaging
+ * @param payload - Glow stop payload
+ * @param port - Port to send response through
+ * @param id - Optional message ID for correlation
+ */
+function handleGlowStopPort(
+  payload: { tabId: number },
+  port: chrome.runtime.Port,
+  id?: string
+): void {
+  const { tabId } = payload
+  
+  debugLog(`Glow stop requested for tab ${tabId}`)
+  
+  glowService.stopGlow(tabId)
+    .then(() => {
+      port.postMessage({
+        type: MessageType.WORKFLOW_STATUS,
+        payload: {
+          status: 'success',
+          message: `Glow stopped on tab ${tabId}`
+        },
+        id
+      })
+    })
+    .catch(error => {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      port.postMessage({
+        type: MessageType.WORKFLOW_STATUS,
+        payload: {
+          status: 'error',
+          error: `Failed to stop glow: ${errorMessage}`
+        },
+        id
+      })
+    })
+}
 
 // Initialize the extension
 initialize()
