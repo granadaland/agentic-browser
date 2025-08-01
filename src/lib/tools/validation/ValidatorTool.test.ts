@@ -2,21 +2,29 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { createValidatorTool } from './ValidatorTool'
 import { MessageManager } from '@/lib/runtime/MessageManager'
 
-describe('ValidatorTool', () => {
+describe('ValidatorTool-unit-test', () => {
   let mockExecutionContext: any
   let mockMessageManager: MessageManager
   let mockBrowserContext: any
+  let mockPage: any
   let mockLLM: any
 
   beforeEach(() => {
     // Create mock instances
     mockMessageManager = new MessageManager()
     
+    // Mock page with screenshot functionality
+    mockPage = {
+      takeScreenshot: vi.fn().mockResolvedValue('mockScreenshotBase64String')
+    }
+    
     // Mock browser context methods
     mockBrowserContext = {
       getBrowserStateString: vi.fn().mockResolvedValue(
         'Current URL: https://example.com\nPage title: Example Page\nClickable elements: [1] Submit button'
-      )
+      ),
+      getCurrentPage: vi.fn().mockResolvedValue(mockPage),
+      getConfig: vi.fn().mockReturnValue({ useVision: true })
     }
     
     // Mock LLM with structured output
@@ -80,10 +88,16 @@ describe('ValidatorTool', () => {
     expect(validationData).toHaveProperty('suggestions')
   })
 
-  it('tests that validation considers browser state and message history', async () => {
+  it('tests that validation captures screenshot and includes it in prompt', async () => {
     const tool = createValidatorTool(mockExecutionContext)
     
     await tool.func({ task: 'Navigate to checkout page' })
+    
+    // Verify getCurrentPage was called
+    expect(mockBrowserContext.getCurrentPage).toHaveBeenCalled()
+    
+    // Verify takeScreenshot was called on the page
+    expect(mockPage.takeScreenshot).toHaveBeenCalled()
     
     // Verify browser state was retrieved
     expect(mockBrowserContext.getBrowserStateString).toHaveBeenCalled()
@@ -100,11 +114,14 @@ describe('ValidatorTool', () => {
     expect(messages[0]._getType()).toBe('system')
     expect(messages[1]._getType()).toBe('human')
     
-    // Verify the human message contains the message history from MessageManager
+    // Verify the human message contains the screenshot in data URL format
     const humanMessage = messages[1]
     const humanMessageContent = humanMessage.content as string
     
-    // Check that message history was included (from lines 41-42 in setup)
+    // Check that screenshot was included in correct format
+    expect(humanMessageContent).toContain('data:image/jpeg;base64,mockScreenshotBase64String')
+    
+    // Check that message history was included (from setup)
     expect(humanMessageContent).toContain('Submit the form')
     expect(humanMessageContent).toContain('I will submit the form for you')
     
@@ -112,9 +129,89 @@ describe('ValidatorTool', () => {
     expect(humanMessageContent).toContain('https://example.com')
     expect(humanMessageContent).toContain('Example Page')
   })
+
+  it('tests that validation handles screenshot capture errors gracefully', async () => {
+    // Mock takeScreenshot to throw an error
+    mockPage.takeScreenshot.mockRejectedValue(new Error('Screenshot capture failed'))
+    
+    const tool = createValidatorTool(mockExecutionContext)
+    const result = await tool.func({ task: 'Navigate to checkout page' })
+    const parsedResult = JSON.parse(result)
+    
+    // Should still succeed even if screenshot fails
+    expect(parsedResult.ok).toBe(true)
+    
+    // Verify getCurrentPage and takeScreenshot were attempted
+    expect(mockBrowserContext.getCurrentPage).toHaveBeenCalled()
+    expect(mockPage.takeScreenshot).toHaveBeenCalled()
+    
+    // Verify LLM was still called (validation continues without screenshot)
+    expect(mockLLM.withStructuredOutput).toHaveBeenCalled()
+    
+    const invokeCall = mockLLM.withStructuredOutput().invoke
+    expect(invokeCall).toHaveBeenCalled()
+    
+    // Verify the human message doesn't contain screenshot data URL
+    const messages = invokeCall.mock.calls[0][0]
+    const humanMessage = messages[1]
+    const humanMessageContent = humanMessage.content as string
+    
+    // Should not contain screenshot data URL when capture fails
+    expect(humanMessageContent).not.toContain('data:image/jpeg;base64,')
+    
+    // But should still contain other data
+    expect(humanMessageContent).toContain('https://example.com')
+  })
+
+  it('tests that validation handles missing current page gracefully', async () => {
+    // Mock getCurrentPage to return null (no active page)
+    mockBrowserContext.getCurrentPage.mockReturnValue(null)
+    
+    const tool = createValidatorTool(mockExecutionContext)
+    const result = await tool.func({ task: 'Navigate to checkout page' })
+    const parsedResult = JSON.parse(result)
+    
+    // Should still succeed even if no current page
+    expect(parsedResult.ok).toBe(true)
+    
+    // Verify getCurrentPage was called
+    expect(mockBrowserContext.getCurrentPage).toHaveBeenCalled()
+    
+    // Verify takeScreenshot was NOT called (no page available)
+    expect(mockPage.takeScreenshot).not.toHaveBeenCalled()
+    
+    // Verify LLM was still called (validation continues without screenshot)
+    expect(mockLLM.withStructuredOutput).toHaveBeenCalled()
+  })
+
+  it('tests that screenshot is not captured when useVision is false', async () => {
+    // Override config to disable vision
+    mockBrowserContext.getConfig.mockReturnValue({ useVision: false })
+    
+    const tool = createValidatorTool(mockExecutionContext)
+    
+    await tool.func({ task: 'Submit the form' })
+    
+    // Verify vision config was checked
+    expect(mockBrowserContext.getConfig).toHaveBeenCalled()
+    
+    // Verify page and screenshot were NOT accessed
+    expect(mockBrowserContext.getCurrentPage).not.toHaveBeenCalled()
+    expect(mockPage.takeScreenshot).not.toHaveBeenCalled()
+    
+    // Verify the screenshot was NOT included in the prompt
+    const invokeCall = mockLLM.withStructuredOutput().invoke
+    const messages = invokeCall.mock.calls[0][0]
+    const humanMessage = messages[1]
+    const humanMessageContent = humanMessage.content as string
+    
+    // Check that screenshot section was not included
+    expect(humanMessageContent).not.toContain('# SCREENSHOT')
+    expect(humanMessageContent).not.toContain('data:image/jpeg;base64')
+  })
 })
 
-describe('ValidatorTool Integration Test', () => {
+describe('ValidatorTool-integration-test', () => {
   const hasApiKey = process.env.LITELLM_API_KEY && process.env.LITELLM_API_KEY !== 'nokey'
   
   it.skipIf(!hasApiKey)(
@@ -140,7 +237,14 @@ describe('ValidatorTool Integration Test', () => {
         eventBus
       })
       
-      // Mock Amazon cart page state
+      // Mock page with screenshot capability
+      const mockPage = {
+        takeScreenshot: vi.fn().mockResolvedValue('realScreenshotBase64Data')
+      }
+      
+      // Mock browser context methods
+      const getConfigSpy = vi.spyOn(browserContext, 'getConfig').mockReturnValue({ useVision: true } as any)
+      const getCurrentPageSpy = vi.spyOn(browserContext, 'getCurrentPage').mockResolvedValue(mockPage as any)
       const getBrowserStateStringSpy = vi.spyOn(browserContext, 'getBrowserStateString').mockResolvedValue(`
 Current URL: https://www.amazon.com/gp/cart/view.html
 Page title: Amazon.com Shopping Cart
@@ -219,6 +323,8 @@ Typeable elements:
       
       // Cleanup
       getBrowserStateStringSpy.mockRestore()
+      getCurrentPageSpy.mockRestore()
+      getConfigSpy.mockRestore()
     },
     30000
   )

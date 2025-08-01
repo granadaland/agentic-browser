@@ -53,8 +53,12 @@ Remember: You are validating based ONLY on the current browser state and executi
 export function generateValidatorTaskPrompt(
   task: string,
   browserState: string,
-  messageHistory: string
+  messageHistory: string,
+  screenshot: string,
 ): string {
+  const screenshotSection = screenshot ? `# SCREENSHOT
+${screenshot}` : ''
+  
   return `# TASK TO VALIDATE:
 ${task}
 
@@ -64,6 +68,8 @@ ${messageHistory}
 # CURRENT BROWSER STATE:
 ${browserState}
 
-Based on the browser state and execution history, determine if this task has been FULLY completed.
+${screenshotSection}
+
+Based on the browser state and execution history${screenshot ? ', screenshot' : ''}, determine if this task has been FULLY completed.
 Provide clear reasoning, your confidence level, and specific suggestions if the task is incomplete.`
 }
