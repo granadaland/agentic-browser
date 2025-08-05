@@ -61,7 +61,7 @@ import { createValidatorTool } from '@/lib/tools/validation/ValidatorTool';
 import { createScreenshotTool } from '@/lib/tools/utils/ScreenshotTool';
 import { createExtractTool } from '@/lib/tools/extraction/ExtractTool';
 import { createResultTool } from '@/lib/tools/result/ResultTool';
-import { generateSystemPrompt } from './BrowserAgent.prompt';
+import { generateSystemPrompt, generateSingleTurnExecutionPrompt } from './BrowserAgent.prompt';
 import { AIMessage, AIMessageChunk } from '@langchain/core/messages';
 import { EventProcessor } from '@/lib/events/EventProcessor';
 import { PLANNING_CONFIG } from '@/lib/tools/planning/PlannerTool.config';
@@ -339,22 +339,8 @@ export class BrowserAgent {
       while (inner_loop_index < BrowserAgent.MAX_STEPS_INNER_LOOP && !todoStore.isAllDoneOrSkipped()) {
         this.checkIfAborted();
         
-        // One focused instruction per turn
-        const instruction = `Execute the next TODO for the task: "${task}".
-
-Steps:
-1. Call todo_manager_tool with action 'get_next' to fetch the next TODO
-2. If get_next returns null, call done_tool to complete the task
-3. Otherwise, execute the TODO using appropriate tools
-4. Call refresh_browser_state_tool to verify the TODO is complete
-5. If complete, mark it with todo_manager_tool action 'complete' (pass array with single ID)
-6. If not complete or blocked, explain what's preventing completion
-
-Important:
-- Focus on ONE TODO at a time
-- Verify completion before marking done
-- You can skip irrelevant TODOs with action 'skip'
-- You can go back if needed with action 'go_back'`;
+        // Use the generateTodoExecutionPrompt for TODO execution
+        const instruction = generateSingleTurnExecutionPrompt(task);
         
         const isTaskCompleted = await this._executeSingleTurn(instruction);
         inner_loop_index++;
@@ -491,8 +477,12 @@ Important:
       const displayMessage = formatToolOutput(toolName, parsedResult);
       this.eventEmitter.debug('Executing tool: ' + toolName + ' result: ' + displayMessage);
       
-      // Emit tool result for UI display (always shown)
-      this.eventEmitter.emitToolResult(toolName, result);
+      // Emit tool result for UI display
+      // Skip emitting refresh_browser_state_tool to prevent browser state from appearing in UI
+      // The browser state is internal context that should not be shown to users
+      if (toolName !== 'refresh_browser_state_tool') {
+        this.eventEmitter.emitToolResult(toolName, result);
+      }
 
       // Add the result back to the message history for context
       // Special handling for refresh_browser_state_tool vs other tools:

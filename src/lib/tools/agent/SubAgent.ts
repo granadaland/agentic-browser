@@ -292,7 +292,11 @@ export class SubAgent {
       const displayMessage = formatToolOutput(toolName, parsedResult);
       this.eventEmitter.debug('SubAgent executing tool: ' + toolName + ' result: ' + displayMessage);
       
-      this.eventEmitter.emitToolResult(toolName, result);
+      // Skip emitting refresh_browser_state_tool to prevent browser state from appearing in UI
+      // The browser state is internal context that should not be shown to users
+      if (toolName !== 'refresh_browser_state_tool') {
+        this.eventEmitter.emitToolResult(toolName, result);
+      }
       this.messageManager.addTool(result, toolCallId);
 
       // Special handling for specific tools

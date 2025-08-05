@@ -24,7 +24,7 @@ const TOKENS_PER_MESSAGE = 3;
 // The langchain messages have messageType which can be set set to a custom value.
 export class BrowserStateMessage extends AIMessage {
   constructor(content: string) {
-    super(`<system-reminder>${content}</system-reminder>`);
+    super(`<system-context>${content}</system-context>`);
     this.additional_kwargs = { messageType: MessageType.BROWSER_STATE };
   }
 }
@@ -96,7 +96,7 @@ export class MessageManager {
   addSystemReminder(content: string): void {
     // Add system message with system-reminder tags
     // For Anthropic, you can't have SystemMessage after first message
-    this.add(new HumanMessage(`<system-reminder>${content}</system-reminder>`));
+    this.add(new AIMessage(`<system-reminder>${content}</system-reminder>`));
     this._trimIfNeeded();
   }
 
