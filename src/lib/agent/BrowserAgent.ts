@@ -611,18 +611,19 @@ Remember: Each TODO might require multiple tool calls to complete.`;
 
 
   /**
-   * Update TODOs from plan steps (simple append)
+   * Update TODOs from plan steps (replaces all existing TODOs)
    */
   private async _updateTodosFromPlan(plan: Plan): Promise<void> {
-    // Simple append - just add the plan steps as new TODOs
+    // Convert plan steps to TODOs
     const todos = plan.steps.map(step => ({
       content: step.action
     }));
     
-    // Call todo_manager_tool with add_multiple action
+    // Always replace all TODOs with the new plan
+    // This ensures we only have at most STEPS_PER_PLAN (5) TODOs at any time
     const todoTool = this.toolManager.get('todo_manager_tool');
     if (todoTool && todos.length > 0) {
-      const args = { action: 'add_multiple' as const, todos };
+      const args = { action: 'replace_all' as const, todos };
       await todoTool.func(args);
       
       // System reminder will be added by _processToolCalls special handling
