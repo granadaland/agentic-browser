@@ -99,12 +99,12 @@ export class BrowserAgent {
   // Tools that trigger glow animation when executed
   private static readonly GLOW_ENABLED_TOOLS = new Set([
     'navigation_tool',
-    'find_element',
-    'interact',
+    'find_element_tool',
+    'interact_tool',
     'scroll_tool',
     'search_tool',
-    'refresh_browser_state',
-    'tab_operations',
+    'refresh_browser_state_tool',
+    'tab_operations_tool',
     'screenshot_tool',
     'extract_tool'
   ]);
@@ -490,7 +490,7 @@ Remember: Each TODO might require multiple tool calls to complete.`;
       this.messageManager.addTool(result, toolCallId);
 
       // Special handling for refresh_browser_state tool, add the browser state to the message history
-      if (toolName === 'refresh_browser_state' && parsedResult.ok) {
+      if (toolName === 'refresh_browser_state_tool' && parsedResult.ok) {
         // Add browser state as a system reminder that LLM should not print
         this.messageManager.addSystemReminder(parsedResult.output);
       }
@@ -608,6 +608,7 @@ Remember: Each TODO might require multiple tool calls to complete.`;
       this.eventEmitter.emitTaskResult(true, 'Task completed.');
     }
   }
+
 
 
   /**
