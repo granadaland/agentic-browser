@@ -64,9 +64,6 @@ export const BrowserStateSchema = z.object({
   
   // Hierarchical structure from BrowserOS API
   hierarchicalStructure: z.string().nullable().optional(),  // Hierarchical text representation with context
-  
-  // Screenshot support (base64 encoded)
-  screenshot: z.string().nullable().optional()  // Base64 encoded screenshot data
 })
 
 export type BrowserState = z.infer<typeof BrowserStateSchema>
@@ -457,11 +454,6 @@ ${elementsText}
       // Get hierarchical structure
       const hierarchicalStructure = await currentPage.getHierarchicalStructure();
       
-      // Get screenshot if vision is enabled
-      let screenshot: string | null = null;
-      if (this._config.useVision) {
-        screenshot = await currentPage.takeScreenshot();
-      }
       
       // Build structured state
       const state: BrowserState = {
@@ -483,9 +475,6 @@ ${elementsText}
         
         // Hierarchical structure
         hierarchicalStructure,
-        
-        // Screenshot (if vision enabled)
-        screenshot
       };
       
       return state;
@@ -502,8 +491,7 @@ ${elementsText}
         typeableElements: [],
         clickableElementsString: '',
         typeableElementsString: '',
-        hierarchicalStructure: null,
-        screenshot: null
+        hierarchicalStructure: null
       };
       
       return minimalState;
