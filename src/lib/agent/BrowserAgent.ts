@@ -486,9 +486,13 @@ export class BrowserAgent {
 
       // Add the result back to the message history for context
       // Special handling for refresh_browser_state_tool vs other tools:
-      // - refresh_browser_state_tool: Add as browser state message
+      // - refresh_browser_state_tool: Add simplified tool message AND browser state context
       // - All other tools: Add as regular tool message for proper conversation flow
       if (toolName === 'refresh_browser_state_tool' && parsedResult.ok) {
+        // Add proper tool result message with toolCallId for message history continuity
+        const simplifiedResult = JSON.stringify({ ok: true, output: "Browser state refreshed successfully" });
+        this.messageManager.addTool(simplifiedResult, toolCallId);
+        // Also update the browser state context for the agent to use
         this.messageManager.addBrowserState(parsedResult.output);
       } else {
         this.messageManager.addTool(result, toolCallId);

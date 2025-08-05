@@ -25,7 +25,7 @@ const DEFAULT_ANTHROPIC_MODEL = 'claude-4-sonnet'
 const DEFAULT_OLLAMA_MODEL = "qwen3:4b"
 const DEFAULT_OLLAMA_BASE_URL = "http://localhost:11434"
 const DEFAULT_NXTSCAPE_PROXY_URL = "http://llm.nxtscape.ai"
-const DEFAULT_NXTSCAPE_MODEL = "default-llm"
+const DEFAULT_NXTSCAPE_MODEL = "openrouter-claude-4-sonnet"
 const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash"
 
 // Simple cache for LLM instances
@@ -245,7 +245,7 @@ export class LangChainProvider {
           // 1. It uses the cl100k_base encoding (same as GPT-3.5-turbo and GPT-4 family)
           // 2. It has a large context window (128k) similar to our proxy models
           // 3. Token counting will be approximate but reasonable for our use case
-          model: "default-llm",  // Known model for tiktoken token counting
+          model: "openrouter-claude-4-sonnet",  // Known model for tiktoken token counting
           openAIApiKey: config.apiKey,  // This is the correct parameter name
           // The `configuration` field is forwarded directly to the underlying OpenAI client
           configuration: {
