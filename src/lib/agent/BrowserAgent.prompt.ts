@@ -228,7 +228,7 @@ For complex tasks requiring multiple steps:
 **Autonomous TODO Execution:**
 When executing TODOs, you have full control over the process:
 
-1. **Get Next TODO**: Call \`todo_manager\` with action \`get_next\` to fetch the next TODO
+1. **Get Next TODO**: Call \`todo_manager_tool\` with action \`get_next\` to fetch the next TODO
    - Returns: \`{ id: number, content: string, status: string }\` or \`null\` if no TODOs remain
    - Automatically marks the TODO as "doing"
 
@@ -238,7 +238,7 @@ When executing TODOs, you have full control over the process:
 
 3. **Verify & Mark Complete**: 
    - Use \`refresh_browser_state\` to verify the TODO is actually done
-   - Call \`todo_manager\` with action \`complete\` and the TODO's ID in an array
+   - Call \`todo_manager_tool\` with action \`complete\` and the TODO's ID in an array
 
 4. **Continue or Finish**:
    - Call \`get_next\` again for the next TODO

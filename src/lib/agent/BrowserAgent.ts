@@ -67,6 +67,7 @@ import { EventProcessor } from '@/lib/events/EventProcessor';
 import { PLANNING_CONFIG } from '@/lib/tools/planning/PlannerTool.config';
 import { Abortable, AbortError } from '@/lib/utils/Abortable';
 import { formatToolOutput } from '@/lib/tools/formatToolOutput';
+import { formatTodoList } from '@/lib/tools/utils/formatTodoList';
 import { GlowAnimationService } from '@/lib/services/GlowAnimationService';
 
 // Type Definitions
@@ -328,15 +329,20 @@ export class BrowserAgent {
       // 2. Convert plan to TODOs
       await this._updateTodosFromPlan(plan);
 
+      // Show TODO list after plan creation
+      const todoStore = this.executionContext.todoStore;
+      this.eventEmitter.info(formatTodoList(todoStore.getJson()));
+
       // 3. EXECUTE: Give full control to model
       const instruction = `Execute the TODOs to complete the task: "${task}".
 
 Your workflow:
-1. Call get_next_todo to fetch each TODO
+1. Call todo_manager_tool with action 'get_next' to fetch each TODO
 2. Execute the TODO using appropriate tools
-3. Mark complete with todo_manager action 'complete'
-4. Continue until get_next_todo returns null
-5. Call done_tool when the overall task is complete
+3. Verify completion with refresh_browser_state when needed
+4. Mark complete with todo_manager_tool action 'complete'
+5. Continue until get_next returns null
+6. Call done_tool when the overall task is complete
 
 You have full autonomy to:
 - Skip irrelevant TODOs
@@ -489,12 +495,14 @@ Remember: Each TODO might require multiple tool calls to complete.`;
         this.messageManager.addSystemReminder(parsedResult.output);
       }
 
-      // Special handling for todo_manager tool, add system reminder for mutations
-      if (toolName === 'todo_manager' && parsedResult.ok && args.action !== 'list') {
+      // Special handling for todo_manager_tool, add system reminder for mutations
+      if (toolName === 'todo_manager_tool' && parsedResult.ok && args.action !== 'list') {
         const todoStore = this.executionContext.todoStore;
         this.messageManager.addSystemReminder(
           `TODO list updated. Current state:\n${todoStore.getXml()}`
         );
+        // Show updated TODO list to user
+        this.eventEmitter.info(formatTodoList(todoStore.getJson()));
       }
 
 
@@ -611,8 +619,8 @@ Remember: Each TODO might require multiple tool calls to complete.`;
       content: step.action
     }));
     
-    // Call todo_manager tool with add_multiple action
-    const todoTool = this.toolManager.get('todo_manager');
+    // Call todo_manager_tool with add_multiple action
+    const todoTool = this.toolManager.get('todo_manager_tool');
     if (todoTool && todos.length > 0) {
       const args = { action: 'add_multiple' as const, todos };
       await todoTool.func(args);
