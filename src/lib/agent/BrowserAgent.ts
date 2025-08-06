@@ -61,7 +61,7 @@ import { createValidatorTool } from '@/lib/tools/validation/ValidatorTool';
 import { createScreenshotTool } from '@/lib/tools/utils/ScreenshotTool';
 import { createExtractTool } from '@/lib/tools/extraction/ExtractTool';
 import { createResultTool } from '@/lib/tools/result/ResultTool';
-import { generateSystemPrompt } from './BrowserAgent.prompt';
+import { generateSystemPrompt, generateSingleTurnExecutionPrompt } from './BrowserAgent.prompt';
 import { AIMessage, AIMessageChunk } from '@langchain/core/messages';
 import { EventProcessor } from '@/lib/events/EventProcessor';
 import { PLANNING_CONFIG } from '@/lib/tools/planning/PlannerTool.config';
@@ -94,7 +94,7 @@ export class BrowserAgent {
   private static readonly MAX_STEPS_OUTER_LOOP = 100;
 
   // Inner loop is -- execute TODOs, one after the other.
-  private static readonly MAX_STEPS_INNER_LOOP  = 15; 
+  private static readonly MAX_STEPS_INNER_LOOP  = 30; 
 
   // Tools that trigger glow animation when executed
   private static readonly GLOW_ENABLED_TOOLS = new Set([
@@ -314,77 +314,59 @@ export class BrowserAgent {
   // ===================================================================
   @Abortable
   private async _executeMultiStepStrategy(task: string): Promise<void> {
-    this.eventEmitter.debug('Executing as a complex multi-step task. Max steps: ' + BrowserAgent.MAX_STEPS_OUTER_LOOP);
+    this.eventEmitter.debug('Executing as a complex multi-step task');
     let outer_loop_index = 0;
-    const todoStore = this.executionContext.todoStore;
 
     while (outer_loop_index < BrowserAgent.MAX_STEPS_OUTER_LOOP) {
-      this.checkIfAborted();  // Check if the user has cancelled the task before executing
+      this.checkIfAborted();
 
-      // Inject current TODO state
-      const todoXml = await this._fetchTodoXml();
-      if (todoXml !== '<todos></todos>') {  // Only add if there are TODOs
-        this.messageManager.addAI(`Current TODO list:\n${todoXml}`);
-        // Show remaining TODOs to user at start of planning cycle
-        this.eventEmitter.info(formatTodoList(todoStore.getJson()));
-      }
-
-      // 1. PLAN: Create a new plan for the next few steps
+      // 1. PLAN: Create a new plan
       const plan = await this._createMultiStepPlan(task);
       if (plan.steps.length === 0) {
         throw new Error('Planning failed. Could not generate next steps.');
       }
+      this.eventEmitter.debug('Plan created:', JSON.stringify(plan, null, 2));
 
-      // Convert plan steps to TODOs (simple append)
+      // 2. Convert plan to TODOs
       await this._updateTodosFromPlan(plan);
 
       // Show TODO list after plan creation
+      const todoStore = this.executionContext.todoStore;
       this.eventEmitter.info(formatTodoList(todoStore.getJson()));
 
-      // 2. EXECUTE: Execute TODOs
+      // 3. EXECUTE: Inner loop with one TODO per turn
       let inner_loop_index = 0;
+      
       while (inner_loop_index < BrowserAgent.MAX_STEPS_INNER_LOOP && !todoStore.isAllDoneOrSkipped()) {
         this.checkIfAborted();
         
-        const todo = todoStore.getNextTodo();
-        if (!todo) break;
+        // Use the generateTodoExecutionPrompt for TODO execution
+        const instruction = generateSingleTurnExecutionPrompt(task);
         
-        inner_loop_index++;
-        outer_loop_index++; 
-
-        this.eventEmitter.info(`Executing - ${todo.content}...`);
-        
-        const instruction = `Current TODO: "${todo.content}". Complete this TODO. Before marking it as complete, you MUST:
-1. Call refresh_browser_state_tool to get the current page state
-2. Verify that the TODO is actually achieved based on the current state
-3. If TODO is done, mark it as complete using todo_manager_tool with action 'complete'
-4. If you discover that a previous TODO was not actually completed, use todo_manager_tool with action 'go_back' to mark that TODO and all subsequent ones as not done
-5. If this TODO is not yet done, continue executing on it`;
         const isTaskCompleted = await this._executeSingleTurn(instruction);
+        inner_loop_index++;
         
         if (isTaskCompleted) {
-          return;  // SUCCESS - task result will be generated in execute()
+          break; // done_tool was called
         }
       }
-      
-      // 3. VALIDATE: Check if task is complete after plan segment
+
+      // 4. VALIDATE: Check if we should continue or re-plan
       const validationResult = await this._validateTaskCompletion(task);
       if (validationResult.isComplete) {
-        // Task is complete - result will be generated in execute()
         return;
       }
-      
-      // 4. CONTINUE: Add validation result to message manager for planner
+
+      // Add validation feedback for next planning cycle
       if (validationResult.suggestions.length > 0) {
         const validationMessage = `Validation result: ${validationResult.reasoning}\nSuggestions: ${validationResult.suggestions.join(', ')}`;
         this.messageManager.addAI(validationMessage);
-        
-        // Emit validation result to debug events
-        this.eventEmitter.debug(`Validation result: ${JSON.stringify(validationResult, null, 2)}`);
       }
-      
+
+      outer_loop_index++;
     }
-    throw new Error(`Task did not complete within the maximum of ${BrowserAgent.MAX_STEPS_OUTER_LOOP} steps.`);
+
+    throw new Error(`Task did not complete within ${BrowserAgent.MAX_STEPS_OUTER_LOOP} planning cycles.`);
   }
 
   // ===================================================================
@@ -400,6 +382,8 @@ export class BrowserAgent {
     
     // This method encapsulates the streaming logic
     const llmResponse = await this._invokeLLMWithStreaming();
+    console.log("LLM Response:", JSON.stringify(llmResponse, null, 4));
+    
 
     let wasDoneToolCalled = false;
     if (llmResponse.tool_calls && llmResponse.tool_calls.length > 0) {
@@ -494,21 +478,28 @@ export class BrowserAgent {
       const displayMessage = formatToolOutput(toolName, parsedResult);
       this.eventEmitter.debug('Executing tool: ' + toolName + ' result: ' + displayMessage);
       
-      // Emit tool result for UI display (always shown)
-      this.eventEmitter.emitToolResult(toolName, result);
-
-      // Add the result back to the message history for context
-      // add toolMessage before systemReminders as openAI expects each 
-      // tool call to be followed by toolMessage
-      this.messageManager.addTool(result, toolCallId);
-
-      // Special handling for refresh_browser_state tool, add the browser state to the message history
-      if (toolName === 'refresh_browser_state_tool' && parsedResult.ok) {
-        // Add browser state as a system reminder that LLM should not print
-        this.messageManager.addSystemReminder(parsedResult.output);
+      // Emit tool result for UI display
+      // Skip emitting refresh_browser_state_tool to prevent browser state from appearing in UI
+      // The browser state is internal context that should not be shown to users
+      if (toolName !== 'refresh_browser_state_tool') {
+        this.eventEmitter.emitToolResult(toolName, result);
       }
 
-      // Special handling for todo_manager tool, add system reminder for mutations
+      // Add the result back to the message history for context
+      // Special handling for refresh_browser_state_tool vs other tools:
+      // - refresh_browser_state_tool: Add simplified tool message AND browser state context
+      // - All other tools: Add as regular tool message for proper conversation flow
+      if (toolName === 'refresh_browser_state_tool' && parsedResult.ok) {
+        // Add proper tool result message with toolCallId for message history continuity
+        const simplifiedResult = JSON.stringify({ ok: true, output: "Browser state refreshed successfully" });
+        this.messageManager.addTool(simplifiedResult, toolCallId);
+        // Also update the browser state context for the agent to use
+        this.messageManager.addBrowserState(parsedResult.output);
+      } else {
+        this.messageManager.addTool(result, toolCallId);
+      }
+
+      // Special handling for todo_manager_tool, add system reminder for mutations
       if (toolName === 'todo_manager_tool' && parsedResult.ok && args.action !== 'list') {
         const todoStore = this.executionContext.todoStore;
         this.messageManager.addSystemReminder(
@@ -557,7 +548,7 @@ export class BrowserAgent {
     const validatorTool = this.toolManager.get('validator_tool');
     if (!validatorTool) {
       return {
-        isComplete: true,
+        isComplete: false,
         reasoning: 'Validation skipped - tool not available',
         suggestions: []
       };
@@ -589,7 +580,7 @@ export class BrowserAgent {
     }
     
     return {
-      isComplete: true,
+      isComplete: false,
       reasoning: 'Validation failed - continuing execution',
       suggestions: []
     };
@@ -622,41 +613,18 @@ export class BrowserAgent {
     }
   }
 
-  /**
-   * Fetch current TODO list as XML
-   */
-  private async _fetchTodoXml(): Promise<string> {
-    const todoTool = this.toolManager.get('todo_manager_tool');
-    if (!todoTool) {
-      return '<todos></todos>';
-    }
-    
-    try {
-      const result = await todoTool.func({ action: 'list' });
-      const parsedResult = JSON.parse(result);
-      return parsedResult.ok ? parsedResult.output : '<todos></todos>';
-    } catch (error) {
-      return '<todos></todos>';
-    }
-  }
 
   /**
-   * Update TODOs from plan steps (simple append)
+   * Update TODOs from plan steps (replaces all existing TODOs)
    */
   private async _updateTodosFromPlan(plan: Plan): Promise<void> {
-    // Simple append - just add the plan steps as new TODOs
-    const todos = plan.steps.map(step => ({
-      content: step.action
-    }));
-    
-    // Call todo_manager tool with add_multiple action
     const todoTool = this.toolManager.get('todo_manager_tool');
-    if (todoTool && todos.length > 0) {
-      const args = { action: 'add_multiple' as const, todos };
-      await todoTool.func(args);
-      
-      // System reminder will be added by _processToolCalls special handling
-    }
+    if (!todoTool || plan.steps.length === 0) return;
+    
+    // Replace all TODOs with the new plan
+    const todos = plan.steps.map(step => ({ content: step.action }));
+    const args = { action: 'replace_all' as const, todos };
+    await todoTool.func(args);
   }
 
   /**

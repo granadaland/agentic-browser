@@ -113,7 +113,7 @@ describe('BrowserAgent-unit-test', () => {
     expect(todos[2].id).toBe(3)
     
     // Verify todo_manager tool was called
-    const todoTool = browserAgent['toolManager'].get('todo_manager')
+    const todoTool = browserAgent['toolManager'].get('todo_manager_tool')
     expect(todoTool).toBeDefined()
   })
 })
