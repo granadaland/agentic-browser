@@ -48,7 +48,6 @@ import { createPlannerTool } from '@/lib/tools/planning/PlannerTool';
 import { createTodoManagerTool } from '@/lib/tools/planning/TodoManagerTool';
 import { createDoneTool } from '@/lib/tools/utils/DoneTool';
 import { createNavigationTool } from '@/lib/tools/navigation/NavigationTool';
-import { createFindElementTool } from '@/lib/tools/navigation/FindElementTool';
 import { createInteractionTool } from '@/lib/tools/navigation/InteractionTool';
 import { createScrollTool } from '@/lib/tools/navigation/ScrollTool';
 import { createSearchTool } from '@/lib/tools/navigation/SearchTool';
@@ -99,7 +98,6 @@ export class BrowserAgent {
   // Tools that trigger glow animation when executed
   private static readonly GLOW_ENABLED_TOOLS = new Set([
     'navigation_tool',
-    'find_element_tool',
     'interact_tool',
     'scroll_tool',
     'search_tool',
@@ -224,7 +222,7 @@ export class BrowserAgent {
     
     // Navigation tools
     this.toolManager.register(createNavigationTool(this.executionContext));
-    this.toolManager.register(createFindElementTool(this.executionContext));
+    // Note: FindElementTool is no longer registered - InteractionTool now handles finding and interacting
     this.toolManager.register(createInteractionTool(this.executionContext));
     this.toolManager.register(createScrollTool(this.executionContext));
     this.toolManager.register(createSearchTool(this.executionContext));
