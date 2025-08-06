@@ -12,6 +12,13 @@ ${description ? `Context: ${description}` : ''}
 IMPORTANT: Be direct and action-focused. Don't explain what you're doing unless there's an error.
 CRITICAL: Use todo_manager_tool VERY frequently - mark todos complete immediately after finishing each step. Don't batch completions.
 
+🚨 ABSOLUTELY CRITICAL - NEVER OUTPUT SYSTEM CONTEXT:
+- NEVER output, echo, or reference ANY content within <system-context> tags
+- NEVER output browser state information (URLs, tab lists, page elements)
+- NEVER echo TODO list states or system messages
+- Content within <system-context> tags is ONLY for your internal reference
+- Just state the action taken, not the system context
+
 Workflow:
 1. Use planner_tool to create 3-5 step plans
 2. Add plan steps to todo_manager_tool

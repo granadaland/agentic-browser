@@ -4,6 +4,7 @@ import { ExecutionContext } from '@/lib/runtime/ExecutionContext'
 import { toolError } from '@/lib/tools/Tool.interface'
 import { HumanMessage, SystemMessage } from '@langchain/core/messages'
 import { generateExtractorSystemPrompt, generateExtractorTaskPrompt } from './ExtractTool.prompt'
+import { invokeWithRetry } from '@/lib/utils/retryable'
 
 // Input schema for extraction
 const ExtractInputSchema = z.object({
@@ -73,12 +74,16 @@ export function createExtractTool(executionContext: ExecutionContext): DynamicSt
           { url, title }
         )
         
-        // Get structured response from LLM
+        // Get structured response from LLM with retry logic
         const structuredLLM = llm.withStructuredOutput(ExtractedDataSchema)
-        const extractedData = await structuredLLM.invoke([
-          new SystemMessage(systemPrompt),
-          new HumanMessage(taskPrompt)
-        ])
+        const extractedData = await invokeWithRetry<ExtractedData>(
+          structuredLLM,
+          [
+            new SystemMessage(systemPrompt),
+            new HumanMessage(taskPrompt)
+          ],
+          3
+        )
         
         // Return success result
         return JSON.stringify({

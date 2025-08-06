@@ -213,7 +213,7 @@ export class PocAgent {
         (error instanceof Error && error.name === "AbortError");
 
       if (!isUserCancellation) {
-        this.eventEmitter.error(`Oops! Got a fatal error when executing task: ${errorMessage}`, true);  // Mark as fatal error
+        this.eventEmitter.error(`Couldn't complete the task because "${errorMessage}"`, true);  // Mark as fatal error
       }
 
       throw error;

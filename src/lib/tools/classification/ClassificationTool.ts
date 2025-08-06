@@ -8,6 +8,7 @@ import {
   buildClassificationSystemPrompt,
   buildClassificationTaskPrompt
 } from '@/lib/tools/classification/classification.tool.prompt'
+import { invokeWithRetry } from '@/lib/utils/retryable'
 
 // Constants
 const MAX_RECENT_MESSAGES = 10  // Number of recent messages to analyze
@@ -46,24 +47,16 @@ export class ClassificationTool {
       const systemPrompt = this._buildSystemPrompt()
       const taskPrompt = this._buildTaskPrompt(input.task, recentMessages)
       
-      // Call LLM
-      const response = await llm.invoke([
-        new SystemMessage(systemPrompt),
-        new HumanMessage(taskPrompt)
-      ])
-      
-      // Parse response
-      const content = response.content.toString()
-      const jsonMatch = content.match(/\{[\s\S]*\}/)
-      
-      if (!jsonMatch) {
-        throw new Error('No JSON found in LLM response')
-      }
-      
-      const result = JSON.parse(jsonMatch[0]) as ClassificationResult
-      
-      // Validate result
-      ClassificationResultSchema.parse(result)
+      // Call LLM with structured output and retry logic
+      const structuredLLM = llm.withStructuredOutput(ClassificationResultSchema)
+      const result = await invokeWithRetry<ClassificationResult>(
+        structuredLLM,
+        [
+          new SystemMessage(systemPrompt),
+          new HumanMessage(taskPrompt)
+        ],
+        3
+      )
       
       return JSON.stringify(toolSuccess(JSON.stringify(result)))
     } catch (error) {

@@ -25,8 +25,8 @@ export class RefreshStateTool {
         return toolError("No active page to refresh state from")
       }
 
-      // Get fresh browser state
-      const browserState = await browserContext.getBrowserStateString()
+      // Get fresh browser state - use simplified mode for cleaner output
+      const browserState = await browserContext.getBrowserStateString(true)
 
       return toolSuccess(browserState)
     } catch (error) {

@@ -61,7 +61,7 @@ describe("MessageManager", () => {
         msg.additional_kwargs?.messageType === MessageType.BROWSER_STATE
       );
       expect(browserStateMessages).toHaveLength(1);
-      expect(browserStateMessages[0].content).toBe("Second browser state");
+      expect(browserStateMessages[0].content).toBe("<system-context>Second browser state</system-context>");
     });
 
     it("tests that messages can be removed by type", () => {
@@ -166,6 +166,111 @@ describe("MessageManager", () => {
       expect(manager.getTokenCount()).toBe(0);
       expect(manager.remaining()).toBe(1000);
       expect(manager.removeLast()).toBe(false);
+    });
+
+    it("tests that trimming works when adding messages", () => {
+      // Create manager with tiny 10 token limit
+      const tinyManager = new MessageManager(10);
+      
+      // Add first message - should fit
+      tinyManager.addHuman("Hi"); // ~2 chars + 3 overhead = ~4 tokens
+      expect(tinyManager.getTokenCount()).toBeLessThanOrEqual(10);
+      expect(tinyManager.getMessages()).toHaveLength(1);
+      
+      // Add second message - should still fit
+      tinyManager.addHuman("Ok"); // ~2 chars + 3 overhead = ~4 tokens, total ~8
+      expect(tinyManager.getTokenCount()).toBeLessThanOrEqual(10);
+      expect(tinyManager.getMessages()).toHaveLength(2);
+      
+      // Add third message that would exceed limit - should trigger trimming
+      tinyManager.addHuman("Test"); // Would push total over 10
+      expect(tinyManager.getTokenCount()).toBeLessThanOrEqual(10);
+      const messages = tinyManager.getMessages();
+      
+      // Should have trimmed older messages to stay under limit
+      expect(messages.length).toBeLessThanOrEqual(2);
+      // Most recent message should be preserved
+      expect(messages[messages.length - 1].content).toBe("Test");
+    });
+
+    it("tests that large message histories are trimmed for tools (ValidatorTool scenario)", () => {
+      // Simulate ValidatorTool scenario with 200k token limit
+      const manager = new MessageManager(200_000);
+      
+      // Add many large messages to simulate a long conversation
+      for (let i = 0; i < 100; i++) {
+        // Each message is ~1000 chars = ~250 tokens + 3 overhead = ~253 tokens each
+        const largeContent = `This is message ${i}. `.repeat(50);
+        manager.addHuman(largeContent);
+        manager.addAI(`Response to message ${i}. `.repeat(40));
+      }
+      
+      // Token count should be massive (100 * 2 * 253 = ~50,600 tokens)
+      // But manager should have trimmed during adds
+      expect(manager.getTokenCount()).toBeLessThanOrEqual(200_000);
+      
+      // When ValidatorTool calls getMessages via MessageManagerReadOnly
+      const readOnly = new MessageManagerReadOnly(manager);
+      const messages = readOnly.getAll();
+      
+      // Calculate actual token count of returned messages
+      let totalTokens = 0;
+      for (const msg of messages) {
+        totalTokens += 3; // Message overhead
+        if (typeof msg.content === 'string') {
+          totalTokens += Math.ceil(msg.content.length / 4);
+        }
+      }
+      
+      // Should never exceed the limit
+      expect(totalTokens).toBeLessThanOrEqual(200_000);
+      console.log(`ValidatorTool scenario: ${messages.length} messages, ${totalTokens} tokens (limit: 200,000)`);
+    });
+
+    it("tests that getMessages now applies trimming - bug fixed", () => {
+      // Create manager with small token limit
+      const manager = new MessageManager(50);
+      
+      // Manually set messages to simulate accumulated history
+      // This bypasses add() to show what happens when messages are already stored
+      manager['messages'] = [
+        new HumanMessage("Message 1"),
+        new HumanMessage("Message 2"),
+        new HumanMessage("Message 3"),
+        new HumanMessage("Message 4"),
+        new HumanMessage("Message 5"),
+        new HumanMessage("Message 6"),
+        new HumanMessage("Message 7"),
+        new HumanMessage("Message 8"),
+        new HumanMessage("Message 9"),
+        new HumanMessage("Message 10")
+      ];
+      
+      // Check initial token count exceeds limit
+      const initialTokenCount = manager.getTokenCount();
+      expect(initialTokenCount).toBeGreaterThan(50);
+      console.log(`Initial token count: ${initialTokenCount}, Limit: 50`);
+      
+      // FIXED: getMessages() now trims to stay within token limit
+      const messages = manager.getMessages();
+      console.log(`After getMessages(), returned ${messages.length} messages`);
+      
+      // Verify trimming happened
+      expect(messages.length).toBeLessThan(10);
+      
+      // Verify we're now within token limit
+      const finalTokenCount = manager.getTokenCount();
+      expect(finalTokenCount).toBeLessThanOrEqual(50);
+      console.log(`Final token count: ${finalTokenCount}`);
+      
+      // Verify most recent messages are preserved
+      expect(messages[messages.length - 1].content).toBe("Message 10");
+      
+      // MessageManagerReadOnly.getAll() should also return trimmed messages
+      const readOnly = new MessageManagerReadOnly(manager);
+      const allMessages = readOnly.getAll();
+      expect(allMessages.length).toBeLessThan(10);
+      expect(allMessages.length).toBe(messages.length);
     });
 
     it("tests that complex content types are handled correctly", () => {

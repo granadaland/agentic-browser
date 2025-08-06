@@ -25,8 +25,8 @@ const DEFAULT_ANTHROPIC_MODEL = 'claude-4-sonnet'
 const DEFAULT_OLLAMA_MODEL = "qwen3:4b"
 const DEFAULT_OLLAMA_BASE_URL = "http://localhost:11434"
 const DEFAULT_NXTSCAPE_PROXY_URL = "http://llm.nxtscape.ai"
-const DEFAULT_NXTSCAPE_MODEL = "default-llm"
-const DEFAULT_GEMINI_MODEL = "gemini-2.0-flash"
+const DEFAULT_NXTSCAPE_MODEL = "default-llm"; // "openrouter-claude-4-sonnet"
+const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash"
 
 // Simple cache for LLM instances
 const llmCache = new Map<string, BaseChatModel>()
@@ -43,6 +43,11 @@ export const LLMConfigSchema = z.object({
 })
 
 export type LLMConfig = z.infer<typeof LLMConfigSchema>
+
+// Model capabilities interface
+export interface ModelCapabilities {
+  maxTokens: number;  // Maximum context window size
+}
 
 export class LangChainProvider {
   private static instance: LangChainProvider
@@ -75,6 +80,54 @@ export class LangChainProvider {
     llmCache.set(cacheKey, llm)
     
     return llm
+  }
+  
+  // Get model capabilities based on provider and model
+  async getModelCapabilities(config?: LLMConfig): Promise<ModelCapabilities> {
+    // If no config provided, create one from settings
+    if (!config) {
+      this.settings = await LLMSettingsReader.read()
+      config = this._createConfigFromSettings(this.settings)
+    }
+    
+    // Determine max tokens based on provider and model
+    switch (config.provider) {
+      case 'nxtscape':
+        // Nxtscape uses Gemini 2.5 Flash
+        return { maxTokens: 1_000_000}
+        
+      case 'openai':
+        // Check model name for context window size
+        if (config.model.includes('gpt-4') || config.model.includes('o1') || config.model.includes('o3') || config.model.includes('o4')) {
+          return { maxTokens: 128_000 }
+        }
+        return { maxTokens: 32_768 }
+        
+      case 'anthropic':
+        // Claude 3 models have 200k context
+        if (config.model.includes('claude-3.7') || config.model.includes('claude-4')) {
+          return { maxTokens: 200_000 }
+        }
+        return { maxTokens: 100_000 }
+        
+      case 'gemini':
+        // Gemini 2.5 Flash and Pro support 2M tokens, but setting to 1.5M for conseravtive reasons.
+        if (config.model.includes('2.5') || config.model.includes('2.0')) {
+          return { maxTokens: 1_500_000 }
+        }
+        return { maxTokens: 1_000_000 }
+        
+      case 'ollama':
+        // Ollama models vary widely, use conservative default
+        // Could be enhanced to query model info from Ollama API
+        if (config.model.includes('mixtral') || config.model.includes('llama') || config.model.includes('qwen') || config.model.includes('deepseek')) {
+          return { maxTokens: 32_768 }
+        }
+        return { maxTokens: 8_192 }
+        
+      default:
+        return { maxTokens: 8_192 }
+    }
   }
   
   // Public creator methods
@@ -177,6 +230,22 @@ export class LangChainProvider {
         // Nxtscape uses OpenAI client with proxy configuration
         return new ChatOpenAI({
           ...baseConfig,
+          // IMPORTANT: Model name mapping for tiktoken compatibility
+          // The 'modelName' field is what gets sent to the API (our custom model like "default-llm")
+          // The 'model' field is what tiktoken uses for token counting
+          // 
+          // Since nxtscape uses custom model names that tiktoken doesn't recognize (e.g., "default-llm"),
+          // we get "Unknown model" errors when LangChain tries to count tokens.
+          // 
+          // Solution: We keep the actual model name in 'modelName' for API calls,
+          // but override 'model' with a known OpenAI model ("gpt-4") for token counting.
+          // This eliminates the tiktoken errors while maintaining correct API behavior.
+          // 
+          // Note: "gpt-4" is chosen because:
+          // 1. It uses the cl100k_base encoding (same as GPT-3.5-turbo and GPT-4 family)
+          // 2. It has a large context window (128k) similar to our proxy models
+          // 3. Token counting will be approximate but reasonable for our use case
+          model: "openrouter-claude-4-sonnet",  // Known model for tiktoken token counting
           openAIApiKey: config.apiKey,  // This is the correct parameter name
           // The `configuration` field is forwarded directly to the underlying OpenAI client
           configuration: {

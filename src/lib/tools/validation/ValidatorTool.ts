@@ -5,6 +5,7 @@ import { MessageManagerReadOnly } from '@/lib/runtime/MessageManager'
 import { generateValidatorSystemPrompt, generateValidatorTaskPrompt } from './ValidatorTool.prompt'
 import { toolError } from '@/lib/tools/Tool.interface'
 import { HumanMessage, SystemMessage } from '@langchain/core/messages'
+import { invokeWithRetry } from '@/lib/utils/retryable'
 
 // Input schema
 const ValidatorInputSchema = z.object({
@@ -68,12 +69,16 @@ export function createValidatorTool(executionContext: ExecutionContext): Dynamic
           screenshot
         )
         
-        // Get structured response from LLM
+        // Get structured response from LLM with retry logic
         const structuredLLM = llm.withStructuredOutput(ValidationResultSchema)
-        const validation = await structuredLLM.invoke([
-          new SystemMessage(systemPrompt),
-          new HumanMessage(taskPrompt)
-        ])
+        const validation = await invokeWithRetry<z.infer<typeof ValidationResultSchema>>(
+          structuredLLM,
+          [
+            new SystemMessage(systemPrompt),
+            new HumanMessage(taskPrompt)
+          ],
+          3
+        )
         
         // Return standard tool output with validation data as JSON string
         const validationData = {

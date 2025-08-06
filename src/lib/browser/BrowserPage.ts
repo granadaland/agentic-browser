@@ -238,7 +238,7 @@ export class BrowserPage {
   /**
    * Get clickable elements as a formatted string
    */
-  async getClickableElementsString(): Promise<string> {
+  async getClickableElementsString(simplified: boolean = false): Promise<string> {
     const snapshot = await this._getSnapshot();
     if (!snapshot) {
       return '';
@@ -246,46 +246,60 @@ export class BrowserPage {
 
     const lines: string[] = [];
     
-    for (const node of snapshot.elements) {
-      if (node.type === 'clickable' || node.type === 'selectable') {
-        const parts: string[] = [];
-        
-        // Add indentation based on depth
-        const depth = parseInt(node.attributes?.depth || '0', 10);
-        const indent = '  '.repeat(depth);  // 2 spaces per level
-        
-        // [nodeId]
-        parts.push(`${indent}[${node.nodeId}]`);
-        
-        // <C> - Clickable type
-        parts.push('<C>');
-        
-        // <tag>
-        const tag = node.attributes?.['html-tag'] || node.attributes?.role || 'div';
-        parts.push(`<${tag}>`);
-        
-        // "name"
-        if (node.name) {
-          parts.push(`"${truncateText(node.name, 40)}"`);
+    if (simplified) {
+      // SIMPLIFIED MODE: Only [nodeId] name
+      for (const node of snapshot.elements) {
+        if (node.type === 'clickable' || node.type === 'selectable') {
+          // Skip if no name or empty name
+          if (!node.name || node.name.trim() === '') continue;
+          
+          // Simple format: [nodeId] name
+          lines.push(`[${node.nodeId}] ${node.name}`);
         }
-        
-        // ctx:"context"
-        if (node.attributes?.context) {
-          parts.push(`ctx:"${truncateText(node.attributes.context, 60)}"`);
+      }
+    } else {
+      // FULL MODE: Current implementation
+      for (const node of snapshot.elements) {
+        if (node.type === 'clickable' || node.type === 'selectable') {
+          const parts: string[] = [];
+          
+          // Add indentation based on depth
+          const depth = parseInt(node.attributes?.depth || '0', 10);
+          const indent = '  '.repeat(depth);  // 2 spaces per level
+          
+          // [nodeId]
+          parts.push(`${indent}[${node.nodeId}]`);
+          
+          // <C> - Clickable type
+          parts.push('<C>');
+          
+          // <tag>
+          const tag = node.attributes?.['html-tag'] || node.attributes?.role || 'div';
+          parts.push(`<${tag}>`);
+          
+          // "name"
+          if (node.name) {
+            parts.push(`"${truncateText(node.name, 40)}"`);
+          }
+          
+          // ctx:"context"
+          if (node.attributes?.context) {
+            parts.push(`ctx:"${truncateText(node.attributes.context, 60)}"`);
+          }
+          
+          // path:"...>..."
+          if (node.attributes?.path) {
+            parts.push(formatPath(node.attributes.path));
+          }
+          
+          // attr:"key=value ..."
+          const attrString = formatAttributes(node);
+          if (attrString) {
+            parts.push(attrString);
+          }
+          
+          lines.push(parts.join(' '));
         }
-        
-        // path:"...>..."
-        if (node.attributes?.path) {
-          parts.push(formatPath(node.attributes.path));
-        }
-        
-        // attr:"key=value ..."
-        const attrString = formatAttributes(node);
-        if (attrString) {
-          parts.push(attrString);
-        }
-        
-        lines.push(parts.join(' '));
       }
     }
     
@@ -295,7 +309,7 @@ export class BrowserPage {
   /**
    * Get typeable elements as a formatted string
    */
-  async getTypeableElementsString(): Promise<string> {
+  async getTypeableElementsString(simplified: boolean = false): Promise<string> {
     const snapshot = await this._getSnapshot();
     if (!snapshot) {
       return '';
@@ -303,47 +317,63 @@ export class BrowserPage {
 
     const lines: string[] = [];
     
-    for (const node of snapshot.elements) {
-      if (node.type === 'typeable') {
-        const parts: string[] = [];
-        
-        // Add indentation based on depth
-        const depth = parseInt(node.attributes?.depth || '0', 10);
-        const indent = '  '.repeat(depth);  // 2 spaces per level
-        
-        // [nodeId]
-        parts.push(`${indent}[${node.nodeId}]`);
-        
-        // <T> - Typeable type
-        parts.push('<T>');
-        
-        // <tag>
-        const tag = node.attributes?.['html-tag'] || node.attributes?.role || 'input';
-        parts.push(`<${tag}>`);
-        
-        // "name" - Often empty for inputs, so include placeholder
-        const displayName = node.name || node.attributes?.placeholder || '';
-        if (displayName) {
-          parts.push(`"${truncateText(displayName, 40)}"`);
+    if (simplified) {
+      // SIMPLIFIED MODE: Only [nodeId] name/placeholder/type
+      for (const node of snapshot.elements) {
+        if (node.type === 'typeable') {
+          // Use name, or placeholder, or type as fallback
+          const displayName = node.name || 
+                            node.attributes?.placeholder || 
+                            node.attributes?.type ||
+                            'input';
+          
+          lines.push(`[${node.nodeId}] ${displayName}`);
         }
-        
-        // ctx:"context"
-        if (node.attributes?.context) {
-          parts.push(`ctx:"${truncateText(node.attributes.context, 60)}"`);
+      }
+    } else {
+      // FULL MODE: Current implementation
+      for (const node of snapshot.elements) {
+        if (node.type === 'typeable') {
+          const parts: string[] = [];
+          
+          // Add indentation based on depth
+          const depth = parseInt(node.attributes?.depth || '0', 10);
+          const indent = '  '.repeat(depth);  // 2 spaces per level
+          
+          // [nodeId]
+          parts.push(`${indent}[${node.nodeId}]`);
+          
+          // <T> - Typeable type
+          parts.push('<T>');
+          
+          // <tag>
+          const tag = node.attributes?.['html-tag'] || node.attributes?.role || 'input';
+          parts.push(`<${tag}>`);
+          
+          // "name" - Often empty for inputs, so include placeholder
+          const displayName = node.name || node.attributes?.placeholder || '';
+          if (displayName) {
+            parts.push(`"${truncateText(displayName, 40)}"`);
+          }
+          
+          // ctx:"context"
+          if (node.attributes?.context) {
+            parts.push(`ctx:"${truncateText(node.attributes.context, 60)}"`);
+          }
+          
+          // path:"...>..."
+          if (node.attributes?.path) {
+            parts.push(formatPath(node.attributes.path));
+          }
+          
+          // attr:"key=value ..." - Includes type, placeholder, value
+          const attrString = formatAttributes(node);
+          if (attrString) {
+            parts.push(attrString);
+          }
+          
+          lines.push(parts.join(' '));
         }
-        
-        // path:"...>..."
-        if (node.attributes?.path) {
-          parts.push(formatPath(node.attributes.path));
-        }
-        
-        // attr:"key=value ..." - Includes type, placeholder, value
-        const attrString = formatAttributes(node);
-        if (attrString) {
-          parts.push(attrString);
-        }
-        
-        lines.push(parts.join(' '));
       }
     }
     

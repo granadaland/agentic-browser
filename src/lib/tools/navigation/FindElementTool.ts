@@ -4,6 +4,7 @@ import { ExecutionContext } from "@/lib/runtime/ExecutionContext"
 import { toolSuccess, toolError, type ToolOutput } from "@/lib/tools/Tool.interface"
 import { HumanMessage, SystemMessage } from "@langchain/core/messages"
 import { findElementPrompt } from "./FindElementTool.prompt"
+import { invokeWithRetry } from "@/lib/utils/retryable"
 
 // Input schema for find element operations
 export const FindElementInputSchema = z.object({
@@ -53,6 +54,13 @@ export class FindElementTool {
       const foundInClickable = browserState.clickableElements.find(el => el.nodeId === result.index)
       const foundInTypeable = browserState.typeableElements.find(el => el.nodeId === result.index)
 
+      // NTN: Log clickable and typeable elements with result index
+      console.log('NTN: Clickable elements:', JSON.stringify(browserState.clickableElements, null, 2))
+      console.log('NTN: Typeable elements:', JSON.stringify(browserState.typeableElements, null, 2))
+      console.log('NTN: Result index:', result.index)
+      console.log('NTN: Found in clickable:', JSON.stringify(foundInClickable, null, 2))
+      console.log('NTN: Found in typeable:', JSON.stringify(foundInTypeable, null, 2))
+
       if (!foundInClickable && !foundInTypeable) {
         return toolError(`Invalid index ${result.index} returned - element not found`)
       }
@@ -81,11 +89,15 @@ export class FindElementTool {
     
     userMessage += `\n\nInteractive elements on the page:\n${domContent}`
 
-    // Invoke LLM
-    const result = await structuredLLM.invoke([
-      new SystemMessage(findElementPrompt),
-      new HumanMessage(userMessage)
-    ])
+    // Invoke LLM with retry logic
+    const result = await invokeWithRetry<z.infer<typeof FindElementLLMSchema>>(
+      structuredLLM,
+      [
+        new SystemMessage(findElementPrompt),
+        new HumanMessage(userMessage)
+      ],
+      3
+    )
 
     return result
   }
