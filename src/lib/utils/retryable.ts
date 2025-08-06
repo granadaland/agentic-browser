@@ -23,7 +23,7 @@ export async function invokeWithRetry<T> (
     if (lastError) {
       messagesToSend.push(new AIMessage(
         `Previous attempt failed with error: ${lastError.message}\n` +
-        'Please correct your response format and try again.'
+        'Please correct your response format if required, or try again.'
       ))
     }
 

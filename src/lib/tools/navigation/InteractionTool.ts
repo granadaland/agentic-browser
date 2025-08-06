@@ -2,101 +2,227 @@ import { z } from "zod"
 import { DynamicStructuredTool } from "@langchain/core/tools"
 import { ExecutionContext } from "@/lib/runtime/ExecutionContext"
 import { toolSuccess, toolError, type ToolOutput } from "@/lib/tools/Tool.interface"
+import { findElementPrompt } from "./FindElementTool.prompt"
+import { invokeWithRetry } from "@/lib/utils/retryable"
+import { HumanMessage, SystemMessage } from "@langchain/core/messages"
 
 // Constants
 const INTERACTION_WAIT_MS = 1000
+const NUM_RETRIES = 1
+const RETRY_WAIT_MS = 500
 
 // Input schema for interaction operations
 export const InteractionInputSchema = z.object({
   operationType: z.enum(["click", "input_text", "clear", "send_keys"]),  // Operation to perform
-  index: z.number().optional(),  // Element index for click/input_text/clear
-  text: z.string().optional(),  // Text for input_text operation
+  description: z.string().optional(),  // Natural language description of element
+  input_text: z.string().optional(),  // Text for input_text operation
+  select_option: z.string().optional(),  // Option for select operation (not used yet)
   keys: z.string().optional(),  // Keys for send_keys operation
 })
 
 export type InteractionInput = z.infer<typeof InteractionInputSchema>
 
+// Schema for LLM structured output (copied from FindElementTool)
+const _FindElementSchema = z.object({
+  found: z.boolean().describe("Whether a matching element was found"),
+  index: z.number().nullable().describe("The index number of the best matching element (null if not found)"),
+  confidence: z.enum(["high", "medium", "low"]).nullable().describe("Confidence level in the match (null if not found)"),
+  reasoning: z.string().describe("Brief explanation of the decision"),
+})
+
 export class InteractionTool {
-  constructor(private executionContext: ExecutionContext) {}
+  constructor(
+    private executionContext: ExecutionContext
+  ) {}
 
   async execute(input: InteractionInput): Promise<ToolOutput> {
-    // Validate inputs
-    const validation = this._validateInput(input)
-    if (!validation.valid) {
-      return toolError(validation.error!)
+    // Route to appropriate method based on operation type
+    switch (input.operationType) {
+      case "click":
+        if (!input.description) {
+          return toolError("click operation requires description parameter")
+        }
+        return await this._clickElement(input.description)
+        
+      case "input_text":
+        if (!input.description || !input.input_text) {
+          return toolError("input_text operation requires description and input_text parameters")
+        }
+        return await this._inputTextElement(input.description, input.input_text)
+        
+      case "clear":
+        if (!input.description) {
+          return toolError("clear operation requires description parameter")
+        }
+        return await this._clearElement(input.description)
+        
+      case "send_keys":
+        if (!input.keys) {
+          return toolError("send_keys operation requires keys parameter")
+        }
+        return await this._sendKeys(input.keys)
+        
+      default:
+        return toolError(`Unknown operation: ${input.operationType}`)
     }
+  }
 
-    try {
-      switch (input.operationType) {
-        case "click":
-          return await this._clickElement(input.index!)
-        case "input_text":
-          return await this._inputText(input.index!, input.text!)
-        case "clear":
-          return await this._clearElement(input.index!)
-        case "send_keys":
-          return await this._sendKeys(input.keys!)
+  // Find element using LLM (adapted from FindElementTool)
+  private async _findElementWithLLM(description: string): Promise<z.infer<typeof _FindElementSchema>> {
+    // Get LLM instance from execution context
+    const llm = await this.executionContext.getLLM();
+
+    // Create structured LLM
+    const structuredLLM = llm.withStructuredOutput(_FindElementSchema)
+
+    // Get current task from execution context
+    const currentTask = this.executionContext.getCurrentTask()
+
+    // Build user message with task context if available
+    let userMessage = `Find the element matching this description: "${description}"`
+    
+    if (currentTask) {
+      userMessage = `User's goal: ${currentTask}\n\n${userMessage}`
+    }
+    
+    // Get browser state
+    const browserState = await this.executionContext.browserContext.getBrowserState()
+
+    if (!browserState.clickableElements.length && !browserState.typeableElements.length) {
+      throw new Error("No interactive elements found on the current page")
+    }
+    
+    userMessage += `\n\nInteractive elements on the page:\n${browserState.clickableElementsString}\n${browserState.typeableElementsString}`
+
+    // Invoke LLM with retry logic
+    const result = await invokeWithRetry<z.infer<typeof _FindElementSchema>>(
+      structuredLLM,
+      [
+        new SystemMessage(findElementPrompt),
+        new HumanMessage(userMessage)
+      ],
+      3
+    )
+
+    return result
+  }
+
+  // Updated find element with type checking
+  private async _findElement(description: string, interactionType: 'click' | 'type'): Promise<number> {
+    const result = await this._findElementWithLLM(description)
+    
+    if (!result.found || result.index === null) {
+      throw new Error(result.reasoning || `No element found matching "${description}"`)
+    }
+    
+    // Verify element exists and is appropriate type
+    const browserState = await this.executionContext.browserContext.getBrowserState()
+    const isClickable = interactionType === 'click'
+    const elements = isClickable ? browserState.clickableElements : browserState.typeableElements
+    
+    const found = elements.find(el => el.nodeId === result.index)
+    
+    if (!found) {
+      throw new Error(`Invalid index ${result.index} returned - element not found or wrong type for ${interactionType}`)
+    }
+    
+    return result.index
+  }
+
+  // Click element with retry logic
+  private async _clickElement(description: string): Promise<ToolOutput> {
+    for (let attempt = 1; attempt <= NUM_RETRIES; attempt++) {
+      try {
+        // Find element (returns nodeId)
+        const nodeId = await this._findElement(description, 'click')
+        
+        // Get element and click
+        const page = await this.executionContext.browserContext.getCurrentPage()
+        const element = await page.getElementByIndex(nodeId)
+        
+        if (!element) {
+          throw new Error(`Element with nodeId ${nodeId} not found`)
+        }
+
+        // Check for file uploader
+        if (page.isFileUploader(element)) {
+          return toolError(`Element "${description}" opens a file upload dialog. File uploads are not supported.`)
+        }
+
+        // Click element
+        await page.clickElement(nodeId)
+        await new Promise(resolve => setTimeout(resolve, INTERACTION_WAIT_MS))
+        return toolSuccess(`Clicked element: "${description}"`)
+        
+      } catch (error) {
+        if (attempt === NUM_RETRIES) {
+          return toolError(`Failed to click "${description}": ${error instanceof Error ? error.message : String(error)}`)
+        }
+        await new Promise(resolve => setTimeout(resolve, RETRY_WAIT_MS))
       }
-    } catch (error) {
-      return toolError(`Interaction failed: ${error instanceof Error ? error.message : String(error)}`)
     }
+    return toolError(`Failed to click "${description}" after ${NUM_RETRIES} attempts`)
   }
 
-  private _validateInput(input: InteractionInput): { valid: boolean; error?: string } {
-    const requiresIndex = ["click", "input_text", "clear"]
-    
-    if (requiresIndex.includes(input.operationType) && input.index === undefined) {
-      return { valid: false, error: `${input.operationType} operation requires index parameter` }
-    }
-    
-    if (input.operationType === "input_text" && !input.text) {
-      return { valid: false, error: "input_text operation requires text parameter" }
-    }
-    
-    if (input.operationType === "send_keys" && !input.keys) {
-      return { valid: false, error: "send_keys operation requires keys parameter" }
-    }
+  // Input text with retry logic
+  private async _inputTextElement(description: string, text: string): Promise<ToolOutput> {
+    for (let attempt = 1; attempt <= NUM_RETRIES; attempt++) {
+      try {
+        // Find element (returns nodeId)
+        const nodeId = await this._findElement(description, 'type')
+        
+        // Get element and input text
+        const page = await this.executionContext.browserContext.getCurrentPage()
+        const element = await page.getElementByIndex(nodeId)
+        
+        if (!element) {
+          throw new Error(`Element with nodeId ${nodeId} not found`)
+        }
 
-    return { valid: true }
+        // Clear and input text
+        await page.clearElement(nodeId)
+        await page.inputText(nodeId, text)
+        await new Promise(resolve => setTimeout(resolve, INTERACTION_WAIT_MS))
+        return toolSuccess(`Typed "${text}" into "${description}"`)
+        
+      } catch (error) {
+        if (attempt === NUM_RETRIES) {
+          return toolError(`Failed to input text into "${description}": ${error instanceof Error ? error.message : String(error)}`)
+        }
+        await new Promise(resolve => setTimeout(resolve, RETRY_WAIT_MS))
+      }
+    }
+    return toolError(`Failed to input text into "${description}" after ${NUM_RETRIES} attempts`)
   }
 
-  private async _clickElement(index: number): Promise<ToolOutput> {
-    const page = await this.executionContext.browserContext.getCurrentPage()
-    const element = await page.getElementByIndex(index)
-    
-    if (!element) {
-      return toolError(`Element with index ${index} not found`)
-    }
+  // Clear element with retry logic
+  private async _clearElement(description: string): Promise<ToolOutput> {
+    for (let attempt = 1; attempt <= NUM_RETRIES; attempt++) {
+      try {
+        // Find element (returns nodeId)
+        const nodeId = await this._findElement(description, 'type')
+        
+        // Get element and clear
+        const page = await this.executionContext.browserContext.getCurrentPage()
+        const element = await page.getElementByIndex(nodeId)
+        
+        if (!element) {
+          throw new Error(`Element with nodeId ${nodeId} not found`)
+        }
 
-    // Check for file uploader
-    if (page.isFileUploader(element)) {
-      return toolError(`Element ${index} opens a file upload dialog. File uploads are not supported.`)
+        // Clear element
+        await page.clearElement(nodeId)
+        await new Promise(resolve => setTimeout(resolve, INTERACTION_WAIT_MS))
+        return toolSuccess(`Cleared element: "${description}"`)
+        
+      } catch (error) {
+        if (attempt === NUM_RETRIES) {
+          return toolError(`Failed to clear "${description}": ${error instanceof Error ? error.message : String(error)}`)
+        }
+        await new Promise(resolve => setTimeout(resolve, RETRY_WAIT_MS))
+      }
     }
-
-    // Click element
-    await page.clickElement(element.nodeId)
-    await new Promise(resolve => setTimeout(resolve, INTERACTION_WAIT_MS))
-    return toolSuccess(`Clicked element ${index}`)
-  }
-
-  private async _inputText(index: number, text: string): Promise<ToolOutput> {
-    const page = await this.executionContext.browserContext.getCurrentPage()
-    const element = await page.getElementByIndex(index)
-    if (!element) {
-      return toolError(`Element with index ${index} not found`)
-    }
-    await page.inputText(element.nodeId, text)
-    return toolSuccess(`Entered text into element ${index}`)
-  }
-
-  private async _clearElement(index: number): Promise<ToolOutput> {
-    const page = await this.executionContext.browserContext.getCurrentPage()
-    const element = await page.getElementByIndex(index)
-    if (!element) {
-      return toolError(`Element with index ${index} not found`)
-    }
-    await page.clearElement(element.nodeId)
-    return toolSuccess(`Cleared element ${index}`)
+    return toolError(`Failed to clear "${description}" after ${NUM_RETRIES} attempts`)
   }
 
   private async _sendKeys(keys: string): Promise<ToolOutput> {
@@ -107,12 +233,30 @@ export class InteractionTool {
 }
 
 // LangChain wrapper factory function
-export function createInteractionTool(executionContext: ExecutionContext): DynamicStructuredTool {
+export function createInteractionTool(
+  executionContext: ExecutionContext
+): DynamicStructuredTool {
   const interactionTool = new InteractionTool(executionContext)
   
   return new DynamicStructuredTool({
     name: "interact_tool",
-    description: "Perform element interactions: click, input_text (type text), clear (clear field), or send_keys (keyboard keys).",
+    description: `Interact with page elements by describing them in natural language. This tool automatically finds and interacts with elements in a single step.
+
+IMPORTANT: You do NOT need to find elements first - this tool handles both finding and interacting.
+
+Operations:
+- click: Click on an element
+- input_text: Type text into an input field  
+- clear: Clear the contents of a field
+- send_keys: Send keyboard keys (like Enter, Tab, etc.)
+
+Examples:
+- Click button: { operationType: "click", description: "Submit button" }
+- Fill input: { operationType: "input_text", description: "email field", input_text: "user@example.com" }
+- Clear field: { operationType: "clear", description: "search box" }
+- Press key: { operationType: "send_keys", keys: "Enter" }
+
+The tool uses AI to find the best matching element based on your description, then performs the action.`,
     schema: InteractionInputSchema,
     func: async (args): Promise<string> => {
       const result = await interactionTool.execute(args)
