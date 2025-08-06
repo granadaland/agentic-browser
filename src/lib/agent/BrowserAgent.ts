@@ -94,7 +94,7 @@ export class BrowserAgent {
   private static readonly MAX_STEPS_OUTER_LOOP = 100;
 
   // Inner loop is -- execute TODOs, one after the other.
-  private static readonly MAX_STEPS_INNER_LOOP  = 15; 
+  private static readonly MAX_STEPS_INNER_LOOP  = 30; 
 
   // Tools that trigger glow animation when executed
   private static readonly GLOW_ENABLED_TOOLS = new Set([

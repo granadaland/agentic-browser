@@ -100,8 +100,9 @@ export class MessageManager {
     this._trimIfNeeded();
   }
 
-  // Get messages
+  // Get messages - applies trimming to ensure we never exceed token limit
   getMessages(): BaseMessage[] {
+    this._trimIfNeeded();
     return [...this.messages];
   }
 
