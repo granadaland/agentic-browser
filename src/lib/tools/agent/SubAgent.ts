@@ -22,6 +22,7 @@ import { createScreenshotTool } from '@/lib/tools/utils/ScreenshotTool';
 import { createExtractTool } from '@/lib/tools/extraction/ExtractTool';
 import { generateSubAgentSystemPrompt, generateSubAgentTaskPrompt } from './SubAgent.prompt';
 import { z } from 'zod';
+import { invokeWithRetry } from '@/lib/utils/retryable';
 
 // Schema for summary generation
 const SubAgentSummarySchema = z.object({
@@ -369,12 +370,16 @@ ${browserState}
 
 Based on the execution history and final state, determine if the task was successfully completed and provide a brief 1-2 sentence summary of what was accomplished.`;
       
-      // Get structured response from LLM
+      // Get structured response from LLM with retry logic
       const structuredLLM = llm.withStructuredOutput(SubAgentSummarySchema);
-      const result = await structuredLLM.invoke([
-        new SystemMessage(systemPrompt),
-        new HumanMessage(taskPrompt)
-      ]) as { success: boolean; summary: string };
+      const result = await invokeWithRetry<{ success: boolean; summary: string }>(
+        structuredLLM,
+        [
+          new SystemMessage(systemPrompt),
+          new HumanMessage(taskPrompt)
+        ],
+        3
+      );
       
       return result;
     } catch (error) {

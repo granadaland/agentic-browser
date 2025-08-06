@@ -5,6 +5,7 @@ import { MessageManagerReadOnly } from '@/lib/runtime/MessageManager';
 import { generateResultSystemPrompt, generateResultTaskPrompt } from './ResultTool.prompt';
 import { toolError } from '@/lib/tools/Tool.interface';
 import { HumanMessage, SystemMessage, ToolMessage } from '@langchain/core/messages';
+import { invokeWithRetry } from '@/lib/utils/retryable';
 
 // Input schema - simple
 const ResultInputSchema = z.object({
@@ -48,12 +49,16 @@ export function createResultTool(executionContext: ExecutionContext): DynamicStr
           browserState
         );
         
-        // Get structured response from LLM
+        // Get structured response from LLM with retry logic
         const structuredLLM = llm.withStructuredOutput(ResultSummarySchema);
-        const result = await structuredLLM.invoke([
-          new SystemMessage(systemPrompt),
-          new HumanMessage(taskPrompt)
-        ]);
+        const result = await invokeWithRetry<z.infer<typeof ResultSummarySchema>>(
+          structuredLLM,
+          [
+            new SystemMessage(systemPrompt),
+            new HumanMessage(taskPrompt)
+          ],
+          3
+        );
         
         // Format and return result
         return JSON.stringify({

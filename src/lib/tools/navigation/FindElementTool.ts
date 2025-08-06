@@ -4,6 +4,7 @@ import { ExecutionContext } from "@/lib/runtime/ExecutionContext"
 import { toolSuccess, toolError, type ToolOutput } from "@/lib/tools/Tool.interface"
 import { HumanMessage, SystemMessage } from "@langchain/core/messages"
 import { findElementPrompt } from "./FindElementTool.prompt"
+import { invokeWithRetry } from "@/lib/utils/retryable"
 
 // Input schema for find element operations
 export const FindElementInputSchema = z.object({
@@ -88,11 +89,15 @@ export class FindElementTool {
     
     userMessage += `\n\nInteractive elements on the page:\n${domContent}`
 
-    // Invoke LLM
-    const result = await structuredLLM.invoke([
-      new SystemMessage(findElementPrompt),
-      new HumanMessage(userMessage)
-    ])
+    // Invoke LLM with retry logic
+    const result = await invokeWithRetry<z.infer<typeof FindElementLLMSchema>>(
+      structuredLLM,
+      [
+        new SystemMessage(findElementPrompt),
+        new HumanMessage(userMessage)
+      ],
+      3
+    )
 
     return result
   }
