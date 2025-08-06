@@ -7,6 +7,7 @@ import { toolError } from '@/lib/tools/Tool.interface';
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { PLANNING_CONFIG } from './PlannerTool.config';
 import { MessageType } from '@/lib/runtime/MessageManager';
+import { invokeWithRetry } from '@/lib/utils/retryable';
 
 // Input schema - simple so LLM can generate and pass it
 const PlannerInputSchema = z.object({
@@ -52,12 +53,16 @@ export function createPlannerTool(executionContext: ExecutionContext): DynamicSt
           browserState
         );
         
-        // Get structured response from LLM
+        // Get structured response from LLM with retry logic
         const structuredLLM = llm.withStructuredOutput(PlanSchema);
-        const plan = await structuredLLM.invoke([
-          new SystemMessage(systemPrompt),
-          new HumanMessage(taskPrompt)
-        ]);
+        const plan = await invokeWithRetry<z.infer<typeof PlanSchema>>(
+          structuredLLM,
+          [
+            new SystemMessage(systemPrompt),
+            new HumanMessage(taskPrompt)
+          ],
+          3
+        );
         
         // Format and return result
         return JSON.stringify({
