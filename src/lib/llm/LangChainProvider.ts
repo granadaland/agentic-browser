@@ -25,7 +25,7 @@ const DEFAULT_ANTHROPIC_MODEL = 'claude-4-sonnet'
 const DEFAULT_OLLAMA_MODEL = "qwen3:4b"
 const DEFAULT_OLLAMA_BASE_URL = "http://localhost:11434"
 const DEFAULT_NXTSCAPE_PROXY_URL = "http://llm.nxtscape.ai"
-const DEFAULT_NXTSCAPE_MODEL = "openrouter-claude-4-sonnet"
+const DEFAULT_NXTSCAPE_MODEL = "default-llm"; // "openrouter-claude-4-sonnet"
 const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash"
 
 // Simple cache for LLM instances
@@ -94,7 +94,7 @@ export class LangChainProvider {
     switch (config.provider) {
       case 'nxtscape':
         // Nxtscape uses Gemini 2.5 Flash
-        return { maxTokens: 200_000}
+        return { maxTokens: 1_000_000}
         
       case 'openai':
         // Check model name for context window size
