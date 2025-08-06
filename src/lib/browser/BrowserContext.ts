@@ -255,41 +255,58 @@ export class BrowserContext {
   /**
    * Get detailed browser state description for agents
    */
-  public async getBrowserStateString(): Promise<string> {
+  public async getBrowserStateString(simplified: boolean = false): Promise<string> {
     return profileAsync('BrowserContext.getBrowserStateString', async () => {
     try {
-      // Use the structured getBrowserState API
-      const browserState = await this.getBrowserState();
+      // Use the structured getBrowserState API - pass simplified flag
+      const browserState = await this.getBrowserState(simplified);
       
       // Format current tab
       const currentTab = `{id: ${browserState.tabId}, url: ${browserState.url}, title: ${browserState.title}}`;
       
-      // Format other tabs
-      const otherTabs = browserState.tabs
-        .filter(tab => tab.id !== browserState.tabId)
-        .map(tab => `- {id: ${tab.id}, url: ${tab.url}, title: ${tab.title}}`);
+      if (simplified) {
+        // SIMPLIFIED FORMAT - minimal output with just interactive elements
+        const elements: string[] = [];
+        
+        // Combine clickable and typeable with clear labels
+        if (browserState.clickableElementsString) {
+          elements.push('Clickable:\n' + browserState.clickableElementsString);
+        }
+        if (browserState.typeableElementsString) {
+          elements.push('Inputs:\n' + browserState.typeableElementsString);
+        }
+        
+        const elementsText = elements.join('\n\n') || 'No interactive elements found';
+        
+        return `BROWSER STATE:
+Current tab: ${currentTab}
 
-      // Get current date/time
-      const timeStr = new Date().toISOString().slice(0, 16).replace('T', ' ');
+Elements:
+${elementsText}`;
+        
+      } else {
+        // FULL FORMAT - existing detailed implementation
+        // Format other tabs
+        const otherTabs = browserState.tabs
+          .filter(tab => tab.id !== browserState.tabId)
+          .map(tab => `- {id: ${tab.id}, url: ${tab.url}, title: ${tab.title}}`);
 
-      // Combine clickable and typeable elements
+        // Get current date/time
+        const timeStr = new Date().toISOString().slice(0, 16).replace('T', ' ');
 
-      let elementsText = '';
-      const parts: string[] = [];
-      if (browserState.clickableElementsString) {
-        parts.push('Clickable elements:\n' + browserState.clickableElementsString);
-      }
-      if (browserState.typeableElementsString) {
-        parts.push('Input fields:\n' + browserState.typeableElementsString);
-      }
-      elementsText = parts.join('\n\n') || 'No interactive elements found';
+        // Combine clickable and typeable elements
+        let elementsText = '';
+        const parts: string[] = [];
+        if (browserState.clickableElementsString) {
+          parts.push('Clickable elements:\n' + browserState.clickableElementsString);
+        }
+        if (browserState.typeableElementsString) {
+          parts.push('Input fields:\n' + browserState.typeableElementsString);
+        }
+        elementsText = parts.join('\n\n') || 'No interactive elements found';
 
-
-      // Include hierarchical structure if available
-      // elementsText = browserState.hierarchicalStructure?  `\n\nHierarchical structure:\n${browserState.hierarchicalStructure}` : '';
-
-      // Build state description
-      const stateDescription = `
+        // Build state description
+        const stateDescription = `
 BROWSER STATE:
 Current tab: ${currentTab}
 Other available tabs:
@@ -300,7 +317,8 @@ Interactive elements from the current page (numbers in [brackets] are nodeIds):
 ${elementsText}
 `;
 
-      return stateDescription;
+        return stateDescription;
+      }
     } catch (error) {
       Logging.log('BrowserContextV2', `Failed to get detailed browser state: ${error}`, 'warning');
       const currentPage = await this.getCurrentPage();
@@ -432,7 +450,7 @@ ${elementsText}
    * Get structured browser state (V2 clean API)
    * @returns BrowserState object with current page info and interactive elements
    */
-  public async getBrowserState(): Promise<BrowserState> {
+  public async getBrowserState(simplified: boolean = false): Promise<BrowserState> {
     return profileAsync('BrowserContext.getBrowserState', async () => {
     try {
       const currentPage = await this.getCurrentPage();
@@ -443,16 +461,16 @@ ${elementsText}
       const title = await currentPage.title();
       const tabId = currentPage.tabId;
 
-      // Get formatted strings from the page
-      const clickableElementsString = await currentPage.getClickableElementsString();
-      const typeableElementsString = await currentPage.getTypeableElementsString();
+      // Get formatted strings from the page - pass simplified flag
+      const clickableElementsString = await currentPage.getClickableElementsString(simplified);
+      const typeableElementsString = await currentPage.getTypeableElementsString(simplified);
       
       // Get structured elements from the page
       const clickableElements = await currentPage.getClickableElements();
       const typeableElements = await currentPage.getTypeableElements();
       
-      // Get hierarchical structure
-      const hierarchicalStructure = await currentPage.getHierarchicalStructure();
+      // Get hierarchical structure - skip if simplified
+      const hierarchicalStructure = simplified ? null : await currentPage.getHierarchicalStructure();
       
       
       // Build structured state
