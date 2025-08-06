@@ -9,6 +9,22 @@
 
     <!-- Updates -->
     <item>
+      <title>Nxtscape - 0.18.0</title>
+      <description sparkle:format="plain-text">
+- New revamped Agent infra! This should improve our agents reliability and performance. Please test it out and give us your feedback!
+      </description>
+      <sparkle:version>7194.69</sparkle:version>
+      <sparkle:shortVersionString>0.18.0</sparkle:shortVersionString>
+      <pubDate>Thu, 31 Jul 2025 17:31:17 -0700</pubDate>
+      <link>https://nxtscape.ai</link>
+      <enclosure
+        url="http://cdn.browseros.com/dmg/BrowserOS_v0.18.0_x64.dmg"
+        sparkle:edSignature="bUOQce0PX58kMaVHrbJlcOWWWFXeD3bfd6Ju5DZ2OIXcQC7oO6w2TknEisDbvVJdwEAol5aZL0nR4qn3R7VqDw==" 
+        length="135451706"
+        type="application/octet-stream" />
+      <sparkle:minimumSystemVersion>10.15</sparkle:minimumSystemVersion>
+    </item>
+    <item>
       <title>Nxtscape - 0.17.0</title>
       <description sparkle:format="plain-text">
       </description>

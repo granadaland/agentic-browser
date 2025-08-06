@@ -1,0 +1,314 @@
+From 6fe6dc59d30de967b26c6c912e38bff3bb6376c7 Mon Sep 17 00:00:00 2001
+From: Nikhil Sonti <nikhilsv92@gmail.com>
+Date: Tue, 5 Aug 2025 15:22:49 -0700
+Subject: [PATCH 1/3] BrowserOS API for get/set prefs
+
+---
+ .../api/browser_os/browser_os_api.cc          | 163 ++++++++++++++++++
+ .../api/browser_os/browser_os_api.h           |  40 +++++
+ chrome/common/extensions/api/browser_os.idl   |  36 ++++
+ .../extension_function_histogram_value.h      |   3 +
+ 4 files changed, 242 insertions(+)
+
+diff --git a/chrome/browser/extensions/api/browser_os/browser_os_api.cc b/chrome/browser/extensions/api/browser_os/browser_os_api.cc
+index 31d54b9d0fb58..c2315276f6cd6 100644
+--- a/chrome/browser/extensions/api/browser_os/browser_os_api.cc
++++ b/chrome/browser/extensions/api/browser_os/browser_os_api.cc
+@@ -11,6 +11,8 @@
+ #include <vector>
+ 
+ #include "base/functional/bind.h"
++#include "chrome/browser/profiles/profile.h"
++#include "components/prefs/pref_service.h"
+ #include "base/json/json_writer.h"
+ #include "base/strings/utf_string_conversions.h"
+ #include "base/base64.h"
+@@ -791,5 +793,166 @@ void BrowserOSGetSnapshotFunction::OnContentProcessed(
+       browser_os::GetSnapshot::Results::Create(result.snapshot)));
+ }
+ 
++// BrowserOSGetPrefFunction
++ExtensionFunction::ResponseAction BrowserOSGetPrefFunction::Run() {
++  std::optional<browser_os::GetPref::Params> params =
++      browser_os::GetPref::Params::Create(args());
++  EXTENSION_FUNCTION_VALIDATE(params);
++
++  // Allow reading any preferences - no restrictions for now
++  // This includes nxtscape.*, browseros.*, and any other preferences
++  // Note: Be careful with this in production as it exposes all Chrome preferences
++
++  Profile* profile = Profile::FromBrowserContext(browser_context());
++  PrefService* prefs = profile->GetPrefs();
++
++  if (!prefs->HasPrefPath(params->name)) {
++    return RespondNow(Error("Preference not found: " + params->name));
++  }
++
++  // Create PrefObject to return
++  browser_os::PrefObject pref_obj;
++  pref_obj.key = params->name;
++  
++  // Get the preference value - user value if set, otherwise default
++  // GetDefaultPrefValue returns const base::Value* and is guaranteed 
++  // to not be nullptr for registered preferences per Chromium API
++  const base::Value* value = prefs->GetUserPrefValue(params->name);
++  if (!value) {
++    value = prefs->GetDefaultPrefValue(params->name);
++  }
++
++  // Set type based on value type
++  switch (value->type()) {
++    case base::Value::Type::BOOLEAN:
++      pref_obj.type = "boolean";
++      break;
++    case base::Value::Type::INTEGER:
++      pref_obj.type = "number";
++      break;
++    case base::Value::Type::DOUBLE:
++      pref_obj.type = "number";
++      break;
++    case base::Value::Type::STRING:
++      pref_obj.type = "string";
++      break;
++    case base::Value::Type::LIST:
++      pref_obj.type = "list";
++      break;
++    case base::Value::Type::DICT:
++      pref_obj.type = "dictionary";
++      break;
++    default:
++      pref_obj.type = "unknown";
++  }
++
++  pref_obj.value = value->Clone();
++
++  return RespondNow(ArgumentList(
++      browser_os::GetPref::Results::Create(pref_obj)));
++}
++
++// BrowserOSSetPrefFunction
++ExtensionFunction::ResponseAction BrowserOSSetPrefFunction::Run() {
++  std::optional<browser_os::SetPref::Params> params =
++      browser_os::SetPref::Params::Create(args());
++  EXTENSION_FUNCTION_VALIDATE(params);
++
++  // Allow setting nxtscape.* and browseros.* prefs
++  // This provides access to AI provider configurations
++  if (!params->name.starts_with("nxtscape.") && 
++      !params->name.starts_with("browseros.")) {
++    return RespondNow(Error("Only nxtscape.* and browseros.* preferences can be modified"));
++  }
++
++  Profile* profile = Profile::FromBrowserContext(browser_context());
++  PrefService* prefs = profile->GetPrefs();
++
++  if (!prefs->HasPrefPath(params->name)) {
++    return RespondNow(Error("Preference not found: " + params->name));
++  }
++
++  // Set the preference value
++  prefs->Set(params->name, params->value);
++
++  return RespondNow(ArgumentList(
++      browser_os::SetPref::Results::Create(true)));
++}
++
++// BrowserOSGetAllPrefsFunction
++ExtensionFunction::ResponseAction BrowserOSGetAllPrefsFunction::Run() {
++  Profile* profile = Profile::FromBrowserContext(browser_context());
++  PrefService* prefs = profile->GetPrefs();
++
++  // List of all nxtscape and browseros prefs to return
++  const std::vector<std::string> nxtscape_prefs = {
++    // Legacy nxtscape prefs
++    "nxtscape.default_provider",
++    "nxtscape.nxtscape_model",
++    "nxtscape.openai_api_key",
++    "nxtscape.openai_model",
++    "nxtscape.openai_base_url",
++    "nxtscape.anthropic_api_key",
++    "nxtscape.anthropic_model",
++    "nxtscape.anthropic_base_url",
++    "nxtscape.gemini_api_key",
++    "nxtscape.gemini_model",
++    "nxtscape.gemini_base_url",
++    "nxtscape.ollama_api_key",
++    "nxtscape.ollama_model",
++    "nxtscape.ollama_base_url",
++    // New browseros prefs
++    "browseros.providers",
++    "browseros.default_provider_id",
++    "browseros.show_toolbar_labels",
++    "browseros.custom_providers"
++  };
++
++  std::vector<browser_os::PrefObject> pref_objects;
++
++  for (const auto& pref_name : nxtscape_prefs) {
++    if (prefs->HasPrefPath(pref_name)) {
++      browser_os::PrefObject pref_obj;
++      pref_obj.key = pref_name;
++      
++      // Get the preference value - user value if set, otherwise default
++      const base::Value* value = prefs->GetUserPrefValue(pref_name);
++      if (!value) {
++        value = prefs->GetDefaultPrefValue(pref_name);
++      }
++
++      // Set type based on value type
++      switch (value->type()) {
++        case base::Value::Type::BOOLEAN:
++          pref_obj.type = "boolean";
++          break;
++        case base::Value::Type::INTEGER:
++          pref_obj.type = "number";
++          break;
++        case base::Value::Type::DOUBLE:
++          pref_obj.type = "number";
++          break;
++        case base::Value::Type::STRING:
++          pref_obj.type = "string";
++          break;
++        case base::Value::Type::LIST:
++          pref_obj.type = "list";
++          break;
++        case base::Value::Type::DICT:
++          pref_obj.type = "dictionary";
++          break;
++        default:
++          pref_obj.type = "unknown";
++      }
++
++      pref_obj.value = value->Clone();
++      pref_objects.push_back(std::move(pref_obj));
++    }
++  }
++
++  return RespondNow(ArgumentList(
++      browser_os::GetAllPrefs::Results::Create(pref_objects)));
++}
++
+ }  // namespace api
+ }  // namespace extensions
+diff --git a/chrome/browser/extensions/api/browser_os/browser_os_api.h b/chrome/browser/extensions/api/browser_os/browser_os_api.h
+index 6090d2fbeb6a4..597a09ed04765 100644
+--- a/chrome/browser/extensions/api/browser_os/browser_os_api.h
++++ b/chrome/browser/extensions/api/browser_os/browser_os_api.h
+@@ -209,6 +209,46 @@ class BrowserOSGetSnapshotFunction : public ExtensionFunction {
+       api::ContentProcessingResult result);
+ };
+ 
++// Settings API functions
++class BrowserOSGetPrefFunction : public ExtensionFunction {
++ public:
++  DECLARE_EXTENSION_FUNCTION("browserOS.getPref", BROWSER_OS_GETPREF)
++
++  BrowserOSGetPrefFunction() = default;
++
++ protected:
++  ~BrowserOSGetPrefFunction() override = default;
++
++  // ExtensionFunction:
++  ResponseAction Run() override;
++};
++
++class BrowserOSSetPrefFunction : public ExtensionFunction {
++ public:
++  DECLARE_EXTENSION_FUNCTION("browserOS.setPref", BROWSER_OS_SETPREF)
++
++  BrowserOSSetPrefFunction() = default;
++
++ protected:
++  ~BrowserOSSetPrefFunction() override = default;
++
++  // ExtensionFunction:
++  ResponseAction Run() override;
++};
++
++class BrowserOSGetAllPrefsFunction : public ExtensionFunction {
++ public:
++  DECLARE_EXTENSION_FUNCTION("browserOS.getAllPrefs", BROWSER_OS_GETALLPREFS)
++
++  BrowserOSGetAllPrefsFunction() = default;
++
++ protected:
++  ~BrowserOSGetAllPrefsFunction() override = default;
++
++  // ExtensionFunction:
++  ResponseAction Run() override;
++};
++
+ }  // namespace api
+ }  // namespace extensions
+ 
+diff --git a/chrome/common/extensions/api/browser_os.idl b/chrome/common/extensions/api/browser_os.idl
+index 6934ee144987d..1c47fb75b68d8 100644
+--- a/chrome/common/extensions/api/browser_os.idl
++++ b/chrome/common/extensions/api/browser_os.idl
+@@ -168,6 +168,18 @@ namespace browserOS {
+ 
+   callback GetSnapshotCallback = void(Snapshot snapshot);
+ 
++  // Settings-related types
++  dictionary PrefObject {
++    DOMString key;
++    DOMString type;
++    any value;
++  };
++
++  // Callback for settings functions
++  callback GetPrefCallback = void(PrefObject pref);
++  callback SetPrefCallback = void(boolean success);
++  callback GetAllPrefsCallback = void(PrefObject[] prefs);
++
+   interface Functions {
+     // Gets the full accessibility tree for a tab
+     // |tabId|: The tab to get the accessibility tree for. Defaults to active tab.
+@@ -284,6 +296,30 @@ namespace browserOS {
+         SnapshotType type,
+         optional SnapshotOptions options,
+         GetSnapshotCallback callback);
++
++    // Settings API functions - compatible with chrome.settingsPrivate
++    // Gets a specific preference value
++    // |name|: The preference name (e.g., "nxtscape.default_provider").
++    // |callback|: Called with the preference object.
++    static void getPref(
++        DOMString name,
++        GetPrefCallback callback);
++
++    // Sets a specific preference value
++    // |name|: The preference name (e.g., "nxtscape.default_provider").
++    // |value|: The value to set.
++    // |pageId|: Optional page ID for settings tracking (can be empty string).
++    // |callback|: Called with success status.
++    static void setPref(
++        DOMString name,
++        any value,
++        optional DOMString pageId,
++        SetPrefCallback callback);
++
++    // Gets all preferences (filtered to nxtscape.* prefs)
++    // |callback|: Called with array of preference objects.
++    static void getAllPrefs(
++        GetAllPrefsCallback callback);
+   };
+ };
+ 
+diff --git a/extensions/browser/extension_function_histogram_value.h b/extensions/browser/extension_function_histogram_value.h
+index 965512eee1a46..979ccbdede568 100644
+--- a/extensions/browser/extension_function_histogram_value.h
++++ b/extensions/browser/extension_function_histogram_value.h
+@@ -2010,6 +2010,9 @@ enum HistogramValue {
+   BROWSER_OS_GETPAGESTRUCTURE = 1947,
+   BROWSER_OS_CAPTURESCREENSHOT = 1948,
+   BROWSER_OS_GETSNAPSHOT = 1949,
++  BROWSER_OS_GETPREF = 1950,
++  BROWSER_OS_SETPREF = 1951,
++  BROWSER_OS_GETALLPREFS = 1952,
+   // Last entry: Add new entries above, then run:
+   // tools/metrics/histograms/update_extension_histograms.py
+   ENUM_BOUNDARY
+-- 
+2.49.0
+

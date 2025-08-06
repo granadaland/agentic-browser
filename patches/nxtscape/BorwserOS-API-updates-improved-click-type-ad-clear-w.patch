@@ -1,0 +1,1281 @@
+From dfe9658523e27ef580e57834060ce7db7908af61 Mon Sep 17 00:00:00 2001
+From: Nikhil Sonti <nikhilsv92@gmail.com>
+Date: Tue, 5 Aug 2025 15:58:13 -0700
+Subject: [PATCH 2/3] BorwserOS API updates - improved click, type ad clear
+ with change detection
+
+---
+ .../api/browser_os/browser_os_api.cc          |  83 ++---
+ .../api/browser_os/browser_os_api_helpers.cc  | 310 ++++++++++++++---
+ .../api/browser_os/browser_os_api_helpers.h   |  38 +-
+ .../api/browser_os/browser_os_api_utils.cc    |  54 ---
+ .../api/browser_os/browser_os_api_utils.h     |   6 -
+ .../browser_os/browser_os_change_detector.cc  | 326 +++++++-----------
+ .../browser_os/browser_os_change_detector.h   | 126 +++----
+ chrome/common/extensions/api/browser_os.idl   |  22 +-
+ 8 files changed, 520 insertions(+), 445 deletions(-)
+
+diff --git a/chrome/browser/extensions/api/browser_os/browser_os_api.cc b/chrome/browser/extensions/api/browser_os/browser_os_api.cc
+index c2315276f6cd6..a6883d76e92bd 100644
+--- a/chrome/browser/extensions/api/browser_os/browser_os_api.cc
++++ b/chrome/browser/extensions/api/browser_os/browser_os_api.cc
+@@ -257,13 +257,15 @@ ExtensionFunction::ResponseAction BrowserOSClickFunction::Run() {
+   
+   const NodeInfo& node_info = node_it->second;
+   
+-  // Perform click with change detection and retrying
+-  ChangeDetectionResult change_result = Click(web_contents, node_info);
++  // Perform click with change detection
++  bool change_detected = ClickWithDetection(web_contents, node_info);
+   
+-  // Convert result to API response
+-  base::Value::Dict response = ChangeDetectionResultToDict(change_result);
++  // Create interaction response
++  browser_os::InteractionResponse response;
++  response.success = change_detected;
+   
+-  return RespondNow(WithArguments(std::move(response)));
++  return RespondNow(ArgumentList(
++      browser_os::Click::Results::Create(response)));
+ }
+ 
+ // Implementation of BrowserOSInputTextFunction
+@@ -298,15 +300,21 @@ ExtensionFunction::ResponseAction BrowserOSInputTextFunction::Run() {
+   
+   const NodeInfo& node_info = node_it->second;
+   
++  LOG(INFO) << "[browseros] InputText: Starting input for nodeId: " << params->node_id;
+   
+-  // First, click on the element to focus it
+-  Click(web_contents, node_info);
++  // Use TypeWithDetection which tries both native and JavaScript methods
++  bool change_detected = TypeWithDetection(web_contents, node_info, params->text);
+   
++  if (!change_detected) {
++    LOG(WARNING) << "[browseros] InputText: No change detected after typing";
++  }
+   
+-  // Type the text into the focused element
+-  Type(web_contents, params->text);
++  // Create interaction response
++  browser_os::InteractionResponse response;
++  response.success = change_detected;
+   
+-  return RespondNow(NoArguments());
++  return RespondNow(ArgumentList(
++      browser_os::InputText::Results::Create(response)));
+ }
+ 
+ // Implementation of BrowserOSClearFunction
+@@ -341,39 +349,21 @@ ExtensionFunction::ResponseAction BrowserOSClearFunction::Run() {
+   
+   const NodeInfo& node_info = node_it->second;
+   
+-  // First, click on the element to focus it
+-  Click(web_contents, node_info);
++  LOG(INFO) << "[browseros] Clear: Clearing field for nodeId: " << params->node_id;
+   
+-  // Get render widget host for keyboard events
+-  content::RenderFrameHost* rfh = web_contents->GetPrimaryMainFrame();
+-  if (!rfh) {
+-    return RespondNow(Error("No render frame"));
+-  }
++  // Use ClearWithDetection which handles focus and clearing
++  bool change_detected = ClearWithDetection(web_contents, node_info);
+   
+-  content::RenderWidgetHost* rwh = rfh->GetRenderWidgetHost();
+-  if (!rwh) {
+-    return RespondNow(Error("No render widget host"));
++  if (!change_detected) {
++    LOG(WARNING) << "[browseros] Clear: No change detected after clearing";
+   }
+   
+-  // Use JavaScript to clear the field, similar to how Puppeteer does it
+-  rfh->ExecuteJavaScriptForTests(
+-      u"(function() {"
+-      u"  var activeElement = document.activeElement;"
+-      u"  if (activeElement) {"
+-      u"    if (activeElement.value !== undefined) {"
+-      u"      activeElement.value = '';"
+-      u"    }"
+-      u"    if (activeElement.textContent !== undefined && activeElement.isContentEditable) {"
+-      u"      activeElement.textContent = '';"
+-      u"    }"
+-      u"    activeElement.dispatchEvent(new Event('input', {bubbles: true}));"
+-      u"    activeElement.dispatchEvent(new Event('change', {bubbles: true}));"
+-      u"  }"
+-      u"})();",
+-      base::NullCallback(),
+-      /*honor_js_content_settings=*/false);
++  // Create interaction response
++  browser_os::InteractionResponse response;
++  response.success = change_detected;
+   
+-  return RespondNow(NoArguments());
++  return RespondNow(ArgumentList(
++      browser_os::Clear::Results::Create(response)));
+ }
+ 
+ // Implementation of BrowserOSGetPageLoadStatusFunction
+@@ -609,10 +599,21 @@ ExtensionFunction::ResponseAction BrowserOSSendKeysFunction::Run() {
+     return RespondNow(Error("Unsupported key: " + params->key));
+   }
+   
+-  // Send the key
+-  KeyPress(web_contents, params->key);
++  LOG(INFO) << "[browseros] SendKeys: Sending key '" << params->key << "'";
+   
+-  return RespondNow(NoArguments());
++  // Send the key with change detection
++  bool change_detected = KeyPressWithDetection(web_contents, params->key);
++  
++  if (!change_detected) {
++    LOG(WARNING) << "[browseros] SendKeys: No change detected after key press";
++  }
++  
++  // Create interaction response
++  browser_os::InteractionResponse response;
++  response.success = change_detected;
++  
++  return RespondNow(ArgumentList(
++      browser_os::SendKeys::Results::Create(response)));
+ }
+ 
+ // Implementation of BrowserOSCaptureScreenshotFunction
+diff --git a/chrome/browser/extensions/api/browser_os/browser_os_api_helpers.cc b/chrome/browser/extensions/api/browser_os/browser_os_api_helpers.cc
+index 2e2c9a875dd09..ff119a6b12134 100644
+--- a/chrome/browser/extensions/api/browser_os/browser_os_api_helpers.cc
++++ b/chrome/browser/extensions/api/browser_os/browser_os_api_helpers.cc
+@@ -142,6 +142,73 @@ void HtmlClick(content::WebContents* web_contents,
+       /*honor_js_content_settings=*/false);
+ }
+ 
++// Helper to perform HTML-based focus using JS (uses ID, class, or tag)
++void HtmlFocus(content::WebContents* web_contents,
++                      const NodeInfo& node_info) {
++  content::RenderFrameHost* rfh = web_contents->GetPrimaryMainFrame();
++  if (!rfh)
++    return;
++    
++  // Build the JavaScript to find and focus the element
++  std::u16string js_code = u"(function() {";
++  
++  // Try to find element by ID first
++  auto id_it = node_info.attributes.find("id");
++  if (id_it != node_info.attributes.end() && !id_it->second.empty()) {
++    js_code += u"  var element = document.getElementById('" + 
++               base::UTF8ToUTF16(id_it->second) + u"');";
++    js_code += u"  if (element) {";
++    js_code += u"    element.focus();";
++    js_code += u"    if (element.select) element.select();";  // Select text if possible
++    js_code += u"    return 'focused by id';";
++    js_code += u"  }";
++  }
++  
++  // Try to find by class and tag combination
++  auto class_it = node_info.attributes.find("class");
++  auto tag_it = node_info.attributes.find("html-tag");
++  
++  if (class_it != node_info.attributes.end() && !class_it->second.empty() &&
++      tag_it != node_info.attributes.end() && !tag_it->second.empty()) {
++    // Split class names and create selector
++    std::string class_selector = "." + class_it->second;
++    // Replace spaces with dots for multiple classes
++    for (size_t i = 0; i < class_selector.length(); ++i) {
++      if (class_selector[i] == ' ') {
++        class_selector[i] = '.';
++      }
++    }
++    
++    js_code += u"  var elements = document.querySelectorAll('" + 
++               base::UTF8ToUTF16(tag_it->second + class_selector) + u"');";
++    js_code += u"  if (elements.length > 0) {";
++    js_code += u"    elements[0].focus();";
++    js_code += u"    if (elements[0].select) elements[0].select();";
++    js_code += u"    return 'focused by class and tag';";
++    js_code += u"  }";
++  }
++  
++  // Fallback: try just by tag name if available
++  if (tag_it != node_info.attributes.end() && !tag_it->second.empty()) {
++    js_code += u"  var elements = document.getElementsByTagName('" + 
++               base::UTF8ToUTF16(tag_it->second) + u"');";
++    js_code += u"  if (elements.length > 0) {";
++    js_code += u"    elements[0].focus();";
++    js_code += u"    if (elements[0].select) elements[0].select();";
++    js_code += u"    return 'focused by tag';";
++    js_code += u"  }";
++  }
++  
++  js_code += u"  return 'no element found';";
++  js_code += u"})();";
++  
++  // Execute the JavaScript
++  rfh->ExecuteJavaScriptForTests(
++      js_code,
++      base::NullCallback(),
++      /*honor_js_content_settings=*/false);
++}
++
+ // Helper to perform scroll actions using mouse wheel events
+ void Scroll(content::WebContents* web_contents,
+                    int delta_x,
+@@ -325,9 +392,9 @@ void KeyPress(content::WebContents* web_contents,
+   }
+ }
+ 
+-// Helper to type text into a focused element
+-void Type(content::WebContents* web_contents,
+-          const std::string& text) {
++// Helper to type text into a focused element using native IME
++void NativeType(content::WebContents* web_contents,
++                const std::string& text) {
+   content::RenderFrameHost* rfh = web_contents->GetPrimaryMainFrame();
+   if (!rfh)
+     return;
+@@ -339,70 +406,199 @@ void Type(content::WebContents* web_contents,
+   // Convert text to UTF16
+   std::u16string text16 = base::UTF8ToUTF16(text);
+   
+-  // Add a small delay to ensure the element is focused after click
+-  // Then send the text using ImeCommitText
+-  base::SequencedTaskRunner::GetCurrentDefault()->PostDelayedTask(
+-      FROM_HERE,
+-      base::BindOnce(
+-          [](content::RenderWidgetHost* rwh, const std::u16string& text) {
+-            if (!rwh)
+-              return;
+-            
+-            content::RenderWidgetHostImpl* rwhi = 
+-                static_cast<content::RenderWidgetHostImpl*>(rwh);
+-            
+-            // Ensure the widget has focus
+-            rwhi->Focus();
+-            
+-            // Try multiple approaches to input text
+-            // 1. First try ImeSetComposition to simulate typing
+-            rwhi->ImeSetComposition(text,
+-                                   std::vector<ui::ImeTextSpan>(),
+-                                   gfx::Range::InvalidRange(),
+-                                   text.length(),  // selection_start at end
+-                                   text.length()); // selection_end at end
+-            
+-            // 2. Then commit the text
+-            rwhi->ImeCommitText(text,
+-                                std::vector<ui::ImeTextSpan>(),
+-                                gfx::Range::InvalidRange(),
+-                                0);  // relative_cursor_pos = 0 means after the text
+-            
+-            // 3. Finish composing to ensure text is committed
+-            rwhi->ImeFinishComposingText(false);
+-            
+-          },
+-          rwh, text16),
+-      base::Milliseconds(100));  // Increase delay to 100ms for better focus handling
++  // Immediately send the text without delay - focus should be handled before calling Type
++  content::RenderWidgetHostImpl* rwhi = 
++      static_cast<content::RenderWidgetHostImpl*>(rwh);
++  
++  // Ensure the widget has focus
++  rwhi->Focus();
++  
++  // Use ImeCommitText directly without composition for better compatibility
++  // This is more reliable for form inputs and avoids composition state issues
++  rwhi->ImeCommitText(text16,
++                      std::vector<ui::ImeTextSpan>(),
++                      gfx::Range::InvalidRange(),
++                      0);  // relative_cursor_pos = 0 means after the text
+ }
+ 
+-// Helper to perform a click with change detection and retrying
+-ChangeDetectionResult Click(content::WebContents* web_contents,
+-                           const NodeInfo& node_info) {
+-  // Create change detector and start monitoring
+-  auto change_detector = std::make_unique<BrowserOSChangeDetector>(web_contents);
+-  change_detector->StartMonitoring(node_info.ax_tree_id);
++// Helper to set text value using JavaScript
++void JavaScriptType(content::WebContents* web_contents,
++                    const NodeInfo& node_info,
++                    const std::string& text) {
++  content::RenderFrameHost* rfh = web_contents->GetPrimaryMainFrame();
++  if (!rfh)
++    return;
++  
++  // Build JavaScript to find element and set its value
++  std::u16string js_code = u"(function() {";
++  std::u16string escaped_text = base::UTF8ToUTF16(text);
++  
++  // Escape quotes in the text
++  for (size_t i = 0; i < escaped_text.length(); ++i) {
++    if (escaped_text[i] == u'\'') {
++      escaped_text.insert(i, u"\\");
++      i++;
++    }
++  }
++  
++  // Try to find element by ID first
++  auto id_it = node_info.attributes.find("id");
++  if (id_it != node_info.attributes.end() && !id_it->second.empty()) {
++    js_code += u"  var element = document.getElementById('" + 
++               base::UTF8ToUTF16(id_it->second) + u"');";
++    js_code += u"  if (element) {";
++    js_code += u"    element.value = '" + escaped_text + u"';";
++    js_code += u"    element.dispatchEvent(new Event('input', {bubbles: true}));";
++    js_code += u"    element.dispatchEvent(new Event('change', {bubbles: true}));";
++    js_code += u"    return 'set by id';";
++    js_code += u"  }";
++  }
++  
++  // Try to find by class and tag combination
++  auto class_it = node_info.attributes.find("class");
++  auto tag_it = node_info.attributes.find("html-tag");
++  
++  if (class_it != node_info.attributes.end() && !class_it->second.empty() &&
++      tag_it != node_info.attributes.end() && !tag_it->second.empty()) {
++    std::string class_selector = "." + class_it->second;
++    for (size_t i = 0; i < class_selector.length(); ++i) {
++      if (class_selector[i] == ' ') {
++        class_selector[i] = '.';
++      }
++    }
++    
++    js_code += u"  var elements = document.querySelectorAll('" + 
++               base::UTF8ToUTF16(tag_it->second + class_selector) + u"');";
++    js_code += u"  if (elements.length > 0) {";
++    js_code += u"    if (elements[0].value !== undefined) {";
++    js_code += u"      elements[0].value = '" + escaped_text + u"';";
++    js_code += u"    } else if (elements[0].isContentEditable) {";
++    js_code += u"      elements[0].textContent = '" + escaped_text + u"';";
++    js_code += u"    }";
++    js_code += u"    elements[0].dispatchEvent(new Event('input', {bubbles: true}));";
++    js_code += u"    elements[0].dispatchEvent(new Event('change', {bubbles: true}));";
++    js_code += u"    return 'set by class and tag';";
++    js_code += u"  }";
++  }
+   
+-  // Perform the click action using coordinate-based click
++  js_code += u"  return 'no element found';";
++  js_code += u"})();";
++  
++  // Execute the JavaScript
++  rfh->ExecuteJavaScriptForTests(
++      js_code,
++      base::NullCallback(),
++      /*honor_js_content_settings=*/false);
++}
++
++// Helper to perform a click with change detection and retrying
++bool ClickWithDetection(content::WebContents* web_contents,
++                        const NodeInfo& node_info) {
++  // First try coordinate-based click with change detection
+   gfx::PointF click_point(
+       node_info.bounds.x() + node_info.bounds.width() / 2.0f,
+       node_info.bounds.y() + node_info.bounds.height() / 2.0f);
+-  PointClick(web_contents, click_point);
+   
+-  // Wait for changes with timeout
+-  ChangeDetectionResult change_result = 
+-      change_detector->WaitForChanges(base::Milliseconds(500));
++  bool changed = BrowserOSChangeDetector::ExecuteWithDetection(
++      web_contents,
++      [&]() { PointClick(web_contents, click_point); },
++      base::Milliseconds(300));
+   
+-  // If no change detected via coordinate click, try HTML click as fallback
+-  if (!change_result.detected) {
+-    VLOG(1) << "No change detected with coordinate click, trying HTML click";
+-    HtmlClick(web_contents, node_info);
+-    
+-    // Wait again for changes
+-    change_result = change_detector->WaitForChanges(base::Milliseconds(300));
++  // If no change detected, try HTML click as fallback
++  if (!changed) {
++    LOG(INFO) << "[browseros] No change from coordinate click, trying HTML click";
++    changed = BrowserOSChangeDetector::ExecuteWithDetection(
++        web_contents,
++        [&]() { HtmlClick(web_contents, node_info); },
++        base::Milliseconds(200));
++  }
++  
++  LOG(INFO) << "[browseros] Click result: " << (changed ? "changed" : "no change");
++  return changed;
++}
++
++// Helper to perform typing with change detection
++bool TypeWithDetection(content::WebContents* web_contents,
++                      const NodeInfo& node_info,
++                      const std::string& text) {
++  // Try native typing first (more natural interaction)
++  bool changed = BrowserOSChangeDetector::ExecuteWithDetection(
++      web_contents,
++      [&]() {
++        // Focus the element first
++        HtmlFocus(web_contents, node_info);
++        // Click to ensure activation
++        gfx::PointF click_point(
++            node_info.bounds.x() + node_info.bounds.width() / 2.0f,
++            node_info.bounds.y() + node_info.bounds.height() / 2.0f);
++        PointClick(web_contents, click_point);
++        // Then type using native IME
++        NativeType(web_contents, text);
++      },
++      base::Milliseconds(300));
++  
++  // If no change, try JavaScript typing as fallback
++  if (!changed) {
++    LOG(INFO) << "[browseros] No change from native type, trying JavaScript";
++    changed = BrowserOSChangeDetector::ExecuteWithDetection(
++        web_contents,
++        [&]() { JavaScriptType(web_contents, node_info, text); },
++        base::Milliseconds(200));
+   }
+   
+-  return change_result;
++  LOG(INFO) << "[browseros] Type result: " << (changed ? "changed" : "no change");
++  return changed;
++}
++
++// Helper to clear an input field with change detection
++bool ClearWithDetection(content::WebContents* web_contents,
++                       const NodeInfo& node_info) {
++  // Use change detection with JavaScript clear
++  bool changed = BrowserOSChangeDetector::ExecuteWithDetection(
++      web_contents,
++      [&]() {
++        content::RenderFrameHost* rfh = web_contents->GetPrimaryMainFrame();
++        if (!rfh) return;
++        
++        // First focus the element
++        HtmlFocus(web_contents, node_info);
++        
++        // Then clear using JavaScript
++        rfh->ExecuteJavaScriptForTests(
++            u"(function() {"
++            u"  var activeElement = document.activeElement;"
++            u"  if (activeElement) {"
++            u"    if (activeElement.value !== undefined) {"
++            u"      activeElement.value = '';"
++            u"    }"
++            u"    if (activeElement.textContent !== undefined && activeElement.isContentEditable) {"
++            u"      activeElement.textContent = '';"
++            u"    }"
++            u"    activeElement.dispatchEvent(new Event('input', {bubbles: true}));"
++            u"    activeElement.dispatchEvent(new Event('change', {bubbles: true}));"
++            u"  }"
++            u"})();",
++            base::NullCallback(),
++            /*honor_js_content_settings=*/false);
++      },
++      base::Milliseconds(200));
++  
++  LOG(INFO) << "[browseros] Clear result: " << (changed ? "changed" : "no change");
++  return changed;
++}
++
++// Helper to send a key press with change detection
++bool KeyPressWithDetection(content::WebContents* web_contents,
++                          const std::string& key) {
++  // Use change detection with key press
++  bool changed = BrowserOSChangeDetector::ExecuteWithDetection(
++      web_contents,
++      [&]() { KeyPress(web_contents, key); },
++      base::Milliseconds(200));
++  
++  LOG(INFO) << "[browseros] KeyPress result for '" << key << "': " 
++            << (changed ? "changed" : "no change");
++  return changed;
+ }
+ 
+ }  // namespace api
+diff --git a/chrome/browser/extensions/api/browser_os/browser_os_api_helpers.h b/chrome/browser/extensions/api/browser_os/browser_os_api_helpers.h
+index ab8eb164a11c3..86c5fb811c64f 100644
+--- a/chrome/browser/extensions/api/browser_os/browser_os_api_helpers.h
++++ b/chrome/browser/extensions/api/browser_os/browser_os_api_helpers.h
+@@ -8,7 +8,6 @@
+ #include <string>
+ 
+ #include "base/functional/callback.h"
+-#include "chrome/browser/extensions/api/browser_os/browser_os_change_detector.h"
+ #include "ui/gfx/geometry/point_f.h"
+ 
+ namespace content {
+@@ -28,6 +27,10 @@ void PointClick(content::WebContents* web_contents,
+ void HtmlClick(content::WebContents* web_contents,
+                       const NodeInfo& node_info);
+ 
++// Helper to perform HTML-based focus using JS (uses ID, class, or tag)
++void HtmlFocus(content::WebContents* web_contents,
++                      const NodeInfo& node_info);
++
+ // Helper to perform scroll actions using mouse wheel events
+ void Scroll(content::WebContents* web_contents,
+                    int delta_x,
+@@ -38,14 +41,35 @@ void Scroll(content::WebContents* web_contents,
+ void KeyPress(content::WebContents* web_contents,
+                     const std::string& key);
+ 
+-// Helper to type text into a focused element
+-void Type(content::WebContents* web_contents,
+-          const std::string& text);
++// Helper to type text into a focused element using native IME
++void NativeType(content::WebContents* web_contents,
++                const std::string& text);
++
++// Helper to set text value using JavaScript
++void JavaScriptType(content::WebContents* web_contents,
++                    const NodeInfo& node_info,
++                    const std::string& text);
+ 
+ // Helper to perform a click with change detection and retrying
+-// This combines change detection logic with click actions (coordinate and HTML)
+-ChangeDetectionResult Click(content::WebContents* web_contents,
+-                           const NodeInfo& node_info);
++// Returns true if the click caused a change in the page
++bool ClickWithDetection(content::WebContents* web_contents,
++                        const NodeInfo& node_info);
++
++// Helper to perform typing with change detection
++// Returns true if the typing caused a change in the page
++bool TypeWithDetection(content::WebContents* web_contents,
++                      const NodeInfo& node_info,
++                      const std::string& text);
++
++// Helper to clear an input field with change detection
++// Returns true if the clear caused a change in the page
++bool ClearWithDetection(content::WebContents* web_contents,
++                       const NodeInfo& node_info);
++
++// Helper to send a key press with change detection
++// Returns true if the key press caused a change in the page
++bool KeyPressWithDetection(content::WebContents* web_contents,
++                          const std::string& key);
+ 
+ }  // namespace api
+ }  // namespace extensions
+diff --git a/chrome/browser/extensions/api/browser_os/browser_os_api_utils.cc b/chrome/browser/extensions/api/browser_os/browser_os_api_utils.cc
+index 1b2f83a233844..eccf01b1f9280 100644
+--- a/chrome/browser/extensions/api/browser_os/browser_os_api_utils.cc
++++ b/chrome/browser/extensions/api/browser_os/browser_os_api_utils.cc
+@@ -163,59 +163,5 @@ std::string GetTagFromRole(ax::mojom::Role role) {
+   }
+ }
+ 
+-// Helper to convert ChangeType enum to string
+-std::string ChangeTypeToString(ChangeType change_type) {
+-  switch (change_type) {
+-    case ChangeType::kDomChanged:
+-      return "dom_changed";
+-    case ChangeType::kPopupOpened:
+-      return "popup_opened";
+-    case ChangeType::kNewTabOpened:
+-      return "new_tab_opened";
+-    case ChangeType::kDialogShown:
+-      return "dialog_shown";
+-    case ChangeType::kFocusChanged:
+-      return "focus_changed";
+-    case ChangeType::kElementExpanded:
+-      return "element_expanded";
+-    case ChangeType::kNone:
+-    default:
+-      return "unknown";
+-  }
+-}
+-
+-// Helper to convert ChangeDetectionResult to API response
+-base::Value::Dict ChangeDetectionResultToDict(const ChangeDetectionResult& result) {
+-  base::Value::Dict response;
+-  response.Set("success", true);
+-  response.Set("changeDetected", result.detected);
+-  
+-  if (result.detected) {
+-    // Convert primary change type to string
+-    response.Set("primaryChange", ChangeTypeToString(result.primary_change));
+-    response.Set("timeToChangeMs", 
+-                static_cast<int>(result.time_to_change.InMilliseconds()));
+-    
+-    // Add all detected changes
+-    base::Value::List all_changes;
+-    for (const auto& change : result.all_changes) {
+-      std::string change_str = ChangeTypeToString(change);
+-      if (change_str != "unknown") {
+-        all_changes.Append(change_str);
+-      }
+-    }
+-    response.Set("allChanges", std::move(all_changes));
+-    
+-    // Add action required hints
+-    if (result.primary_change == ChangeType::kNewTabOpened) {
+-      response.Set("actionRequired", "switch_to_new_tab");
+-    } else if (result.primary_change == ChangeType::kPopupOpened) {
+-      response.Set("actionRequired", "interact_with_popup");
+-    }
+-  }
+-  
+-  return response;
+-}
+-
+ }  // namespace api
+ }  // namespace extensions
+diff --git a/chrome/browser/extensions/api/browser_os/browser_os_api_utils.h b/chrome/browser/extensions/api/browser_os/browser_os_api_utils.h
+index 403633772e2fe..c632dc7a71585 100644
+--- a/chrome/browser/extensions/api/browser_os/browser_os_api_utils.h
++++ b/chrome/browser/extensions/api/browser_os/browser_os_api_utils.h
+@@ -11,7 +11,6 @@
+ 
+ #include "base/memory/raw_ptr.h"
+ #include "base/values.h"
+-#include "chrome/browser/extensions/api/browser_os/browser_os_change_detector.h"
+ #include "chrome/common/extensions/api/browser_os.h"
+ #include "ui/accessibility/ax_node_data.h"
+ #include "ui/accessibility/ax_tree_id.h"
+@@ -72,11 +71,6 @@ browser_os::InteractiveNodeType GetInteractiveNodeType(
+ // Helper to get the HTML tag name from AX role
+ std::string GetTagFromRole(ax::mojom::Role role);
+ 
+-// Helper to convert ChangeType enum to string
+-std::string ChangeTypeToString(ChangeType change_type);
+-
+-// Helper to convert ChangeDetectionResult to API response
+-base::Value::Dict ChangeDetectionResultToDict(const ChangeDetectionResult& result);
+ 
+ }  // namespace api
+ }  // namespace extensions
+diff --git a/chrome/browser/extensions/api/browser_os/browser_os_change_detector.cc b/chrome/browser/extensions/api/browser_os/browser_os_change_detector.cc
+index 7962fb78b6e48..1df7f2cbf0e0c 100644
+--- a/chrome/browser/extensions/api/browser_os/browser_os_change_detector.cc
++++ b/chrome/browser/extensions/api/browser_os/browser_os_change_detector.cc
+@@ -8,59 +8,61 @@
+ #include "base/logging.h"
+ #include "base/run_loop.h"
+ #include "content/public/browser/focused_node_details.h"
++#include "content/public/browser/navigation_handle.h"
+ #include "content/public/browser/render_frame_host.h"
+ #include "content/public/browser/web_contents.h"
+-#include "ui/accessibility/ax_enums.mojom.h"
+-#include "ui/accessibility/ax_node_data.h"
+-#include "ui/accessibility/ax_tree_update.h"
+ #include "ui/accessibility/ax_updates_and_events.h"
+ 
+ namespace extensions {
+ namespace api {
+ 
+-// ChangeDetectionResult implementation
+-ChangeDetectionResult::ChangeDetectionResult() = default;
+-ChangeDetectionResult::~ChangeDetectionResult() = default;
+-ChangeDetectionResult::ChangeDetectionResult(const ChangeDetectionResult&) = default;
+-ChangeDetectionResult& ChangeDetectionResult::operator=(const ChangeDetectionResult&) = default;
+-ChangeDetectionResult::ChangeDetectionResult(ChangeDetectionResult&&) = default;
+-ChangeDetectionResult& ChangeDetectionResult::operator=(ChangeDetectionResult&&) = default;
+-
+-BrowserOSChangeDetector::BrowserOSChangeDetector(
+-    content::WebContents* web_contents)
++BrowserOSChangeDetector::BrowserOSChangeDetector(content::WebContents* web_contents)
+     : content::WebContentsObserver(web_contents) {}
+ 
+ BrowserOSChangeDetector::~BrowserOSChangeDetector() {
+-  LOG(INFO) << "BrowserOSChangeDetector destroyed";
+-  StopMonitoring();
++  timeout_timer_.Stop();
+ }
+ 
+-void BrowserOSChangeDetector::StartMonitoring(
+-    const ui::AXTreeID& initial_tree_id) {
+-  DCHECK(!monitoring_active_);
+-  
+-  monitoring_active_ = true;
+-  change_detected_ = false;
+-  initial_tree_id_ = initial_tree_id;
+-  current_tree_id_ = initial_tree_id;
+-  detected_changes_.clear();
+-  start_time_ = base::TimeTicks::Now();
+-  time_to_first_change_ = base::TimeDelta();
+-  
+-  VLOG(1) << "Started monitoring for changes, initial tree ID: " 
+-          << initial_tree_id.ToString();
++// Static method for synchronous detection
++bool BrowserOSChangeDetector::ExecuteWithDetection(
++    content::WebContents* web_contents,
++    std::function<void()> action,
++    base::TimeDelta timeout) {
++  auto detector = std::make_unique<BrowserOSChangeDetector>(web_contents);
++  return detector->ExecuteAndWait(std::move(action), timeout);
+ }
+ 
+-ChangeDetectionResult BrowserOSChangeDetector::WaitForChanges(
++// Static method for asynchronous detection
++void BrowserOSChangeDetector::ExecuteWithDetectionAsync(
++    content::WebContents* web_contents,
++    std::function<void()> action,
++    base::OnceCallback<void(bool)> callback,
+     base::TimeDelta timeout) {
+-  DCHECK(monitoring_active_);
++  // Create detector on heap - it will delete itself when done
++  auto* detector = new BrowserOSChangeDetector(web_contents);
++  detector->ExecuteAndNotify(std::move(action), std::move(callback), timeout);
++}
++
++void BrowserOSChangeDetector::StartMonitoring() {
++  monitoring_ = true;
++  change_detected_ = false;
++  VLOG(1) << "[browseros] Started monitoring for changes";
++}
++
++bool BrowserOSChangeDetector::ExecuteAndWait(std::function<void()> action,
++                                             base::TimeDelta timeout) {
++  StartMonitoring();
++  
++  // Execute the action
++  action();
+   
+-  // If changes already detected, return immediately
++  // If change already detected (synchronously), return immediately
+   if (change_detected_) {
+-    return GetResult();
++    VLOG(1) << "[browseros] Change detected immediately";
++    return true;
+   }
+   
+-  // Set up a run loop to wait for changes or timeout
++  // Set up run loop to wait for changes
+   base::RunLoop run_loop(base::RunLoop::Type::kNestableTasksAllowed);
+   wait_callback_ = run_loop.QuitClosure();
+   
+@@ -69,203 +71,135 @@ ChangeDetectionResult BrowserOSChangeDetector::WaitForChanges(
+                       base::BindOnce(&BrowserOSChangeDetector::OnTimeout,
+                                     weak_factory_.GetWeakPtr()));
+   
+-  // Wait for changes or timeout
++  // Wait for change or timeout
+   run_loop.Run();
+   
+   // Clean up
+   timeout_timer_.Stop();
+   wait_callback_.Reset();
++  monitoring_ = false;
+   
+-  return GetResult();
++  VLOG(1) << "[browseros] Change detection result: " << change_detected_;
++  return change_detected_;
+ }
+ 
+-ChangeDetectionResult BrowserOSChangeDetector::GetResult() const {
+-  ChangeDetectionResult result;
+-  result.detected = change_detected_;
+-  result.all_changes = detected_changes_;
+-  result.new_tree_id = current_tree_id_;
+-  result.time_to_change = time_to_first_change_;
++void BrowserOSChangeDetector::ExecuteAndNotify(
++    std::function<void()> action,
++    base::OnceCallback<void(bool)> callback,
++    base::TimeDelta timeout) {
++  StartMonitoring();
++  result_callback_ = std::move(callback);
+   
+-  // Determine primary change type
+-  if (!detected_changes_.empty()) {
+-    VLOG(1) << "BrowserOSChangeDetector detected changes: "
+-              << static_cast<int>(detected_changes_.size());
+-    // Priority order for primary change
+-    if (detected_changes_.count(ChangeType::kNewTabOpened)) {
+-      result.primary_change = ChangeType::kNewTabOpened;
+-    } else if (detected_changes_.count(ChangeType::kPopupOpened)) {
+-      result.primary_change = ChangeType::kPopupOpened;
+-    } else if (detected_changes_.count(ChangeType::kDialogShown)) {
+-      result.primary_change = ChangeType::kDialogShown;
+-    } else if (detected_changes_.count(ChangeType::kElementExpanded)) {
+-      result.primary_change = ChangeType::kElementExpanded;
+-    } else if (detected_changes_.count(ChangeType::kDomChanged)) {
+-      result.primary_change = ChangeType::kDomChanged;
+-    } else if (detected_changes_.count(ChangeType::kFocusChanged)) {
+-      result.primary_change = ChangeType::kFocusChanged;
+-    }
+-  }
+-  else {
+-    LOG(INFO) << "BrowserOSChangeDetector empty detected changes";
++  // Execute the action
++  action();
++  
++  // If change already detected, notify immediately
++  if (change_detected_) {
++    VLOG(1) << "[browseros] Change detected immediately (async)";
++    std::move(result_callback_).Run(true);
++    delete this;  // Self-delete
++    return;
+   }
+   
+-  return result;
++  // Start timeout timer
++  timeout_timer_.Start(
++      FROM_HERE, timeout,
++      base::BindOnce(&BrowserOSChangeDetector::OnTimeout,
++                    weak_factory_.GetWeakPtr()));
+ }
+ 
+-void BrowserOSChangeDetector::AccessibilityEventReceived(
+-    const ui::AXUpdatesAndEvents& details) {
+-  if (!monitoring_active_) {
++void BrowserOSChangeDetector::OnChangeDetected() {
++  if (!monitoring_ || change_detected_) {
+     return;
+   }
+   
+-  ProcessAccessibilityEvent(details);
+-}
+-
+-void BrowserOSChangeDetector::ProcessAccessibilityEvent(
+-    const ui::AXUpdatesAndEvents& details) {
+-  bool significant_change = false;
++  change_detected_ = true;
++  monitoring_ = false;
+   
+-  // Process each tree update
+-  for (size_t i = 0; i < details.updates.size(); ++i) {
+-    const ui::AXTreeUpdate& update = details.updates[i];
+-    
+-    // Check if tree ID changed
+-    if (update.has_tree_data && update.tree_data.tree_id != initial_tree_id_) {
+-      current_tree_id_ = update.tree_data.tree_id;
+-      significant_change = true;
+-      VLOG(1) << "Tree ID changed from " << initial_tree_id_.ToString() 
+-              << " to " << current_tree_id_.ToString();
+-    }
+-    
+-    // Check for specific event types from the corresponding event
+-    if (i < details.events.size()) {
+-      const ui::AXEvent& event = details.events[i];
+-      switch (event.event_type) {
+-        case ax::mojom::Event::kChildrenChanged:
+-        case ax::mojom::Event::kLayoutComplete:
+-        case ax::mojom::Event::kLoadComplete:
+-          detected_changes_.insert(ChangeType::kDomChanged);
+-          significant_change = true;
+-          break;
+-          
+-        case ax::mojom::Event::kFocus:
+-        case ax::mojom::Event::kFocusContext:
+-        case ax::mojom::Event::kDocumentSelectionChanged:
+-          detected_changes_.insert(ChangeType::kFocusChanged);
+-          significant_change = true;
+-          break;
+-          
+-        case ax::mojom::Event::kExpandedChanged:
+-        case ax::mojom::Event::kRowExpanded:
+-        case ax::mojom::Event::kRowCollapsed:
+-          detected_changes_.insert(ChangeType::kElementExpanded);
+-          significant_change = true;
+-          break;
+-          
+-        default:
+-          break;
+-      }
+-    }
+-    
+-    // Check for popup/dialog indicators in node data
+-    for (const auto& node : update.nodes) {
+-      if (node.role == ax::mojom::Role::kDialog ||
+-          node.role == ax::mojom::Role::kAlertDialog ||
+-          node.role == ax::mojom::Role::kAlert) {
+-        // Check if this is a new node (not in initial tree)
+-        if (!node.IsInvisibleOrIgnored()) {
+-          detected_changes_.insert(ChangeType::kPopupOpened);
+-          significant_change = true;
+-        }
+-      }
+-      
+-      if (node.role == ax::mojom::Role::kMenu ||
+-          node.role == ax::mojom::Role::kMenuBar ||
+-          node.role == ax::mojom::Role::kMenuListPopup) {
+-        if (!node.IsInvisibleOrIgnored()) {
+-          detected_changes_.insert(ChangeType::kPopupOpened);
+-          significant_change = true;
+-        }
+-      }
+-    }
++  VLOG(1) << "[browseros] Change detected";
++  
++  // Stop the timeout timer
++  timeout_timer_.Stop();
++  
++  // If synchronous wait, quit the run loop
++  if (wait_callback_) {
++    std::move(wait_callback_).Run();
+   }
+   
+-  if (significant_change && !change_detected_) {
+-    change_detected_ = true;
+-    time_to_first_change_ = base::TimeTicks::Now() - start_time_;
+-    VLOG(1) << "Change detected after " << time_to_first_change_.InMilliseconds() << " ms";
+-    
+-    // If waiting, quit the run loop
+-    if (wait_callback_) {
+-      std::move(wait_callback_).Run();
+-    }
++  // If async, notify callback and self-delete
++  if (result_callback_) {
++    std::move(result_callback_).Run(true);
++    delete this;  // Self-delete for async mode
+   }
+ }
+ 
+-void BrowserOSChangeDetector::DidOpenRequestedURL(
+-    content::WebContents* new_contents,
+-    content::RenderFrameHost* source_render_frame_host,
+-    const GURL& url,
+-    const content::Referrer& referrer,
+-    WindowOpenDisposition disposition,
+-    ui::PageTransition transition,
+-    bool started_from_context_menu,
+-    bool renderer_initiated) {
+-  if (!monitoring_active_) {
+-    return;
++void BrowserOSChangeDetector::OnTimeout() {
++  VLOG(1) << "[browseros] Change detection timeout";
++  monitoring_ = false;
++  
++  // If synchronous wait, quit the run loop
++  if (wait_callback_) {
++    std::move(wait_callback_).Run();
+   }
+   
+-  if (disposition == WindowOpenDisposition::NEW_POPUP ||
+-      disposition == WindowOpenDisposition::NEW_FOREGROUND_TAB ||
+-      disposition == WindowOpenDisposition::NEW_BACKGROUND_TAB ||
+-      disposition == WindowOpenDisposition::NEW_WINDOW) {
+-    detected_changes_.insert(ChangeType::kNewTabOpened);
+-    change_detected_ = true;
+-    
+-    if (!time_to_first_change_.is_positive()) {
+-      time_to_first_change_ = base::TimeTicks::Now() - start_time_;
+-    }
+-    
+-    VLOG(1) << "New tab/window detected with disposition: " 
+-            << static_cast<int>(disposition);
+-    
+-    if (wait_callback_) {
+-      std::move(wait_callback_).Run();
+-    }
++  // If async, notify callback with false and self-delete
++  if (result_callback_) {
++    std::move(result_callback_).Run(false);
++    delete this;  // Self-delete for async mode
+   }
+ }
+ 
+-void BrowserOSChangeDetector::OnFocusChangedInPage(
+-    content::FocusedNodeDetails* details) {
+-  if (!monitoring_active_ || !details) {
+-    return;
++// WebContentsObserver overrides - any of these counts as a "change"
++
++void BrowserOSChangeDetector::AccessibilityEventReceived(
++    const ui::AXUpdatesAndEvents& details) {
++  if (!monitoring_) return;
++  
++  // Any accessibility event indicates a change
++  if (!details.updates.empty() || !details.events.empty()) {
++    VLOG(2) << "[browseros] Accessibility event detected";
++    OnChangeDetected();
+   }
++}
++
++void BrowserOSChangeDetector::DidFinishNavigation(
++    content::NavigationHandle* navigation_handle) {
++  if (!monitoring_) return;
+   
+-  detected_changes_.insert(ChangeType::kFocusChanged);
++  VLOG(2) << "[browseros] Navigation detected";
++  OnChangeDetected();
++}
++
++void BrowserOSChangeDetector::DOMContentLoaded(
++    content::RenderFrameHost* render_frame_host) {
++  if (!monitoring_) return;
+   
+-  if (!change_detected_) {
+-    change_detected_ = true;
+-    time_to_first_change_ = base::TimeTicks::Now() - start_time_;
+-    
+-    if (wait_callback_) {
+-      std::move(wait_callback_).Run();
+-    }
+-  }
++  VLOG(2) << "[browseros] DOM content loaded";
++  OnChangeDetected();
+ }
+ 
+-void BrowserOSChangeDetector::OnTimeout() {
+-  VLOG(1) << "Change detection timeout reached";
++void BrowserOSChangeDetector::OnFocusChangedInPage(
++    content::FocusedNodeDetails* details) {
++  if (!monitoring_) return;
+   
+-  if (wait_callback_) {
+-    std::move(wait_callback_).Run();
+-  }
++  VLOG(2) << "[browseros] Focus changed";
++  OnChangeDetected();
+ }
+ 
+-void BrowserOSChangeDetector::StopMonitoring() {
+-  monitoring_active_ = false;
+-  timeout_timer_.Stop();
+-  wait_callback_.Reset();
++void BrowserOSChangeDetector::DidOpenRequestedURL(
++    content::WebContents* new_contents,
++    content::RenderFrameHost* source_render_frame_host,
++    const GURL& url,
++    const content::Referrer& referrer,
++    WindowOpenDisposition disposition,
++    ui::PageTransition transition,
++    bool started_from_context_menu,
++    bool renderer_initiated) {
++  if (!monitoring_) return;
++  
++  VLOG(2) << "[browseros] New URL opened";
++  OnChangeDetected();
+ }
+ 
+ }  // namespace api
+-}  // namespace extensions
++}  // namespace extensions
+\ No newline at end of file
+diff --git a/chrome/browser/extensions/api/browser_os/browser_os_change_detector.h b/chrome/browser/extensions/api/browser_os/browser_os_change_detector.h
+index f4a902e1b4970..b3287913fd5ac 100644
+--- a/chrome/browser/extensions/api/browser_os/browser_os_change_detector.h
++++ b/chrome/browser/extensions/api/browser_os/browser_os_change_detector.h
+@@ -5,16 +5,13 @@
+ #ifndef CHROME_BROWSER_EXTENSIONS_API_BROWSER_OS_BROWSER_OS_CHANGE_DETECTOR_H_
+ #define CHROME_BROWSER_EXTENSIONS_API_BROWSER_OS_BROWSER_OS_CHANGE_DETECTOR_H_
+ 
+-#include <set>
+-#include <string>
++#include <functional>
+ 
+ #include "base/functional/callback.h"
+ #include "base/memory/weak_ptr.h"
+ #include "base/time/time.h"
+ #include "base/timer/timer.h"
+ #include "content/public/browser/web_contents_observer.h"
+-#include "ui/accessibility/ax_enums.mojom.h"
+-#include "ui/accessibility/ax_tree_id.h"
+ 
+ namespace content {
+ class WebContents;
+@@ -27,89 +24,80 @@ struct AXUpdatesAndEvents;
+ namespace extensions {
+ namespace api {
+ 
+-// Types of changes that can be detected after user actions
+-enum class ChangeType {
+-  kNone,              // No change detected
+-  kDomChanged,        // Regular DOM updates
+-  kPopupOpened,       // Modal/dropdown/menu appeared
+-  kNewTabOpened,      // New tab/window created
+-  kDialogShown,       // JS alert/confirm/prompt
+-  kFocusChanged,      // Focus moved to different element
+-  kElementExpanded,   // Dropdown/accordion expanded
+-};
+-
+-// Result of change detection
+-struct ChangeDetectionResult {
+-  ChangeDetectionResult();
+-  ~ChangeDetectionResult();
+-  ChangeDetectionResult(const ChangeDetectionResult&);
+-  ChangeDetectionResult& operator=(const ChangeDetectionResult&);
+-  ChangeDetectionResult(ChangeDetectionResult&&);
+-  ChangeDetectionResult& operator=(ChangeDetectionResult&&);
+-
+-  bool detected = false;
+-  ChangeType primary_change = ChangeType::kNone;
+-  std::set<ChangeType> all_changes;
+-  ui::AXTreeID new_tree_id;
+-  int new_tab_id = -1;
+-  std::string dialog_type;
+-  int popup_node_id = -1;
+-  base::TimeDelta time_to_change;
+-};
+-
+-// Detects changes in the DOM after user actions using accessibility events
++// Change detector that monitors if any change occurred in the web content
++// after an action is performed. This is used to verify that actions like
++// click, type, clear, etc. actually had an effect on the page.
+ class BrowserOSChangeDetector : public content::WebContentsObserver {
+  public:
++  // Execute an action and detect if it causes any change in the page
++  // Returns true if any change was detected within the timeout period
++  static bool ExecuteWithDetection(
++      content::WebContents* web_contents,
++      std::function<void()> action,
++      base::TimeDelta timeout = base::Milliseconds(300));
++
++  // Alternative async version that doesn't block
++  static void ExecuteWithDetectionAsync(
++      content::WebContents* web_contents,
++      std::function<void()> action,
++      base::OnceCallback<void(bool)> callback,
++      base::TimeDelta timeout = base::Milliseconds(300));
++
++  // Constructor and destructor are public for use by factory methods
+   explicit BrowserOSChangeDetector(content::WebContents* web_contents);
+   ~BrowserOSChangeDetector() override;
+ 
++ private:
+   BrowserOSChangeDetector(const BrowserOSChangeDetector&) = delete;
+   BrowserOSChangeDetector& operator=(const BrowserOSChangeDetector&) = delete;
+ 
+-  // Start monitoring for changes with a specific tree ID
+-  void StartMonitoring(const ui::AXTreeID& initial_tree_id);
+-
+-  // Wait for changes with timeout, returns result
+-  ChangeDetectionResult WaitForChanges(base::TimeDelta timeout);
++  // Start monitoring for changes
++  void StartMonitoring();
+ 
+-  // Check if changes were detected (non-blocking)
+-  bool HasChangesDetected() const { return change_detected_; }
++  // Execute the action and wait for changes
++  bool ExecuteAndWait(std::function<void()> action, base::TimeDelta timeout);
+ 
+-  // Get the result without waiting
+-  ChangeDetectionResult GetResult() const;
++  // Execute the action and notify via callback
++  void ExecuteAndNotify(std::function<void()> action,
++                        base::OnceCallback<void(bool)> callback,
++                        base::TimeDelta timeout);
+ 
+- private:
+-  // WebContentsObserver overrides
++  // WebContentsObserver overrides - we monitor any of these as "changes"
+   void AccessibilityEventReceived(
+       const ui::AXUpdatesAndEvents& details) override;
+-  void DidOpenRequestedURL(content::WebContents* new_contents,
+-                          content::RenderFrameHost* source_render_frame_host,
+-                          const GURL& url,
+-                          const content::Referrer& referrer,
+-                          WindowOpenDisposition disposition,
+-                          ui::PageTransition transition,
+-                          bool started_from_context_menu,
+-                          bool renderer_initiated) override;
+-  void OnFocusChangedInPage(content::FocusedNodeDetails* details) override;
+-
+-  // Helper methods
++  void DidFinishNavigation(
++      content::NavigationHandle* navigation_handle) override;
++  void DOMContentLoaded(
++      content::RenderFrameHost* render_frame_host) override;
++  void OnFocusChangedInPage(
++      content::FocusedNodeDetails* details) override;
++  void DidOpenRequestedURL(
++      content::WebContents* new_contents,
++      content::RenderFrameHost* source_render_frame_host,
++      const GURL& url,
++      const content::Referrer& referrer,
++      WindowOpenDisposition disposition,
++      ui::PageTransition transition,
++      bool started_from_context_menu,
++      bool renderer_initiated) override;
++
++  // Called when any change is detected
++  void OnChangeDetected();
++
++  // Called when timeout expires
+   void OnTimeout();
+-  void ProcessAccessibilityEvent(const ui::AXUpdatesAndEvents& details);
+-  void StopMonitoring();
+ 
+-  // State tracking
+-  bool monitoring_active_ = false;
++  // Simple state tracking
++  bool monitoring_ = false;
+   bool change_detected_ = false;
+-  ui::AXTreeID initial_tree_id_;
+-  ui::AXTreeID current_tree_id_;
+-  std::set<ChangeType> detected_changes_;
+-  base::TimeTicks start_time_;
+-  base::TimeDelta time_to_first_change_;
+   
+-  // Timer for timeout handling
+-  base::OneShotTimer timeout_timer_;
++  // Callbacks
+   base::OnceClosure wait_callback_;
+-
++  base::OnceCallback<void(bool)> result_callback_;
++  
++  // Timer for timeout
++  base::OneShotTimer timeout_timer_;
++  
+   // Weak pointer factory
+   base::WeakPtrFactory<BrowserOSChangeDetector> weak_factory_{this};
+ };
+diff --git a/chrome/common/extensions/api/browser_os.idl b/chrome/common/extensions/api/browser_os.idl
+index 1c47fb75b68d8..6071dc9ef4790 100644
+--- a/chrome/common/extensions/api/browser_os.idl
++++ b/chrome/common/extensions/api/browser_os.idl
+@@ -72,25 +72,17 @@ namespace browserOS {
+     boolean isPageComplete;
+   };
+ 
+-  // Response from click action with change detection
+-  dictionary ClickResponse {
++  // Standard response for all interaction methods
++  dictionary InteractionResponse {
+     boolean success;
+-    boolean changeDetected;
+-    DOMString? primaryChange;
+-    long? timeToChangeMs;
+-    DOMString[]? allChanges;
+-    DOMString? actionRequired;
+   };
+ 
+   callback GetAccessibilityTreeCallback = void(AccessibilityTree tree);
+   callback GetInteractiveSnapshotCallback = void(InteractiveSnapshot snapshot);
+-  callback ClickCallback = void(ClickResponse response);
+-  callback InputTextCallback = void();
+-  callback ClearCallback = void();
++  callback InteractionCallback = void(InteractionResponse response);
+   callback GetPageLoadStatusCallback = void(PageLoadStatus status);
+   callback ScrollCallback = void();
+   callback ScrollToNodeCallback = void(boolean scrolled);
+-  callback SendKeysCallback = void();
+   callback CaptureScreenshotCallback = void(DOMString dataUrl);
+ 
+   // Snapshot extraction types
+@@ -205,7 +197,7 @@ namespace browserOS {
+     static void click(
+         optional long tabId,
+         long nodeId,
+-        ClickCallback callback);
++        InteractionCallback callback);
+ 
+     // Inputs text into an element by its nodeId
+     // |tabId|: The tab containing the element. Defaults to active tab.
+@@ -216,7 +208,7 @@ namespace browserOS {
+         optional long tabId,
+         long nodeId,
+         DOMString text,
+-        InputTextCallback callback);
++        InteractionCallback callback);
+ 
+     // Clears the content of an input element by its nodeId
+     // |tabId|: The tab containing the element. Defaults to active tab.
+@@ -225,7 +217,7 @@ namespace browserOS {
+     static void clear(
+         optional long tabId,
+         long nodeId,
+-        ClearCallback callback);
++        InteractionCallback callback);
+ 
+     // Gets the page load status for a tab
+     // |tabId|: The tab to check. Defaults to active tab.
+@@ -277,7 +269,7 @@ namespace browserOS {
+     static void sendKeys(
+         optional long tabId,
+         DOMString key,
+-        SendKeysCallback callback);
++        InteractionCallback callback);
+         
+     // Captures a screenshot of the tab as a thumbnail
+     // |tabId|: The tab to capture. Defaults to active tab.
+-- 
+2.49.0
+

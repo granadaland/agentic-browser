@@ -29,3 +29,7 @@ nxtscape/clash-of-gpts.patch
 nxtscape/browseros-settings.patch
 nxtscape/updates-to-llm-chat-and-hub.patch
 nxtscape/updates-to-browseros-api.patch
+
+patches/nxtscape/BrowserOS-API-for-get-set-prefs.patch
+patches/nxtscape/BorwserOS-API-updates-improved-click-type-ad-clear-w.patch
+patches/nxtscape/New-BrowserOS-settings-AI-page-for-providers.patch
