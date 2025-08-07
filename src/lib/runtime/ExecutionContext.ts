@@ -5,6 +5,8 @@ import { EventBus, EventProcessor } from '@/lib/events'
 import { getLLM as getLLMFromProvider } from '@/lib/llm/LangChainProvider'
 import { BaseChatModel } from '@langchain/core/language_models/chat_models'
 import { TodoStore } from '@/lib/runtime/TodoStore'
+import { ExecutionState, ExecutionStateManager } from '@/lib/runtime/ExecutionStateManager'
+import { AbortError } from '@/lib/utils/Abortable'
 
 /**
  * Configuration options for ExecutionContext
@@ -33,6 +35,7 @@ export class ExecutionContext {
   eventProcessor: EventProcessor | null = null  // Event processor for high-level events
   selectedTabIds: number[] | null = null  // Selected tab IDs
   todoStore: TodoStore  // TODO store for complex task management
+  private stateManager: ExecutionStateManager  // Execution state manager
   private userInitiatedCancel: boolean = false  // Track if cancellation was user-initiated
   private _isExecuting: boolean = false  // Track actual execution state
   private _lockedTabId: number | null = null  // Tab that execution is locked to
@@ -50,6 +53,9 @@ export class ExecutionContext {
     this.eventProcessor = validatedOptions.eventProcessor || null
     this.todoStore = validatedOptions.todoStore || new TodoStore()
     this.userInitiatedCancel = false
+    
+    // Initialize state manager
+    this.stateManager = new ExecutionStateManager()
   }
   
   public setSelectedTabIds(tabIds: number[]): void {
@@ -101,12 +107,112 @@ export class ExecutionContext {
   }
 
   /**
-   * Cancel execution with user-initiated flag
-   * @param isUserInitiated - Whether the cancellation was initiated by the user
+   * Get current execution state
    */
-  public cancelExecution(isUserInitiated: boolean = false): void {
+  public getExecutionState(): ExecutionState {
+    return this.stateManager.getState();
+  }
+
+  /**
+   * Set execution state
+   */
+  public setExecutionState(state: ExecutionState): void {
+    this.stateManager.setState(state);
+  }
+
+  /**
+   * Check if execution has been aborted - throws if aborted
+   * @throws AbortError if execution is aborted or aborting
+   */
+  public checkAborted(): void {
+    const state = this.getExecutionState();
+    if (state === ExecutionState.ABORTING || 
+        state === ExecutionState.ABORTED ||
+        this.abortController.signal.aborted) {
+      throw new AbortError('Task cancelled');
+    }
+  }
+
+  /**
+   * Check if currently aborting (useful for tools to adapt behavior)
+   * @returns true if in ABORTING state
+   */
+  public isAborting(): boolean {
+    return this.getExecutionState() === ExecutionState.ABORTING;
+  }
+
+  /**
+   * Check if aborted without throwing
+   * @returns true if aborted
+   */
+  public isAborted(): boolean {
+    const state = this.getExecutionState();
+    return state === ExecutionState.ABORTED || 
+           this.abortController.signal.aborted;
+  }
+
+  /**
+   * Get the abort signal for passing to async operations
+   */
+  public getAbortSignal(): AbortSignal {
+    return this.abortController.signal;
+  }
+
+  /**
+   * Cancel execution with user-initiated flag and state transition
+   * @param isUserInitiated - Whether the cancellation was initiated by the user
+   * @returns Promise that resolves when state transitions to ABORTED
+   */
+  public async cancelExecution(isUserInitiated: boolean = false): Promise<void> {
     this.userInitiatedCancel = isUserInitiated;
+    
+    // Only transition if in a cancellable state
+    const currentState = this.getExecutionState();
+    if (currentState === ExecutionState.RUNNING || 
+        currentState === ExecutionState.STARTING) {
+      // Transition to ABORTING state
+      this.setExecutionState(ExecutionState.ABORTING);
+    }
+    
+    // Trigger abort signal
     this.abortController.abort();
+    
+    // Wait for state to transition to ABORTED (with timeout)
+    return this.waitForState(ExecutionState.ABORTED, 3000);
+  }
+
+  /**
+   * Wait for a specific state with timeout
+   * @param targetState - The state to wait for
+   * @param timeout - Timeout in milliseconds
+   * @returns Promise that resolves when state is reached or timeout occurs
+   */
+  private waitForState(targetState: ExecutionState, timeout: number): Promise<void> {
+    return new Promise((resolve) => {
+      // Check if already in target state
+      if (this.getExecutionState() === targetState) {
+        resolve();
+        return;
+      }
+      
+      // Listen for state changes
+      const unsubscribe = this.stateManager.onStateChange((state) => {
+        if (state === targetState) {
+          unsubscribe();
+          resolve();
+        }
+      });
+      
+      // Timeout fallback
+      setTimeout(() => {
+        unsubscribe();
+        if (this.getExecutionState() !== targetState) {
+          // Force transition on timeout
+          this.setExecutionState(targetState);
+        }
+        resolve();
+      }, timeout);
+    });
   }
 
   /**
@@ -145,7 +251,7 @@ export class ExecutionContext {
    * Check if currently executing
    */
   public isExecuting(): boolean {
-    return this._isExecuting;
+    return this.stateManager.isExecuting();
   }
 
   /**
@@ -164,6 +270,7 @@ export class ExecutionContext {
     this.userInitiatedCancel = false;
     this._currentTask = null;
     this.todoStore.reset();
+    this.stateManager.reset();  // Reset state to IDLE
   }
 
   /**

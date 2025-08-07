@@ -42,6 +42,7 @@
  */
 
 import { ExecutionContext } from '@/lib/runtime/ExecutionContext';
+import { ExecutionState } from '@/lib/runtime/ExecutionStateManager';
 import { MessageManager } from '@/lib/runtime/MessageManager';
 import { ToolManager } from '@/lib/tools/ToolManager';
 import { createPlannerTool } from '@/lib/tools/planning/PlannerTool';
@@ -143,6 +144,9 @@ export class BrowserAgent {
    */
   async execute(task: string): Promise<void> {
     try {
+      // Set state to RUNNING when execution starts
+      this.executionContext.setExecutionState(ExecutionState.RUNNING);
+      
       // 1. SETUP: Initialize system prompt and user task
       this._initializeExecution(task);
 
@@ -175,6 +179,9 @@ export class BrowserAgent {
 
       // 4. FINALISE: Generate final result
       await this._generateTaskResult(task);
+      
+      // Set completed state on success
+      this.executionContext.setExecutionState(ExecutionState.COMPLETED);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       
@@ -183,7 +190,11 @@ export class BrowserAgent {
                                  this.executionContext.isUserCancellation() || 
                                  (error instanceof Error && error.name === "AbortError");
       
-      if (!isUserCancellation) {
+      // Set appropriate error state
+      if (isUserCancellation) {
+        this.executionContext.setExecutionState(ExecutionState.ABORTED);
+      } else {
+        this.executionContext.setExecutionState(ExecutionState.ERROR);
         this.eventEmitter.error(`Oops! Got a fatal error when executing task: ${errorMessage}`, true);  // Mark as fatal error
       }
       

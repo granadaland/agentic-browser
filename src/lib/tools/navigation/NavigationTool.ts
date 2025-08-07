@@ -22,6 +22,9 @@ export class NavigationTool {
   constructor(private executionContext: ExecutionContext) {}
 
   async execute(input: NavigationInput): Promise<ToolOutput> {
+    // Check if aborted at start
+    this.executionContext.checkAborted()
+    
     switch (input.action) {
       case "navigate":
         return this._navigateToUrl(input.url)
@@ -54,6 +57,9 @@ export class NavigationTool {
         browserPage.url(),
         browserPage.title()
       ])
+      
+      // Check if aborted after completion
+      this.executionContext.checkAborted()
       
       return toolSuccess(`Navigated to ${currentUrl} - ${title}`)
     } catch (error) {
