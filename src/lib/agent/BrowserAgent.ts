@@ -376,7 +376,7 @@ export class BrowserAgent {
     
     // This method encapsulates the streaming logic
     const llmResponse = await this._invokeLLMWithStreaming();
-    console.log("LLM Response:", JSON.stringify(llmResponse, null, 4));
+    // console.log("LLM Response:", JSON.stringify(llmResponse, null, 4));
     
 
     let wasDoneToolCalled = false;
