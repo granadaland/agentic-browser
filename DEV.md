@@ -1,0 +1,41 @@
+# BrowserOS Agent - Development Guide
+
+## Build Instructions
+
+### Setup Steps
+
+1. **Clone the repository and install dependencies**
+   ```bash
+   git clone https://github.com/browseros-ai/BrowserOS-agent
+   cd BrowserOS-agent
+   yarn
+   ```
+
+2. **Create a `.env` file in the root directory**
+   ```
+   // fyi, this key has very limited usage limits
+   LITELLM_API_KEY=sk-xYnTqbxdLtQTrqVhtZgmrw
+   ```
+   > **Note:** You'll need a LiteLLM API key to use the LLM features.
+
+3. **Build the extension**
+   ```bash
+   yarn build:dev
+   ```
+   This creates a `dist/` folder with the compiled extension files.
+
+### Loading the Extension in Chrome
+
+1. Open Chrome and go to `chrome://extensions/`
+2. Enable **Developer mode** (toggle in the top right)
+3. Click **Load unpacked**
+4. Select the `dist/` folder from your project
+5. The extension should now appear in your extensions list
+
+### Testing the Extension
+
+1. Click the extension icon in Chrome's toolbar
+2. The agent side panel should open
+3. Try some commands like:
+   - "List all my tabs"
+   - "Go to Google and search for TypeScript"
