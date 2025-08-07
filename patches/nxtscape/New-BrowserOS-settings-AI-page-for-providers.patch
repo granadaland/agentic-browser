@@ -1,13 +1,13 @@
-From 21e829f4a3766c75c0d2f325f9aa188f6c327fcb Mon Sep 17 00:00:00 2001
+From 3e8f702bd2dca95dee182cd147a2cda413e0c9a6 Mon Sep 17 00:00:00 2001
 From: Nikhil Sonti <nikhilsv92@gmail.com>
 Date: Tue, 5 Aug 2025 17:34:40 -0700
-Subject: [PATCH 3/3] New BrowserOS settings AI page for providers
+Subject: [PATCH] New BrowserOS settings AI page for providers
 
 ---
  .../api/settings_private/prefs_util.cc        |   1 +
  chrome/browser/prefs/browser_prefs.cc         |  12 +-
- .../settings/nxtscape_page/nxtscape_page.html | 842 +++++++++---------
- .../settings/nxtscape_page/nxtscape_page.ts   | 618 +++++++++----
+ .../settings/nxtscape_page/nxtscape_page.html | 840 +++++++++---------
+ .../settings/nxtscape_page/nxtscape_page.ts   | 620 +++++++++----
  chrome/common/pref_names.h                    |   7 +
  5 files changed, 905 insertions(+), 575 deletions(-)
 
@@ -47,7 +47,7 @@ index cf120aacb58d3..7cc63f0c20cc4 100644
    registry->RegisterStringPref("nxtscape.nxtscape_model", "");
  
 diff --git a/chrome/browser/resources/settings/nxtscape_page/nxtscape_page.html b/chrome/browser/resources/settings/nxtscape_page/nxtscape_page.html
-index 28e18b5f69f95..5370f2e079c7e 100644
+index 28e18b5f69f95..9a429f31f43a0 100644
 --- a/chrome/browser/resources/settings/nxtscape_page/nxtscape_page.html
 +++ b/chrome/browser/resources/settings/nxtscape_page/nxtscape_page.html
 @@ -1,13 +1,23 @@
@@ -479,7 +479,7 @@ index 28e18b5f69f95..5370f2e079c7e 100644
        }
  
        .status-toast.show {
-@@ -236,406 +426,236 @@
+@@ -236,406 +426,234 @@
          opacity: 1;
        }
  
@@ -817,31 +817,29 @@ index 28e18b5f69f95..5370f2e079c7e 100644
 +
            <div class="form-group">
 -            <label class="form-label" for="anthropicApiKey">API Key</label>
-+            <label class="form-label">
-+              API Key <span class="required" hidden$="[[dialogProviderType_ === 'ollama']]">*</span>
-+            </label>
++            <label class="form-label">API Key</label>
              <input type="password" 
 -                   id="anthropicApiKey"
--                   class="form-field"
+                    class="form-field"
 -                   value="[[prefs.nxtscape.anthropic_api_key.value]]"
 -                   on-input="onAnthropicApiKeyChange_"
 -                   placeholder="Enter your Anthropic API key"
 -                   required>
 -            <div class="form-helper">Your Anthropic API key (required)</div>
--          </div>
++                   value="{{dialogApiKey_::input}}"
++                   placeholder="Enter your API key (optional for some providers)">
++            <div class="form-helper">Your API key is encrypted and stored locally</div>
+           </div>
 -          <div class="form-group">
 -            <label class="form-label" for="anthropicBaseUrl">Base URL (Optional)</label>
 -            <input type="url"
 -                   id="anthropicBaseUrl"
-                    class="form-field"
+-                   class="form-field"
 -                   value="[[prefs.nxtscape.anthropic_base_url.value]]"
 -                   on-input="onAnthropicBaseUrlChange_"
 -                   placeholder="https://api.anthropic.com">
 -            <div class="form-helper">Override the Anthropic API base URL (leave empty for default)</div>
-+                   value="{{dialogApiKey_::input}}"
-+                   placeholder="Enter your API key">
-+            <div class="form-helper">Your API key is encrypted and stored locally</div>
-           </div>
+-          </div>
 -          <div class="form-group">
 -            <label class="form-label" for="anthropicModel">Model</label>
 -            <select id="anthropicModel" class="form-field"
@@ -1076,9 +1074,8 @@ index 28e18b5f69f95..5370f2e079c7e 100644
 \ No newline at end of file
 +      <span>Settings saved successfully</span>
 +    </div>
-\ No newline at end of file
 diff --git a/chrome/browser/resources/settings/nxtscape_page/nxtscape_page.ts b/chrome/browser/resources/settings/nxtscape_page/nxtscape_page.ts
-index 8c4421ef76e45..9de49d6e658a0 100644
+index 8c4421ef76e45..e9bebf5e2236f 100644
 --- a/chrome/browser/resources/settings/nxtscape_page/nxtscape_page.ts
 +++ b/chrome/browser/resources/settings/nxtscape_page/nxtscape_page.ts
 @@ -14,6 +14,8 @@ import 'chrome://resources/cr_elements/cr_button/cr_button.js';
@@ -1175,7 +1172,7 @@ index 8c4421ef76e45..9de49d6e658a0 100644
  export class SettingsNxtscapePageElement extends SettingsNxtscapePageElementBase {
    static get is() {
      return 'settings-nxtscape-page';
-@@ -33,222 +113,438 @@ export class SettingsNxtscapePageElement extends SettingsNxtscapePageElementBase
+@@ -33,222 +113,440 @@ export class SettingsNxtscapePageElement extends SettingsNxtscapePageElementBase
  
    static get properties() {
      return {
@@ -1593,11 +1590,13 @@ index 8c4421ef76e45..9de49d6e658a0 100644
 +      return false;
 +    }
 +    
-+    // API key is optional for Ollama, OpenAI Compatible, and Custom providers
++    // API key is optional for all providers, but show warning if missing for certain types
 +    const apiKeyOptionalTypes = [ProviderType.OLLAMA, ProviderType.OPENAI_COMPATIBLE, ProviderType.CUSTOM];
-+    if (!this.dialogApiKey_ || (!this.dialogApiKey_.trim() && !apiKeyOptionalTypes.includes(this.dialogProviderType_))) {
-+      this.showStatusMessage_('API key is required', true);
-+      return false;
++    if (!this.dialogApiKey_ || !this.dialogApiKey_.trim()) {
++      if (!apiKeyOptionalTypes.includes(this.dialogProviderType_)) {
++        // Show warning but don't block
++        this.showStatusMessage_('Warning: API key not provided. Provider may not work without it.', false);
++      }
 +    }
 +    
 +    if (!this.dialogModelId_ || !this.dialogModelId_.trim()) {
@@ -1774,7 +1773,7 @@ index 8c4421ef76e45..9de49d6e658a0 100644
        statusMessage.classList.add('show');
        setTimeout(() => {
          statusMessage.classList.remove('show');
-@@ -264,4 +560,4 @@ declare global {
+@@ -264,4 +562,4 @@ declare global {
  }
  
  customElements.define(
