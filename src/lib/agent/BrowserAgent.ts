@@ -64,7 +64,7 @@ import { generateSystemPrompt, generateSingleTurnExecutionPrompt } from './Brows
 import { AIMessage, AIMessageChunk } from '@langchain/core/messages';
 import { EventProcessor } from '@/lib/events/EventProcessor';
 import { PLANNING_CONFIG } from '@/lib/tools/planning/PlannerTool.config';
-import { Abortable, AbortError } from '@/lib/utils/Abortable';
+import { AbortError } from '@/lib/utils/Abortable';
 import { formatToolOutput } from '@/lib/tools/formatToolOutput';
 import { formatTodoList } from '@/lib/tools/utils/formatTodoList';
 import { GlowAnimationService } from '@/lib/services/GlowAnimationService';
@@ -248,7 +248,6 @@ export class BrowserAgent {
     this.toolManager.register(createClassificationTool(this.executionContext, toolDescriptions));
   }
 
-  @Abortable
   private async _classifyTask(task: string): Promise<ClassificationResult> {
     this.eventEmitter.info('Analyzing task complexity...');
     
@@ -287,7 +286,6 @@ export class BrowserAgent {
   // ===================================================================
   //  Execution Strategy 1: Simple Tasks (No Planning)
   // ===================================================================
-  @Abortable  // Checks at method start
   private async _executeSimpleTaskStrategy(task: string): Promise<void> {
     this.eventEmitter.debug(`Executing as a simple task. Max attempts: ${BrowserAgent.MAX_STEPS_FOR_SIMPLE_TASKS}`);
 
@@ -310,7 +308,6 @@ export class BrowserAgent {
   // ===================================================================
   //  Execution Strategy 2: Multi-Step Tasks (Plan -> Execute -> Repeat)
   // ===================================================================
-  @Abortable
   private async _executeMultiStepStrategy(task: string): Promise<void> {
     this.eventEmitter.debug('Executing as a complex multi-step task');
     let outer_loop_index = 0;
@@ -374,7 +371,6 @@ export class BrowserAgent {
    * Executes a single "turn" with the LLM, including streaming and tool processing.
    * @returns {Promise<boolean>} - True if the `done_tool` was successfully called.
    */
-  @Abortable
   private async _executeSingleTurn(instruction: string): Promise<boolean> {
     this.messageManager.addHuman(instruction);
     
@@ -400,7 +396,6 @@ export class BrowserAgent {
     return wasDoneToolCalled;
   }
 
-  @Abortable  // Checks at method start
   private async _invokeLLMWithStreaming(): Promise<AIMessage> {
     const llm = await this.executionContext.getLLM();
     if (!llm.bindTools || typeof llm.bindTools !== 'function') {
@@ -448,12 +443,12 @@ export class BrowserAgent {
     });
   }
 
-  @Abortable  // Checks at method start
   private async _processToolCalls(toolCalls: any[]): Promise<boolean> {
     let wasDoneToolCalled = false;
     
     for (const toolCall of toolCalls) {
-      this.checkIfAborted();  // Manual check before each tool
+      // Check abort before processing each tool
+      this.checkIfAborted();
 
       const { name: toolName, args, id: toolCallId } = toolCall;
       const tool = this.toolManager.get(toolName);
@@ -470,6 +465,10 @@ export class BrowserAgent {
 
       this.eventEmitter.executingTool(toolName, args);
       const result = await tool.func(args);
+      
+      // Check abort after tool execution completes
+      this.checkIfAborted();
+      
       const parsedResult = JSON.parse(result);
       
       // Format the tool output for display
@@ -516,7 +515,6 @@ export class BrowserAgent {
     return wasDoneToolCalled;
   }
 
-  @Abortable
   private async _createMultiStepPlan(task: string): Promise<Plan> {
     const plannerTool = this.toolManager.get('planner_tool')!;
     const args = {
