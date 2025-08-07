@@ -18,54 +18,54 @@ const ALL_EXAMPLES = [
   // Tab Management
   "Group my tabs by app or purpose",
   "Find tabs related to machine learning",
-  "Close tabs I haven't touched in 7 days",
+  // "Close tabs I haven't touched in 7 days",
   "Highlight the tab where I was last shopping",
   "Save all Facebook tabs to a reading list",
-  "Pin tabs I use daily",
-  "Archive tabs from last week's research",
+  // "Pin tabs I use daily",
+  // "Archive tabs from last week's research",
   "Reopen the tab I accidentally closed",
-  "Mute all tabs except the one playing music",
+  // "Mute all tabs except the one playing music",
 
   // Page Analysis
   "Summarize this article for me",
   "What are the key points on this page?",
-  "Check if this article is AI-generated",
+  // "Check if this article is AI-generated",
   "Extract all links and sources from this page",
   "Extract all news headlines from this page",
-  "List all images and their alt text",
-  "Detect the reading level of this article",
-  "Highlight quotes or cited studies",
+  // "List all images and their alt text",
+  // "Detect the reading level of this article",
+  // "Highlight quotes or cited studies",
   "Compare this page to another tab I'm viewing",
 
   // Search & Discovery
   "Find top-rated headphones under $100",
-  "Find the cheapest flight to San Francisco",
+  // "Find the cheapest flight to San Francisco",
   "Search YouTube for videos explaining BrowserOS",
-  "Look up reviews for this product",
+  // "Look up reviews for this product",
   "Search Reddit for discussions about this topic",
-  "Find recipes using the ingredients in my tabs",
-  "Show me recent news about this company",
-  "Search for open-source alternatives to this tool",
+  // "Find recipes using the ingredients in my tabs",
+  // "Show me recent news about this company",
+  // "Search for open-source alternatives to this tool",
 
   // Actions & Automation
   "Open amazon.com and order Sensodyne toothpaste",
   "Write a tweet saying Hello World",
-  "Add this page to my bookmarks",
-  "Download the PDF linked on this page",
-  "Translate this page to Spanish",
-  "Email this article to myself",
-  "Create a calendar event based on this page",
-  "Copy all code snippets from this tab",
+  // "Add this page to my bookmarks",
+  // "Download the PDF linked on this page",
+  // "Translate this page to Spanish",
+  // "Email this article to myself",
+  // "Create a calendar event based on this page",
+  // "Copy all code snippets from this tab",
 
   // AI & Content Tools
-  "Rewrite this paragraph to be more concise",
+  // "Rewrite this paragraph to be more concise",
   "Generate a summary tweet for this article",
-  "Explain this code like I'm five",
+  // "Explain this code like I'm five",
   "Draft a reply to this comment",
   "Rate the tone of this blog post",
-  "Suggest improvements to this documentation",
+  // "Suggest improvements to this documentation",
   "Turn this article into a LinkedIn post",
-  "Detect bias or opinionated language in this page",
+  // "Detect bias or opinionated language in this page",
 ]
 
 // Animation constants
@@ -350,7 +350,7 @@ export function MessageList({ messages, onScrollStateChange, scrollToBottom: ext
                 >
                   <Button
                     variant="outline"
-                    className="group relative text-sm h-auto py-3 px-4 whitespace-normal bg-background/50 backdrop-blur-sm border-2 border-brand/30 hover:border-brand hover:bg-brand/5 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg focus:ring-2 focus:ring-brand focus:ring-offset-2 overflow-hidden w-full"
+                    className="group relative text-sm h-auto py-3 px-4 whitespace-normal bg-background/50 backdrop-blur-sm border-2 border-brand/30 hover:border-brand hover:bg-brand/5 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60 focus-visible:ring-offset-2 overflow-hidden w-full"
                     onClick={() => handleExampleClick(prompt)}
                     aria-label={`Use example: ${prompt}`}
                   >
