@@ -17,6 +17,7 @@ nxtscape/pin-nxtscape-ai-chat.patch
 nxtscape/ai-chat-extension.patch
 nxtscape/bug-reporter-extension.patch
 nxtscape/browserOS-API.patch
+nxtscape/browseros-api-fix-coordinate-calculation-for-interac.patch
 nxtscape/new-snapshot-API.patch
 
 # updater
@@ -30,6 +31,6 @@ nxtscape/browseros-settings.patch
 nxtscape/updates-to-llm-chat-and-hub.patch
 nxtscape/updates-to-browseros-api.patch
 
-patches/nxtscape/BrowserOS-API-for-get-set-prefs.patch
-patches/nxtscape/BorwserOS-API-updates-improved-click-type-ad-clear-w.patch
-patches/nxtscape/New-BrowserOS-settings-AI-page-for-providers.patch
+nxtscape/BrowserOS-API-for-get-set-prefs.patch
+nxtscape/BorwserOS-API-updates-improved-click-type-ad-clear-w.patch
+nxtscape/New-BrowserOS-settings-AI-page-for-providers.patch

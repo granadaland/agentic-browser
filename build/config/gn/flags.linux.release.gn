@@ -8,17 +8,35 @@ is_component_build = false
 # Compiler
 use_sysroot = true
 use_custom_libcxx = true
+is_clang = true
+clang_use_chrome_plugins = false
+fatal_linker_warnings = false
 
 # Core features
 enable_nacl = false
 enable_widevine = true
+disable_fieldtrial_testing_config = true
 
 # Media
 proprietary_codecs = true
 ffmpeg_branding = "Chrome"
 
-# Optimization
+# Hardware acceleration
+use_vaapi = true
+
+# Libraries
+use_system_libffi = false
+
+# Optimization and binary size reduction
 symbol_level = 0
+blink_symbol_level = 0
+exclude_unwind_tables = true
 
 # Disable PGO (Profile-Guided Optimization)
 chrome_pgo_phase = 0
+
+# API Keys (disable Google services)
+google_api_key = ""
+google_default_client_id = ""
+google_default_client_secret = ""
+use_official_google_api_keys = false

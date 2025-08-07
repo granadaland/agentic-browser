@@ -1,0 +1,714 @@
+From e1ba9bcf0552537c6158bb5057db4f947f295293 Mon Sep 17 00:00:00 2001
+From: Nikhil Sonti <nikhilsv92@gmail.com>
+Date: Thu, 7 Aug 2025 09:22:55 -0700
+Subject: [PATCH] browseros api: fix coordinate calculation for interactive
+ snapshot
+
+---
+ .../api/browser_os/browser_os_api_helpers.cc  | 242 ++++++++++++++++--
+ .../api/browser_os/browser_os_api_helpers.h   |  23 ++
+ .../browser_os_snapshot_processor.cc          | 195 ++++++--------
+ .../browser_os_snapshot_processor.h           |  16 +-
+ 4 files changed, 348 insertions(+), 128 deletions(-)
+
+diff --git a/chrome/browser/extensions/api/browser_os/browser_os_api_helpers.cc b/chrome/browser/extensions/api/browser_os/browser_os_api_helpers.cc
+index ff119a6b12134..f64cc13ad5ec6 100644
+--- a/chrome/browser/extensions/api/browser_os/browser_os_api_helpers.cc
++++ b/chrome/browser/extensions/api/browser_os/browser_os_api_helpers.cc
+@@ -14,11 +14,14 @@
+ #include "content/browser/renderer_host/render_widget_host_impl.h"
+ #include "content/public/browser/render_widget_host.h"
+ #include "content/public/browser/render_widget_host_view.h"
++#include "content/browser/renderer_host/render_widget_host_view_base.h"
++#include "content/browser/web_contents/web_contents_impl.h"
+ #include "content/public/browser/web_contents.h"
+ #include "third_party/blink/public/common/input/web_input_event.h"
+ #include "third_party/blink/public/common/input/web_keyboard_event.h"
+ #include "third_party/blink/public/common/input/web_mouse_event.h"
+ #include "third_party/blink/public/common/input/web_mouse_wheel_event.h"
++#include "third_party/blink/public/common/page/page_zoom.h"
+ #include "ui/base/ime/ime_text_span.h"
+ #include "ui/events/base_event_utils.h"
+ #include "ui/events/keycodes/dom/dom_code.h"
+@@ -30,6 +33,207 @@
+ namespace extensions {
+ namespace api {
+ 
++// Compute CSS->widget scale matching DevTools InputHandler::ScaleFactor.
++// We intentionally exclude device scale factor (DSF). Widget coordinates
++// used by input are in DIPs; DSF is handled by the compositor. We also set
++// PositionInScreen = PositionInWidget to avoid unit mixing on HiDPI.
++float CssToWidgetScale(content::WebContents* web_contents,
++                       content::RenderWidgetHost* rwh) {
++  float zoom = 1.0f;
++  if (auto* rwhi = static_cast<content::RenderWidgetHostImpl*>(rwh)) {
++    if (auto* wci = static_cast<content::WebContentsImpl*>(web_contents)) {
++      zoom = blink::ZoomLevelToZoomFactor(wci->GetPendingZoomLevel(rwhi));
++    }
++  }
++
++  float css_zoom = 1.0f;
++  if (auto* view = rwh ? rwh->GetView() : nullptr) {
++    if (auto* view_base =
++            static_cast<content::RenderWidgetHostViewBase*>(view)) {
++      css_zoom = view_base->GetCSSZoomFactor();
++    }
++  }
++
++  float page_scale = 1.0f;
++  if (auto* wci = static_cast<content::WebContentsImpl*>(web_contents)) {
++    page_scale = wci->GetPrimaryPage().GetPageScaleFactor();
++  }
++
++  return zoom * css_zoom * page_scale;
++}
++
++// Helper function to get center point of a node's bounds in CSS pixels.
++// On HiDPI (e.g., macOS Retina), normalize physical pixels by DSF so the
++// returned point aligns with document CSS coordinates used for visualization.
++gfx::PointF GetNodeCenterPoint(content::WebContents* web_contents,
++                               const NodeInfo& node_info) {
++  gfx::PointF center(node_info.bounds.x() + node_info.bounds.width() / 2.0f,
++                     node_info.bounds.y() + node_info.bounds.height() / 2.0f);
++
++  if (!web_contents)
++    return center;
++
++  content::RenderFrameHost* rfh = web_contents->GetPrimaryMainFrame();
++  if (!rfh)
++    return center;
++  content::RenderWidgetHost* rwh = rfh->GetRenderWidgetHost();
++  if (!rwh)
++    return center;
++  if (auto* view_any = rwh->GetView()) {
++    if (auto* view_base =
++            static_cast<content::RenderWidgetHostViewBase*>(view_any)) {
++      const float dsf = view_base->GetDeviceScaleFactor();
++      if (dsf > 0.0f && dsf != 1.0f) {
++        center.set_x(center.x() / dsf);
++        center.set_y(center.y() / dsf);
++      }
++    }
++  }
++  return center;
++}
++
++// Helper function to visualize a human-like cursor click.
++// Shows an orange cursor triangle with ripple effect that moves to the target.
++// This uses CSS transitions/animations and cleans itself up automatically.
++void VisualizeInteractionPoint(content::WebContents* web_contents, 
++                               const gfx::PointF& point,
++                               int duration_ms,
++                               float offset_range) {
++  content::RenderFrameHost* rfh = web_contents->GetPrimaryMainFrame();
++  if (!rfh)
++    return;
++  
++  // Create visualization with a cursor triangle and ripple.
++  // Randomize starting position within offset_range for more natural movement.
++  // Generate random angle and distance for starting position
++  float angle = (rand() % 360) * M_PI / 180.0f;  // Random angle in radians
++  float distance = offset_range * 0.5f + (rand() % (int)(offset_range * 0.5f)); // 50-100% of offset_range
++  
++  const float start_x = point.x() - (cos(angle) * distance);
++  const float start_y = point.y() - (sin(angle) * distance);
++  
++  // Build the JavaScript code using string concatenation to avoid format string issues
++  std::string js_code = absl::StrFormat(
++      R"(
++      (function() {
++        var COLOR = '#FC661A';
++        var LIGHT_COLOR = '#FFA366';  // Lighter shade for ripple
++        var TARGET_X = %f, TARGET_Y = %f;
++        var START_X = %f, START_Y = %f;
++        var DURATION = %d;
++
++        // Remove previous indicators
++        document.querySelectorAll('.browseros-indicator').forEach(e => e.remove());
++
++        // Styles (insert once)
++        if (!document.querySelector('#browseros-indicator-styles')) {
++          var style = document.createElement('style');
++          style.id = 'browseros-indicator-styles';
++          style.textContent = `
++            @keyframes browseros-ripple { 
++              0%% { 
++                transform: translate(-50%%, -50%%) scale(0.3); 
++                opacity: 0.6; 
++              } 
++              100%% { 
++                transform: translate(-50%%, -50%%) scale(2.5); 
++                opacity: 0; 
++              } 
++            }
++          `;
++          document.head.appendChild(style);
++        }
++
++        // Container positioned via transform for smooth movement
++        var container = document.createElement('div');
++        container.className = 'browseros-indicator';
++        container.style.position = 'fixed';
++        container.style.left = '0';
++        container.style.top = '0';
++        container.style.transform = 'translate(' + START_X + 'px, ' + START_Y + 'px)';
++        container.style.transition = 'transform 220ms cubic-bezier(.2,.7,.2,1)';
++        container.style.zIndex = '999999';
++        container.style.pointerEvents = 'none';
++
++        // Regular triangle cursor
++        var cursor = document.createElement('div');
++        cursor.style.width = '0';
++        cursor.style.height = '0';
++        cursor.style.borderStyle = 'solid';
++        cursor.style.borderWidth = '0 8px 14px 8px';  // Regular triangle proportions
++        cursor.style.borderColor = 'transparent transparent ' + COLOR + ' transparent';
++        cursor.style.filter = 'drop-shadow(0 1px 2px rgba(0,0,0,.4)) drop-shadow(0 0 3px rgba(252,102,26,.3))';
++        cursor.style.transform = 'rotate(-45deg)';
++        cursor.style.position = 'absolute';
++        cursor.style.left = '-8px';  // Offset so tip is at 0,0
++        cursor.style.top = '-10px';   // Offset so tip is at 0,0
++        container.appendChild(cursor);
++
++        // Ripple container positioned exactly at cursor tip (0,0 of container)
++        var rippleContainer = document.createElement('div');
++        rippleContainer.style.position = 'absolute';
++        rippleContainer.style.left = '0';  // Tip is at origin
++        rippleContainer.style.top = '0';
++        rippleContainer.style.width = '0';
++        rippleContainer.style.height = '0';
++
++        // Ripple ring 1 (inner ripple) - centered on cursor tip
++        var ring1 = document.createElement('div');
++        ring1.style.position = 'absolute';
++        ring1.style.left = '50%%';
++        ring1.style.top = '50%%';
++        ring1.style.width = '16px';
++        ring1.style.height = '16px';
++        ring1.style.borderRadius = '50%%';
++        ring1.style.border = '2px solid ' + LIGHT_COLOR;
++        ring1.style.animation = 'browseros-ripple 600ms ease-out forwards';
++        rippleContainer.appendChild(ring1);
++
++        // Ripple ring 2 (outer ripple with slight delay) - centered on cursor tip
++        var ring2 = document.createElement('div');
++        ring2.style.position = 'absolute';
++        ring2.style.left = '50%%';
++        ring2.style.top = '50%%';
++        ring2.style.width = '16px';
++        ring2.style.height = '16px';
++        ring2.style.borderRadius = '50%%';
++        ring2.style.border = '1.5px solid ' + COLOR;
++        ring2.style.animation = 'browseros-ripple 800ms ease-out forwards';
++        ring2.style.animationDelay = '150ms';
++        rippleContainer.appendChild(ring2);
++
++        container.appendChild(rippleContainer);
++        document.body.appendChild(container);
++
++        // Kick off movement next frame
++        requestAnimationFrame(() => {
++          container.style.transform = 'translate(' + TARGET_X + 'px, ' + TARGET_Y + 'px)';
++        });
++
++        // Fade and remove after duration
++        setTimeout(() => {
++          container.style.transition = 'opacity 320ms ease, transform 200ms ease-out';
++          container.style.opacity = '0';
++          setTimeout(() => container.remove(), 360);
++        }, Math.max(300, DURATION));
++      })();
++      )",
++      point.x(), point.y(),
++      start_x, start_y,
++      duration_ms);
++  
++  std::u16string js_visualizer = base::UTF8ToUTF16(js_code);
++  
++  rfh->ExecuteJavaScriptForTests(
++      js_visualizer,
++      base::NullCallback(),
++      /*honor_js_content_settings=*/false);
++  
++  // Small delay to ensure the indicator is visible
++  base::PlatformThread::Sleep(base::Milliseconds(30));
++}
++
++
+ // Helper to create and dispatch mouse events for clicking
+ void PointClick(content::WebContents* web_contents, 
+                   const gfx::PointF& point) {
+@@ -45,12 +249,14 @@ void PointClick(content::WebContents* web_contents,
+   if (!rwhv)
+     return;
+ 
+-  // Get viewport bounds for screen position calculation
+-  gfx::Rect viewport_bounds = rwhv->GetViewBounds();
+-  gfx::PointF viewport_origin(viewport_bounds.x(), viewport_bounds.y());
+-  
+-  // The coordinates are already in widget space (CSS pixels)
+-  gfx::PointF widget_point = point;
++  // The incoming point is in CSS pixels (already normalized by DSF if needed).
++  // Convert CSS → widget DIPs using the same scale chain as DevTools.
++  gfx::PointF css_point = point;
++  const float scale = CssToWidgetScale(web_contents, rwh);
++  gfx::PointF widget_point(css_point.x() * scale, css_point.y() * scale);
++
++  // Visualize the actual target location on the page (CSS pixel coords).
++  VisualizeInteractionPoint(web_contents, css_point, 2000, 50.0f);
+ 
+   // Create mouse down event
+   blink::WebMouseEvent mouse_down;
+@@ -58,8 +264,9 @@ void PointClick(content::WebContents* web_contents,
+   mouse_down.button = blink::WebPointerProperties::Button::kLeft;
+   mouse_down.click_count = 1;
+   mouse_down.SetPositionInWidget(widget_point.x(), widget_point.y());
+-  mouse_down.SetPositionInScreen(widget_point.x() + viewport_origin.x(), 
+-                                widget_point.y() + viewport_origin.y());
++  // Align with DevTools: screen position equals widget position to avoid
++  // unit-mixing on HiDPI. The compositor handles DSF.
++  mouse_down.SetPositionInScreen(widget_point.x(), widget_point.y());
+   mouse_down.SetTimeStamp(ui::EventTimeForNow());
+   mouse_down.SetModifiers(blink::WebInputEvent::kLeftButtonDown);
+   
+@@ -69,8 +276,7 @@ void PointClick(content::WebContents* web_contents,
+   mouse_up.button = blink::WebPointerProperties::Button::kLeft;
+   mouse_up.click_count = 1;
+   mouse_up.SetPositionInWidget(widget_point.x(), widget_point.y());
+-  mouse_up.SetPositionInScreen(widget_point.x() + viewport_origin.x(),
+-                              widget_point.y() + viewport_origin.y());
++  mouse_up.SetPositionInScreen(widget_point.x(), widget_point.y());
+   mouse_up.SetTimeStamp(ui::EventTimeForNow());
+   
+   // Send the events
+@@ -495,9 +701,7 @@ void JavaScriptType(content::WebContents* web_contents,
+ bool ClickWithDetection(content::WebContents* web_contents,
+                         const NodeInfo& node_info) {
+   // First try coordinate-based click with change detection
+-  gfx::PointF click_point(
+-      node_info.bounds.x() + node_info.bounds.width() / 2.0f,
+-      node_info.bounds.y() + node_info.bounds.height() / 2.0f);
++  gfx::PointF click_point = GetNodeCenterPoint(web_contents, node_info);
+   
+   bool changed = BrowserOSChangeDetector::ExecuteWithDetection(
+       web_contents,
+@@ -521,6 +725,9 @@ bool ClickWithDetection(content::WebContents* web_contents,
+ bool TypeWithDetection(content::WebContents* web_contents,
+                       const NodeInfo& node_info,
+                       const std::string& text) {
++  // Get center point for visualization and clicking
++  gfx::PointF click_point = GetNodeCenterPoint(web_contents, node_info);
++  
+   // Try native typing first (more natural interaction)
+   bool changed = BrowserOSChangeDetector::ExecuteWithDetection(
+       web_contents,
+@@ -528,9 +735,6 @@ bool TypeWithDetection(content::WebContents* web_contents,
+         // Focus the element first
+         HtmlFocus(web_contents, node_info);
+         // Click to ensure activation
+-        gfx::PointF click_point(
+-            node_info.bounds.x() + node_info.bounds.width() / 2.0f,
+-            node_info.bounds.y() + node_info.bounds.height() / 2.0f);
+         PointClick(web_contents, click_point);
+         // Then type using native IME
+         NativeType(web_contents, text);
+@@ -553,6 +757,12 @@ bool TypeWithDetection(content::WebContents* web_contents,
+ // Helper to clear an input field with change detection
+ bool ClearWithDetection(content::WebContents* web_contents,
+                        const NodeInfo& node_info) {
++  // Get center point for visualization
++  gfx::PointF clear_point = GetNodeCenterPoint(web_contents, node_info);
++  
++  // Visualize where we're about to clear (orange for clear)
++  VisualizeInteractionPoint(web_contents, clear_point, 2000, 50.0f);
++  
+   // Use change detection with JavaScript clear
+   bool changed = BrowserOSChangeDetector::ExecuteWithDetection(
+       web_contents,
+diff --git a/chrome/browser/extensions/api/browser_os/browser_os_api_helpers.h b/chrome/browser/extensions/api/browser_os/browser_os_api_helpers.h
+index 86c5fb811c64f..6bbf3d9fc33d0 100644
+--- a/chrome/browser/extensions/api/browser_os/browser_os_api_helpers.h
++++ b/chrome/browser/extensions/api/browser_os/browser_os_api_helpers.h
+@@ -12,6 +12,7 @@
+ 
+ namespace content {
+ class WebContents;
++class RenderWidgetHost;
+ }  // namespace content
+ 
+ namespace extensions {
+@@ -19,6 +20,19 @@ namespace api {
+ 
+ struct NodeInfo;
+ 
++// Returns the multiplicative factor that converts CSS pixels (frame
++// coordinates) to widget DIPs for input events. This matches DevTools'
++// InputHandler::ScaleFactor(): browser zoom × CSS zoom × page scale. The
++// device scale factor (DSF) is NOT included because compositor handles it and
++// input expects widget DIPs (we also set screen = widget).
++float CssToWidgetScale(content::WebContents* web_contents,
++                       content::RenderWidgetHost* rwh);
++
++// Returns the center point of a node's bounds in CSS pixels, normalized by
++// device scale factor when necessary so it aligns with document coordinates.
++gfx::PointF GetNodeCenterPoint(content::WebContents* web_contents,
++                               const NodeInfo& node_info);
++
+ // Helper to create and dispatch mouse events for clicking
+ void PointClick(content::WebContents* web_contents, 
+                   const gfx::PointF& point);
+@@ -71,6 +85,15 @@ bool ClearWithDetection(content::WebContents* web_contents,
+ bool KeyPressWithDetection(content::WebContents* web_contents,
+                           const std::string& key);
+ 
++// Visualizes a human-like cursor click at a CSS point with orange color,
++// ripple effect and randomized movement-in animation.
++// duration_ms: How long before auto fade-out and removal.
++// offset_range: Max distance for randomized starting position (default 50px).
++void VisualizeInteractionPoint(content::WebContents* web_contents,
++                               const gfx::PointF& point,
++                               int duration_ms = 3000,
++                               float offset_range = 50.0f);
++
+ }  // namespace api
+ }  // namespace extensions
+ 
+diff --git a/chrome/browser/extensions/api/browser_os/browser_os_snapshot_processor.cc b/chrome/browser/extensions/api/browser_os/browser_os_snapshot_processor.cc
+index ee9da99ed9bc7..90fa3d17874fc 100644
+--- a/chrome/browser/extensions/api/browser_os/browser_os_snapshot_processor.cc
++++ b/chrome/browser/extensions/api/browser_os/browser_os_snapshot_processor.cc
+@@ -23,8 +23,13 @@
+ #include "base/task/thread_pool.h"
+ #include "base/time/time.h"
+ #include "chrome/browser/extensions/api/browser_os/browser_os_api_utils.h"
++#include "content/public/browser/browser_thread.h"
++#include "ui/accessibility/ax_clipping_behavior.h"
++#include "ui/accessibility/ax_coordinate_system.h"
+ #include "ui/accessibility/ax_enum_util.h"
++#include "ui/accessibility/ax_node.h"
+ #include "ui/accessibility/ax_node_data.h"
++#include "ui/accessibility/ax_tree.h"
+ #include "ui/accessibility/ax_tree_id.h"
+ #include "ui/accessibility/ax_tree_update.h"
+ #include "ui/gfx/geometry/rect.h"
+@@ -35,77 +40,39 @@
+ namespace extensions {
+ namespace api {
+ 
+-// Helper to compute absolute bounds from relative bounds by walking up the tree
+-// If bounds_cache is provided, it will be used to cache computed bounds
+-static gfx::RectF ComputeAbsoluteBoundsFromRelative(
+-    const ui::AXNodeData& node_data,
+-    const std::unordered_map<int32_t, ui::AXNodeData>& node_map,
+-    std::unordered_map<int32_t, gfx::RectF>* bounds_cache = nullptr) {
+-  // Check cache first if provided
+-  if (bounds_cache) {
+-    auto cache_it = bounds_cache->find(node_data.id);
+-    if (cache_it != bounds_cache->end()) {
+-      return cache_it->second;
+-    }
+-  }
+-  // Compute absolute bounds by walking up the tree
+-  gfx::RectF absolute_bounds = node_data.relative_bounds.bounds;
+-  gfx::Transform accumulated_transform;
+-  
+-  // Apply this node's transform if it has one
+-  if (node_data.relative_bounds.transform) {
+-    accumulated_transform = *node_data.relative_bounds.transform;
++// Static method to compute bounds for a node using AXTree
++// This implements the same logic as BrowserAccessibility::GetBoundsRect
++gfx::Rect SnapshotProcessor::GetNodeBounds(
++    ui::AXTree* tree,
++    const ui::AXNode* node,
++    const ui::AXCoordinateSystem coordinate_system,
++    const ui::AXClippingBehavior clipping_behavior) {
++  if (!tree || !node) {
++    return gfx::Rect();
+   }
+   
+-  // Walk up the tree to compute absolute position
+-  int32_t current_container_id = node_data.relative_bounds.offset_container_id;
+-  int walk_depth = 0;
++  // Start with empty bounds (same as GetBoundsRect does)
++  gfx::RectF bounds;
+   
+-  while (current_container_id >= 0 && walk_depth < 100) {  // Prevent infinite loops
+-    auto container_it = node_map.find(current_container_id);
+-    if (container_it == node_map.end()) {
+-      break;
+-    }
+-    
+-    const ui::AXNodeData& container = container_it->second;
+-    
+-    // Offset by container's position
+-    absolute_bounds.Offset(container.relative_bounds.bounds.x(),
+-                         container.relative_bounds.bounds.y());
+-    
+-    // Apply container's transform if any
+-    if (container.relative_bounds.transform) {
+-      gfx::Transform container_transform = *container.relative_bounds.transform;
+-      container_transform.PostConcat(accumulated_transform);
+-      accumulated_transform = container_transform;
+-    }
+-    
+-    // Account for scroll offset if container has it
+-    if (container.HasIntAttribute(ax::mojom::IntAttribute::kScrollX) ||
+-        container.HasIntAttribute(ax::mojom::IntAttribute::kScrollY)) {
+-      int scroll_x = container.GetIntAttribute(ax::mojom::IntAttribute::kScrollX);
+-      int scroll_y = container.GetIntAttribute(ax::mojom::IntAttribute::kScrollY);
+-      absolute_bounds.Offset(-scroll_x, -scroll_y);
+-    }
+-    
+-    // Move to next container
+-    current_container_id = container.relative_bounds.offset_container_id;
+-    walk_depth++;
+-  }
++  // Apply RelativeToTreeBounds to get absolute bounds
++  const bool clip_bounds = clipping_behavior == ui::AXClippingBehavior::kClipped;
++  bool offscreen = false;
++  bounds = tree->RelativeToTreeBounds(node, bounds, &offscreen, clip_bounds);
+   
+-  // Apply accumulated transform
+-  if (!accumulated_transform.IsIdentity()) {
+-    absolute_bounds = accumulated_transform.MapRect(absolute_bounds);
++  // For frame coordinates, we're done
++  // We use kFrame since we want viewport-relative coordinates
++  if (coordinate_system == ui::AXCoordinateSystem::kFrame) {
++    return gfx::ToEnclosingRect(bounds);
+   }
+   
+-  // Store in cache if provided
+-  if (bounds_cache) {
+-    (*bounds_cache)[node_data.id] = absolute_bounds;
+-  }
++  // For root frame or screen coordinates, additional transformations would be needed
++  // but for our use case (click coordinates), frame coordinates are what we need
++  // since ForwardMouseEvent expects viewport-relative coordinates
+   
+-  return absolute_bounds;
++  return gfx::ToEnclosingRect(bounds);
+ }
+ 
++
+ // ProcessedNode implementation
+ SnapshotProcessor::ProcessedNode::ProcessedNode()
+     : node_data(nullptr), node_id(0) {}
+@@ -234,13 +201,13 @@ struct SnapshotProcessor::ProcessingContext
+   std::unordered_map<int32_t, ui::AXNodeData> node_map;
+   std::unordered_map<int32_t, int32_t> parent_map;  // child_id -> parent_id  
+   std::unordered_map<int32_t, std::vector<int32_t>> children_map;  // parent_id -> child_ids
++  std::unique_ptr<ui::AXTree> ax_tree;  // AXTree for computing accurate bounds
+   int tab_id;
+   ui::AXTreeID tree_id;  // Tree ID for change detection
+   base::TimeTicks start_time;
+   size_t total_nodes;
+   size_t processed_batches;
+   size_t total_batches;
+-  gfx::Rect viewport_bounds;
+   base::OnceCallback<void(SnapshotProcessingResult)> callback;
+   
+  private:
+@@ -414,15 +381,11 @@ void PopulateNodeAttributes(
+ std::vector<SnapshotProcessor::ProcessedNode> SnapshotProcessor::ProcessNodeBatch(
+     const std::vector<ui::AXNodeData>& nodes_to_process,
+     const std::unordered_map<int32_t, ui::AXNodeData>& node_map,
+-    uint32_t start_node_id,
+-    const gfx::Rect& doc_viewport_bounds) {
++    ui::AXTree* ax_tree,
++    uint32_t start_node_id) {
+   std::vector<ProcessedNode> results;
+   results.reserve(nodes_to_process.size());
+   
+-  // Local caches for this batch
+-  std::unordered_map<int32_t, gfx::RectF> bounds_cache;
+-  std::unordered_map<int32_t, uint64_t> path_cache;
+-  
+   uint32_t current_node_id = start_node_id;
+   
+   for (const auto& node_data : nodes_to_process) {
+@@ -450,9 +413,32 @@ std::vector<SnapshotProcessor::ProcessedNode> SnapshotProcessor::ProcessNodeBatc
+       data.name = SanitizeStringForOutput(name);
+     }
+ 
+-    // Compute absolute bounds with caching
+-    data.absolute_bounds = ComputeAbsoluteBoundsFromRelative(
+-        node_data, node_map, &bounds_cache);
++    // Compute bounds using AXTree
++    if (ax_tree) {
++      ui::AXNode* ax_node = ax_tree->GetFromId(node_data.id);
++      if (ax_node) {
++        // Get bounds in frame coordinates (viewport-relative CSS pixels)
++        gfx::Rect bounds = GetNodeBounds(
++            ax_tree, 
++            ax_node,
++            ui::AXCoordinateSystem::kFrame,
++            // Use clipped bounds so the center lies within the visible area of
++            // scrolled/clip containers. This matches how clicks should target
++            // on-screen rects.
++            ui::AXClippingBehavior::kClipped);
++        data.absolute_bounds = gfx::RectF(bounds);
++        
++        VLOG(3) << "[browseros] Node " << node_data.id 
++                << " computed bounds: " << bounds.ToString();
++      } else {
++        // Node not found in AXTree, skip bounds computation
++        VLOG(3) << "[browseros] Node " << node_data.id 
++                << " not found in AXTree, skipping bounds";
++      }
++    } else {
++      // No AXTree available
++      LOG(WARNING) << "[browseros] No AXTree available for bounds computation";
++    }
+     
+     // Populate all attributes using helper function
+     PopulateNodeAttributes(node_data, data.attributes);
+@@ -473,15 +459,9 @@ std::vector<SnapshotProcessor::ProcessedNode> SnapshotProcessor::ProcessNodeBatc
+     }
+     data.attributes["depth"] = std::to_string(depth);
+     
+-    // Check if node is in viewport
+-    // TODO: Fix this logic. still not accurate in terms of saying if in view port or not
+-    bool in_viewport = false;
+-    if (!doc_viewport_bounds.IsEmpty()) {
+-      // Convert absolute bounds to integer rect for intersection test
+-      gfx::Rect node_rect = gfx::ToEnclosingRect(data.absolute_bounds);
+-      in_viewport = doc_viewport_bounds.Intersects(node_rect);
+-    }
+-    data.attributes["in_viewport"] = in_viewport ? "true" : "false";
++    // TODO: Fix viewport detection logic
++    // For now, mark all nodes as potentially in viewport
++    data.attributes["in_viewport"] = "unknown";
+     
+     results.push_back(std::move(data));
+   }
+@@ -594,6 +574,24 @@ void SnapshotProcessor::ProcessAccessibilityTree(
+     }
+   }
+   
++  // Clear previous mappings for this tab
++  GetNodeIdMappings()[tab_id].clear();
++
++  // Create an AXTree from the tree update for accurate bounds computation
++  std::unique_ptr<ui::AXTree> ax_tree = std::make_unique<ui::AXTree>(tree_update);
++  
++  if (!ax_tree) {
++    LOG(ERROR) << "[browseros] Failed to create AXTree from update";
++    SnapshotProcessingResult result;
++    result.nodes_processed = 0;
++    result.processing_time_ms = 0;
++    std::move(callback).Run(std::move(result));
++    return;
++  }
++  
++  LOG(INFO) << "[browseros] Created AXTree with " << tree_update.nodes.size() 
++            << " nodes for bounds computation";
++  
+   // Prepare processing context using RefCounted
+   auto context = base::MakeRefCounted<ProcessingContext>();
+   context->snapshot.snapshot_id = snapshot_id;
+@@ -602,6 +600,7 @@ void SnapshotProcessor::ProcessAccessibilityTree(
+   context->node_map = std::move(node_map);
+   context->parent_map = std::move(parent_map); 
+   context->children_map = std::move(children_map);
++  context->ax_tree = std::move(ax_tree);  // Store AXTree for bounds computation
+   context->start_time = start_time;
+   
+   // Store the tree ID for change detection
+@@ -609,35 +608,11 @@ void SnapshotProcessor::ProcessAccessibilityTree(
+     context->tree_id = tree_update.tree_data.tree_id;
+   }
+   
+-  // Convert viewport size to document viewport bounds
+-  // Find the root node and get its scroll offset
+-  gfx::Rect doc_viewport_bounds;
+-  if (!viewport_size.IsEmpty() && tree_update.has_tree_data && tree_update.root_id != 0) {
+-    auto root_it = node_map.find(tree_update.root_id);
+-    if (root_it != node_map.end()) {
+-      const ui::AXNodeData& root_node = root_it->second;
+-      int scroll_x = root_node.GetIntAttribute(ax::mojom::IntAttribute::kScrollX);
+-      int scroll_y = root_node.GetIntAttribute(ax::mojom::IntAttribute::kScrollY);
+-      
+-      // Create viewport in document coordinates
+-      // Position is based on scroll offset, size is the visible viewport size
+-      doc_viewport_bounds = gfx::Rect(scroll_x, scroll_y, 
+-                                      viewport_size.width(), 
+-                                      viewport_size.height());
+-      
+-      LOG(INFO) << "Viewport size: " << viewport_size.ToString();
+-      LOG(INFO) << "Root scroll offset: (" << scroll_x << ", " << scroll_y << ")";
+-      LOG(INFO) << "Document viewport bounds: " << doc_viewport_bounds.ToString();
+-    }
+-  }
+-  
+-  context->viewport_bounds = doc_viewport_bounds;
++  // Viewport size is passed in but not currently used for viewport bounds calculation
++  // TODO: Implement proper viewport detection if needed
+   context->callback = std::move(callback);
+   context->processed_batches = 0;
+   
+-  // Clear previous mappings for this tab
+-  GetNodeIdMappings()[tab_id].clear();
+-
+   // Collect all nodes to process and filter
+   std::vector<ui::AXNodeData> nodes_to_process;
+   for (const auto& node : tree_update.nodes) {
+@@ -681,9 +656,9 @@ void SnapshotProcessor::ProcessAccessibilityTree(
+         {base::TaskPriority::USER_VISIBLE},
+         base::BindOnce(&SnapshotProcessor::ProcessNodeBatch, 
+                        std::move(batch), 
+-                       context->node_map, 
+-                       start_node_id,
+-                       context->viewport_bounds),
++                       context->node_map,
++                       context->ax_tree.get(),  // Pass AXTree pointer for bounds computation
++                       start_node_id),
+         base::BindOnce(&SnapshotProcessor::OnBatchProcessed,
+                        context));
+   }
+diff --git a/chrome/browser/extensions/api/browser_os/browser_os_snapshot_processor.h b/chrome/browser/extensions/api/browser_os/browser_os_snapshot_processor.h
+index 5e1114c40fe89..c78655b6ae515 100644
+--- a/chrome/browser/extensions/api/browser_os/browser_os_snapshot_processor.h
++++ b/chrome/browser/extensions/api/browser_os/browser_os_snapshot_processor.h
+@@ -16,8 +16,12 @@
+ #include "ui/gfx/geometry/rect_f.h"
+ 
+ namespace ui {
++class AXNode;
++class AXTree;
+ struct AXNodeData;
+ struct AXTreeUpdate;
++enum class AXCoordinateSystem;
++enum class AXClippingBehavior;
+ }  // namespace ui
+ 
+ namespace extensions {
+@@ -65,16 +69,24 @@ class SnapshotProcessor {
+       base::OnceCallback<void(SnapshotProcessingResult)> callback);
+ 
+   // Process a batch of nodes (exposed for testing)
++  // The ax_tree is used to compute accurate bounds for each node
+   static std::vector<ProcessedNode> ProcessNodeBatch(
+       const std::vector<ui::AXNodeData>& nodes_to_process,
+       const std::unordered_map<int32_t, ui::AXNodeData>& node_map,
+-      uint32_t start_node_id,
+-      const gfx::Rect& doc_viewport_bounds);
++      ui::AXTree* ax_tree,
++      uint32_t start_node_id);
+ 
+  private:
+   // Internal processing context
+   struct ProcessingContext;
+   
++  // Compute absolute bounds for a node using AXTree
++  // This implements the same logic as BrowserAccessibility::GetBoundsRect
++  static gfx::Rect GetNodeBounds(ui::AXTree* tree, 
++                                  const ui::AXNode* node,
++                                  const ui::AXCoordinateSystem coordinate_system,
++                                  const ui::AXClippingBehavior clipping_behavior);
++  
+   // Batch processing callback
+   static void OnBatchProcessed(scoped_refptr<ProcessingContext> context,
+                                std::vector<ProcessedNode> batch_results);
+-- 
+2.49.0
+
