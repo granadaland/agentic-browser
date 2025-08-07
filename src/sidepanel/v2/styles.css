@@ -463,16 +463,20 @@ p, span, div, h1, h2, h3, h4, h5, h6, li, td, th, label, input, textarea, button
 @keyframes dash-off-left {
   0% { 
     opacity: 1;
-    transform: translateX(0);
+    transform: translateX(0) scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: translateX(-50px) scale(0.95);
   }
   100% { 
     opacity: 0;
-    transform: translateX(-100px);
+    transform: translateX(-150px) scale(0.9);
   }
 }
 
 .animate-dash-off-left {
-  animation: dash-off-left 0.4s ease-in-out forwards;
+  animation: dash-off-left 0.6s ease-out forwards;
   position: absolute !important;
   z-index: -1;
 }
@@ -663,23 +667,22 @@ p, span, div, h1, h2, h3, h4, h5, h6, li, td, th, label, input, textarea, button
 /* Draw line animation (left to right) */
 @keyframes draw-line {
   0% { 
-    width: 0;
+    transform: scaleX(0);
     opacity: 0;
   }
   50% { 
-    width: 50%;
+    transform: scaleX(0.5);
     opacity: 0.7;
   }
   100% { 
-    width: 100%;
+    transform: scaleX(1);
     opacity: 1;
   }
 }
 
 .animate-draw-line {
   animation: draw-line 0.8s ease-out forwards;
-  width: 0;
-  overflow: hidden;
+  transform-origin: left;
 }
 
 /* Glass morphism effect */

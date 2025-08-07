@@ -1,12 +1,13 @@
-import React, { memo, useState, useEffect } from 'react'
+import React, { memo, useState } from 'react'
 import { Button } from '@/sidepanel/components/ui/button'
 import { useSidePanelPortMessaging } from '@/sidepanel/hooks'
 import { MessageType } from '@/lib/types/messaging'
-import { useChatStore } from '../stores/chatStore'
 import { useAnalytics } from '../hooks/useAnalytics'
 import { SettingsModal } from './SettingsModal'
 import { HelpSection } from './HelpSection'
-import { HelpIcon, SettingsIcon, PauseIcon, ResetIcon } from './ui/Icons'
+import { HelpIcon, SettingsIcon, PauseIcon, ResetIcon, GitHubIcon } from './ui/Icons'
+
+const GITHUB_REPO_URL: string = 'https://github.com/browseros-ai/BrowserOS-agent'
 
 interface HeaderProps {
   onReset: () => void
@@ -21,31 +22,10 @@ interface HeaderProps {
  */
 export const Header = memo(function Header({ onReset, showReset, isProcessing }: HeaderProps) {
   const { sendMessage, connected } = useSidePanelPortMessaging()
-  const { setProcessing } = useChatStore()
   const { trackClick } = useAnalytics()
   const [showSettings, setShowSettings] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
-  const [isDarkMode, setIsDarkMode] = useState(false)
-
-  // Check current theme on mount and listen for changes
-  useEffect(() => {
-    const checkTheme = () => {
-      const isDark = document.documentElement.classList.contains('dark')
-      setIsDarkMode(isDark)
-    }
-
-    // Check initial theme
-    checkTheme()
-
-    // Listen for theme changes
-    const observer = new MutationObserver(checkTheme)
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['class']
-    })
-
-    return () => observer.disconnect()
-  }, [])
+  
   
   const handleCancel = () => {
     trackClick('pause_task')
@@ -53,7 +33,6 @@ export const Header = memo(function Header({ onReset, showReset, isProcessing }:
       reason: 'User clicked pause button',
       source: 'sidepanel'
     })
-    setProcessing(false)
   }
   
   const handleReset = () => {
@@ -84,31 +63,33 @@ export const Header = memo(function Header({ onReset, showReset, isProcessing }:
         role="banner"
       >
 
-        <a href="https://www.browseros.com/" target="_blank" rel="noopener noreferrer" className="block">
-          <div className="flex items-center px-1 py-.8 rounded-lg bg-[hsl(var(--card))] cursor-pointer hover:opacity-90 transition">
-            {/* Brand */}
-            <div className="flex items-center gap-3">
-              <div>
-                <img
-                  src={isDarkMode ? "/assets/product_logo_name_22_white.png" : "/assets/product_logo_name_22_2x.png"}
-                  alt="BrowserOS"
-                  style={{ height: '24px', width: 'auto' }}
-                />
-              </div>
-            </div>
-            {/* Connection status indicator */}
+        <div className="flex items-center gap-3">
+          <Button
+            onClick={() => {
+              trackClick('star_github')
+              window.open(GITHUB_REPO_URL, '_blank', 'noopener,noreferrer')
+            }}
+            variant="outline"
+            size="sm"
+            className="gap-2 hover:bg-brand/5 hover:text-brand transition-all duration-300"
+            aria-label="Star on GitHub"
+            title="Star on GitHub"
+          >
+            <GitHubIcon />
+            GitHub
+          </Button>
+          {/* Connection status indicator */}
+          <div
+            className="flex items-center"
+            role="status"
+            aria-label={`Connection status: ${connected ? 'Connected' : 'Disconnected'}`}
+          >
             <div
-              className="flex items-center"
-              role="status"
-              aria-label={`Connection status: ${connected ? 'Connected' : 'Disconnected'}`}
-            >
-              <div
-                className={`w-2 h-2 rounded-full ${connected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}
-                aria-hidden="true"
-              />
-            </div>
+              className={`w-2 h-2 rounded-full ${connected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}
+              aria-hidden="true"
+            />
           </div>
-        </a>
+        </div>
         
         <nav className="flex items-center gap-2" role="navigation" aria-label="Chat controls">
           {/* Help button */}

@@ -164,7 +164,8 @@ export class BrowserAgent {
       } else {
         message = 'Creating a step-by-step plan to complete the task';
       }
-      this.eventEmitter.info(message);
+      // Tag startup status messages for UI styling
+      this.eventEmitter.info(message, 'startup');
 
       // 3. DELEGATE: Route to the correct execution strategy
       if (classification.is_simple_task) {

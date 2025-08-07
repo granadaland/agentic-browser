@@ -1,13 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { Textarea } from '@/sidepanel/components/ui/textarea'
 import { Button } from '@/sidepanel/components/ui/button'
-import { LazyTabSelector } from './LazyTabSelector'
+import { SelectTabsButton } from './SelectTabsButton'
 import { useChatStore } from '../stores/chatStore'
 import { useKeyboardShortcuts, useAutoResize } from '../hooks/useKeyboardShortcuts'
 import { useSidePanelPortMessaging } from '@/sidepanel/hooks'
 import { MessageType } from '@/lib/types/messaging'
 import { cn } from '@/sidepanel/lib/utils'
-import { TabsIcon, CloseIcon, SendIcon, LoadingPawTrail } from './ui/Icons';
+import { CloseIcon, SendIcon, LoadingPawTrail } from './ui/Icons'
+
 
 interface ChatInputProps {
   isConnected: boolean
@@ -19,7 +20,7 @@ interface ChatInputProps {
 /**
  * Chat input component with auto-resize, tab selection, and keyboard shortcuts
  */
-export function ChatInput({ isConnected, isProcessing, onToggleSelectTabs, showSelectTabsButton }: ChatInputProps) {
+export function ChatInput({ isConnected, isProcessing }: ChatInputProps) {
   const [input, setInput] = useState('')
   const [showTabSelector, setShowTabSelector] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -53,6 +54,8 @@ export function ChatInput({ isConnected, isProcessing, onToggleSelectTabs, showS
       window.removeEventListener('setInputValue', handleSetInput as EventListener)
     }
   }, [])
+  
+
   
   const submitTask = (query: string) => {
     if (!query.trim()) return
@@ -93,6 +96,12 @@ export function ChatInput({ isConnected, isProcessing, onToggleSelectTabs, showS
   const handleSubmit = (e?: React.FormEvent) => {
     e?.preventDefault()
     
+    // If processing and no input, act like pause button (cancel current task)
+    if (isProcessing && !input.trim()) {
+      handleCancel()
+      return
+    }
+
     if (isProcessing && input.trim()) {
       // Interrupt and follow-up pattern
       const followUpQuery = input.trim()
@@ -118,27 +127,13 @@ export function ChatInput({ isConnected, isProcessing, onToggleSelectTabs, showS
       reason: 'User requested cancellation',
       source: 'sidepanel'
     })
-    setProcessing(false)
+    // Do not change local processing state here; wait for background WORKFLOW_STATUS
   }
   
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newValue = e.target.value
     setInput(newValue)
-    
-    // Check for @ trigger
-    const lastChar = newValue.slice(-1)
-    if (lastChar === '@' && !showTabSelector) {
-      // Only trigger if @ is at start or preceded by space
-      const beforeAt = newValue.slice(0, -1)
-      if (beforeAt === '' || beforeAt.endsWith(' ')) {
-        setShowTabSelector(true)
-      }
-    }
-    
-    // Hide tab selector if input is cleared or @ is removed
-    if (newValue === '' || (!newValue.includes('@') && showTabSelector)) {
-      setShowTabSelector(false)
-    }
+    setShowTabSelector(newValue.includes('@'))
   }
   
   const handleTabSelectorClose = () => {
@@ -187,15 +182,7 @@ export function ChatInput({ isConnected, isProcessing, onToggleSelectTabs, showS
         <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-64 h-32 bg-gradient-radial from-brand/25 via-brand/10 to-transparent animate-spotlight-pulse-delayed" style={{ animationDelay: '1.9s' }}></div>
       </div>
       
-      {/* Tab selector */}
-      {showTabSelector && (
-        <div className="absolute bottom-full left-6 right-6 mb-3 z-10 animate-in slide-in-from-bottom-2 duration-300">
-          <LazyTabSelector 
-            isOpen={showTabSelector}
-            onClose={handleTabSelectorClose}
-          />
-        </div>
-      )}
+      {/* Select Tabs Button (appears when '@' is present) */}
       
       {/* Input container */}
       <div className="relative">
@@ -214,8 +201,14 @@ export function ChatInput({ isConnected, isProcessing, onToggleSelectTabs, showS
           </Button>
         </div> */}
         
-        <form onSubmit={handleSubmit} className="w-full flex justify-center" role="form" aria-label="Chat input form">
-          <div className="relative flex items-end w-full max-w-sm">
+        {showTabSelector && (
+          <div className="px-4 mb-2">
+            <SelectTabsButton />
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="w-full px-4" role="form" aria-label="Chat input form">
+          <div className="relative flex items-end w-full transition-all duration-300 ease-out">
             <Textarea
               ref={textareaRef}
               value={input}
@@ -224,11 +217,12 @@ export function ChatInput({ isConnected, isProcessing, onToggleSelectTabs, showS
               disabled={!isConnected}
               className={cn(
                 'max-h-[200px] resize-none pr-20 text-sm w-full',
-                'transition-all duration-300',
                 'bg-background/80 backdrop-blur-sm border-2 border-brand/30',
                 'focus:ring-2 focus:ring-brand focus:ring-offset-2 focus:border-brand',
                 'hover:border-brand/50 hover:bg-background/90',
                 'rounded-2xl shadow-lg',
+                'px-3 py-2',
+                'transition-all duration-300 ease-out',
                 !isConnected && 'opacity-50 cursor-not-allowed bg-muted'
               )}
               rows={1}
@@ -257,11 +251,11 @@ export function ChatInput({ isConnected, isProcessing, onToggleSelectTabs, showS
         
         <div 
           id="input-hint" 
-          className="mt-3 text-center text-xs text-muted-foreground font-medium flex items-center justify-center gap-2"
+          className="mt-2 sm:mt-3 text-center text-xs text-muted-foreground font-medium flex items-center justify-center gap-2 px-2"
           role="status"
           aria-live="polite"
         >
-          {getLoadingIndicator()}
+          {/*getLoadingIndicator()*/}
           <span>{getHintText()}</span>
         </div>
       </div>

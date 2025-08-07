@@ -1,6 +1,6 @@
 @use '../shared/index.scss' as *;
-@import '../shared/variables';
-@import '../shared/mixins';
+@use '../shared/variables' as *;
+@use '../shared/mixins' as *;
 
 .container {
   line-height: 1.6;

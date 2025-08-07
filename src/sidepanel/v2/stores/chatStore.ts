@@ -12,6 +12,7 @@ export const MessageSchema = z.object({
     error: z.boolean().optional(),  // Flag for error messages
     isExecuting: z.boolean().optional(),  // Flag for executing messages
     isCompleting: z.boolean().optional(),  // Flag for messages that are finishing execution
+    isStartup: z.boolean().optional(),  // Flag for initial startup status lines
   }).optional()  // Optional metadata
 })
 

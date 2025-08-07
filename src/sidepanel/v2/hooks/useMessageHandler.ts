@@ -26,7 +26,7 @@ export function useMessageHandler() {
           markMessageAsCompleting(msg.id)
         })
         // Reset the flag after animation
-        setTimeout(() => setExecutingMessageRemoving(false), 400)
+        setTimeout(() => setExecutingMessageRemoving(false), 600)
       }
     }
     
@@ -34,24 +34,118 @@ export function useMessageHandler() {
       case 'SystemMessage': {
         if (details.content) {
           const isExecuting = details.content.includes('executing') || details.content.includes('Executing')
+          const isTodoTable = details.content.includes('| # | Status | Task |')
+          const category = details.data?.category as string | undefined
           
           // Mark existing executing messages as completing
           if (!isExecuting) {
             markExecutingAsCompleting()
           }
           
-          addMessage({
-            role: 'system',
-            content: details.content,
-            metadata: isExecuting ? { isExecuting: true } : undefined
-          })
+          // Handle todo table messages - replace the most recent one instead of adding new
+          if (isTodoTable) {
+            const currentMessages = useChatStore.getState().messages
+            const lastTodoMessage = currentMessages.slice().reverse().find(msg => 
+              msg.role === 'system' && msg.content.includes('| # | Status | Task |')
+            )
+            
+            if (lastTodoMessage) {
+              // Update the existing todo message
+              updateMessage(lastTodoMessage.id, details.content)
+            } else {
+              // No existing todo message, add new one
+              addMessage({
+                role: 'system',
+                content: details.content
+              })
+            }
+          } else {
+            // Regular system message
+            addMessage({
+              role: 'system',
+              content: details.content,
+              metadata: isExecuting ? { isExecuting: true } : (category ? { isStartup: category === 'startup' } : undefined)
+            })
+            
+            // If this is an executing message, mark it as executing
+            if (isExecuting) {
+              const lastMessage = useChatStore.getState().messages.slice(-1)[0]
+              if (lastMessage) {
+                markMessageAsExecuting(lastMessage.id)
+              }
+            }
+          }
+        }
+        break
+      }
+
+      case 'ToolStart': {
+        // Mark existing executing messages as completing
+        markExecutingAsCompleting()
+        
+        // Add executing message for tool start
+        if (details.toolName && details.toolArgs?.description) {
+          const executingMessage = `executing - ${details.toolArgs.description}`
           
-          // If this is an executing message, mark it as executing
-          if (isExecuting) {
+          // Check if there's already a system message with similar content that we should replace
+          const currentMessages = useChatStore.getState().messages
+          const lastSystemMessage = currentMessages.slice().reverse().find(msg => 
+            msg.role === 'system' && 
+            !msg.metadata?.isExecuting &&
+            (msg.content === details.toolArgs.description || 
+             msg.content.includes(details.toolArgs.description) ||
+             details.toolArgs.description.includes(msg.content))
+          )
+          
+          if (lastSystemMessage) {
+            // Update the existing message to be executing
+            updateMessage(lastSystemMessage.id, executingMessage)
+            markMessageAsExecuting(lastSystemMessage.id)
+          } else {
+            // Add new executing message
+            addMessage({
+              role: 'system',
+              content: executingMessage,
+              metadata: { 
+                isExecuting: true,
+                toolName: details.toolName 
+              }
+            })
+            
+            // Mark this message as executing
             const lastMessage = useChatStore.getState().messages.slice(-1)[0]
             if (lastMessage) {
               markMessageAsExecuting(lastMessage.id)
             }
+          }
+        }
+        break
+      }
+
+      case 'ToolEnd': {
+        // Mark existing executing messages as completing - they will be removed
+        markExecutingAsCompleting()
+        break
+      }
+
+      case 'ThinkingMessage': {
+        // Mark existing executing messages as completing
+        markExecutingAsCompleting()
+        
+        // Add thinking message
+        if (details.content) {
+          addMessage({
+            role: 'system',
+            content: `executing - ${details.content}`,
+            metadata: { 
+              isExecuting: true
+            }
+          })
+          
+          // Mark this message as executing
+          const lastMessage = useChatStore.getState().messages.slice(-1)[0]
+          if (lastMessage) {
+            markMessageAsExecuting(lastMessage.id)
           }
         }
         break
@@ -111,6 +205,18 @@ export function useMessageHandler() {
       case 'ToolResult': {
         // Mark existing executing messages as completing
         markExecutingAsCompleting()
+        
+        // Filter out TODO-related messages that shouldn't be shown to the user
+        if (details.content && (
+          details.content.includes('Completed TODO:') ||
+          details.content.includes('Skipped TODO:') ||
+          details.content.includes('Went back to TODO:') ||
+          details.content.includes('Added') && details.content.includes('TODOs') ||
+          details.content.includes('Replaced all TODOs')
+        )) {
+          // Don't add these messages - they're internal status updates
+          break
+        }
         
         // Add tool result as assistant message
         if (details.content) {
@@ -176,7 +282,7 @@ export function useMessageHandler() {
     }
   }, [addMessage, updateMessage, setProcessing, setError, markMessageAsExecuting, markMessageAsCompleting, setExecutingMessageRemoving])
   
-  // Handle workflow status updates
+        // Handle workflow status updates
   const handleWorkflowStatus = useCallback((payload: any) => {
     if (payload.status === 'completed' || payload.status === 'failed' || payload.cancelled) {
       setProcessing(false)
@@ -190,7 +296,7 @@ export function useMessageHandler() {
           markMessageAsCompleting(msg.id)
         })
         // Reset the flag after animation
-        setTimeout(() => setExecutingMessageRemoving(false), 400)
+        setTimeout(() => setExecutingMessageRemoving(false), 600)
       }
       
       if (payload.error && !payload.cancelled) {

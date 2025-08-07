@@ -5,6 +5,10 @@ import { cn } from '@/sidepanel/lib/utils'
 import { z } from 'zod'
 import { XIcon, SunIcon, MoonIcon } from './ui/Icons'
 import { useSettingsStore } from '@/sidepanel/v2/stores/settingsStore'
+import { useSidePanelPortMessaging } from '@/sidepanel/hooks/useSidePanelPortMessaging'
+import { MessageType } from '@/lib/types/messaging'
+
+const DISCORD_URL = 'https://discord.com/invite/YKwjt5vuKr'
 
 // Define the props schema with Zod
 const SettingsModalPropsSchema = z.object({
@@ -17,6 +21,8 @@ type SettingsModalProps = z.infer<typeof SettingsModalPropsSchema>
 
 export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const { fontSize, isDarkMode, setFontSize, setDarkMode } = useSettingsStore()
+  const [glowEnabled, setGlowEnabled] = useState<boolean>(true)
+  const { sendMessage } = useSidePanelPortMessaging()
 
   // Toggle dark mode
   const toggleDarkMode = () => {
@@ -43,6 +49,50 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       return () => document.removeEventListener('keydown', handleEscape)
     }
   }, [isOpen, onClose])
+
+  // Load persisted glow setting
+  useEffect(() => {
+    const GLOW_ENABLED_KEY = 'nxtscape-glow-enabled'
+    try {
+      chrome.storage?.local?.get(GLOW_ENABLED_KEY, (result) => {
+        if (result && Object.prototype.hasOwnProperty.call(result, GLOW_ENABLED_KEY)) {
+          setGlowEnabled(result[GLOW_ENABLED_KEY] !== false)
+        } else {
+          setGlowEnabled(true)
+        }
+      })
+    } catch (_e) {
+      setGlowEnabled(true)
+    }
+  }, [])
+
+  // Toggle glow
+  const toggleGlow = () => {
+    const GLOW_ENABLED_KEY = 'nxtscape-glow-enabled'
+    const next = !glowEnabled
+    setGlowEnabled(next)
+    try {
+      chrome.storage?.local?.set({ [GLOW_ENABLED_KEY]: next })
+    } catch (_e) {
+      // ignore
+    }
+
+    // Apply immediately on current active tab for instant feedback
+    try {
+      chrome.tabs?.query({ active: true, currentWindow: true }, (tabs) => {
+        const tabId = tabs && tabs[0] && tabs[0].id
+        if (typeof tabId === 'number') {
+          if (next) {
+            sendMessage(MessageType.GLOW_START, { tabId })
+          } else {
+            sendMessage(MessageType.GLOW_STOP, { tabId })
+          }
+        }
+      })
+    } catch (_e) {
+      // ignore
+    }
+  }
 
   if (!isOpen) return null
 
@@ -77,7 +127,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           <div className="space-y-3">
             <h3 className="text-sm font-medium text-foreground">Appearance</h3>
             <div className="flex items-center justify-between p-4 rounded-xl bg-muted/50 border border-border/50">
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
                 <div className="w-5 h-5 rounded-full bg-gradient-to-br from-brand to-brand/80 flex items-center justify-center">
                   {isDarkMode ? <MoonIcon /> : <SunIcon />}
                 </div>
@@ -100,7 +150,23 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 {isDarkMode ? 'On' : 'Off'}
               </Button>
             </div>
+
+            {/* Page Glow */}
+            <div className="flex items-center justify-between px-4 py-2 rounded-xl border border-border/50 bg-muted/30">
+              <p className="text-xs text-muted-foreground">Page glow during actions</p>
+              <Button
+                onClick={toggleGlow}
+                variant="ghost"
+                size="sm"
+                className={`h-7 px-2 text-xs ${glowEnabled ? 'text-foreground' : 'text-muted-foreground'}`}
+                aria-label={`${glowEnabled ? 'Disable' : 'Enable'} page glow`}
+              >
+                {glowEnabled ? 'On' : 'Off'}
+              </Button>
+            </div>
           </div>
+
+          
 
           {/* Font Size */}
           <div className="space-y-3">
@@ -138,6 +204,19 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               <p className="text-sm text-muted-foreground">
                 BrowserOS Agentic Assistant v1.0.0
               </p>
+              <div className="mt-3 flex items-center justify-between gap-3">
+                <p className="text-sm text-foreground">Have feedback or ideas? We'd love to hear from you.</p>
+                <a
+                  href={DISCORD_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Open Discord to leave feedback"
+                >
+                  <Button size="sm" variant="outline" className="rounded-lg">
+                    Join Discord
+                  </Button>
+                </a>
+              </div>
             </div>
           </div>
         </div>
