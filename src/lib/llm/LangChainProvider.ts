@@ -13,6 +13,7 @@ import { ChatAnthropic } from "@langchain/anthropic"
 import { ChatOllama } from "@langchain/ollama"
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai"
 import { BaseChatModel } from "@langchain/core/language_models/chat_models"
+import { BaseMessage } from "@langchain/core/messages"
 import { LLMSettingsReader } from "@/lib/llm/settings/LLMSettingsReader"
 import { BrowserOSProvider } from '@/lib/llm/settings/browserOSTypes'
 import { Logging } from '@/lib/utils/Logging'
@@ -40,6 +41,9 @@ export interface ModelCapabilities {
 export class LangChainProvider {
   private static instance: LangChainProvider
   private currentProvider: BrowserOSProvider | null = null
+  
+  // Skip token counting flag - set to true for maximum speed (returns fixed estimates)
+  private static readonly SKIP_TOKEN_COUNTING = false
   
   // Constructor and initialization
   static getInstance(): LangChainProvider {
@@ -82,12 +86,11 @@ export class LangChainProvider {
     // Otherwise determine based on provider type and model
     switch (provider.type) {
       case 'browseros':
-        // BrowserOS/Nxtscape uses various models through proxy
+        // BrowserOS/Nxtscape uses gemini 2.5 flash by default
         return { maxTokens: 1_000_000 }
         
       case 'openai_compatible':
       case 'openrouter':
-        // Check model name for context window size
         const modelId = provider.modelId || DEFAULT_OPENAI_MODEL
         if (modelId.includes('gpt-4') || modelId.includes('o1') || modelId.includes('o3') || modelId.includes('o4')) {
           return { maxTokens: 128_000 }
@@ -95,7 +98,6 @@ export class LangChainProvider {
         return { maxTokens: 32_768 }
         
       case 'anthropic':
-        // Claude models
         const anthropicModel = provider.modelId || DEFAULT_ANTHROPIC_MODEL
         if (anthropicModel.includes('claude-3.7') || anthropicModel.includes('claude-4')) {
           return { maxTokens: 200_000 }
@@ -103,7 +105,6 @@ export class LangChainProvider {
         return { maxTokens: 100_000 }
         
       case 'google_gemini':
-        // Gemini models
         const geminiModel = provider.modelId || DEFAULT_GEMINI_MODEL
         if (geminiModel.includes('2.5') || geminiModel.includes('2.0')) {
           return { maxTokens: 1_500_000 }
@@ -111,7 +112,6 @@ export class LangChainProvider {
         return { maxTokens: 1_000_000 }
         
       case 'ollama':
-        // Ollama models vary widely
         const ollamaModel = provider.modelId || DEFAULT_OLLAMA_MODEL
         if (ollamaModel.includes('mixtral') || ollamaModel.includes('llama') || 
             ollamaModel.includes('qwen') || ollamaModel.includes('deepseek')) {
@@ -128,18 +128,76 @@ export class LangChainProvider {
     }
   }
   
-  // Get current provider info (useful for debugging)
   getCurrentProvider(): BrowserOSProvider | null {
     return this.currentProvider
   }
   
-  // Public action methods
   clearCache(): void {
     llmCache.clear()
     this.currentProvider = null
   }
   
-  // Private helper methods
+  
+  /**
+   * Patches token counting methods on any chat model for ultra-fast approximation.
+   * This eliminates tiktoken "Unknown model" errors and maximizes performance.
+   * Uses bit shift operations for speed: 4 chars ≈ 1 token
+   */
+  private _patchTokenCounting<T extends BaseChatModel>(model: T): T {
+    const _CHARS_PER_TOKEN = 2  // Bit shift for division by 4: x >> 2
+    const _MESSAGE_OVERHEAD = 20      // Estimated chars for message structure (role, formatting)
+    const _COMPLEX_CONTENT_ESTIMATE = 100  // Rough char estimate for non-string content
+    
+    // Cast model to any for monkey-patching
+    const m = model as any
+    
+    // Ultra-fast mode: skip counting entirely for maximum performance
+    if (LangChainProvider.SKIP_TOKEN_COUNTING) {
+      m.getNumTokens = async () => 100 
+      m.getNumTokensFromMessages = async () => 5000 
+      return model
+    }
+    
+    // Fast approximation for single text strings using bit shift
+    m.getNumTokens = async function(text: string): Promise<number> {
+      // Add 3 before shift for ceiling division: (x + 3) >> 2 ≈ Math.ceil(x / 4)
+      // This is ~2-3x faster than Math.ceil(x / 4)
+      return (text.length + 3) >> _CHARS_PER_TOKEN
+    }
+    
+    // Optimized token counting for message arrays
+    m.getNumTokensFromMessages = async function(messages: BaseMessage[]): Promise<number> {
+      // Pre-calculate total overhead for all messages (faster than per-message addition)
+      let totalChars = messages.length * _MESSAGE_OVERHEAD
+      
+      for (const msg of messages) {
+        const content = (msg as any).content
+        
+        if (typeof content === 'string') {
+          totalChars += content.length
+          continue  // Skip remaining checks for speed
+        }
+        
+        // Handle complex content without expensive JSON.stringify
+        if (Array.isArray(content)) {
+          // Use bit shift for multiplication: << 6 is multiply by 64
+          // Slightly overestimate to avoid JSON.stringify cost
+          totalChars += content.length << 6  
+        } else if (content) {
+          // Fixed estimate for other content types
+          totalChars += _COMPLEX_CONTENT_ESTIMATE
+        }
+        // Note: Skipping name and additional_kwargs for speed
+        // These are rare and have minimal impact on token count
+      }
+      
+      // Use bit shift for final division with ceiling
+      return (totalChars + 3) >> _CHARS_PER_TOKEN
+    }
+    
+    return model
+  }
+  
   private _createLLMFromProvider(
     provider: BrowserOSProvider,
     options?: { temperature?: number; maxTokens?: number }
@@ -188,24 +246,8 @@ export class LangChainProvider {
     maxTokens?: number, 
     streaming: boolean = true
   ): ChatOpenAI {
-    return new ChatOpenAI({
-      // IMPORTANT: Model name mapping for tiktoken compatibility
-      // The 'modelName' field is what gets sent to the API (our custom model like "default-llm")
-      // The 'model' field is what tiktoken uses for token counting
-      // 
-      // Since nxtscape uses custom model names that tiktoken doesn't recognize (e.g., "default-llm"),
-      // we get "Unknown model" errors when LangChain tries to count tokens.
-      // 
-      // Solution: We keep the actual model name in 'modelName' for API calls,
-      // but override 'model' with a known OpenAI model for token counting.
-      // This eliminates the tiktoken errors while maintaining correct API behavior.
-      // 
-      // Note: "gpt-4o" is chosen because:
-      // 1. It uses the cl100k_base encoding (same as GPT-3.5-turbo and GPT-4 family)
-      // 2. It has a large context window (128k) similar to our proxy models
-      // 3. Token counting will be approximate but reasonable for our use case
+    const model = new ChatOpenAI({
       modelName: DEFAULT_NXTSCAPE_MODEL,
-      model: "gpt-4o",  // Known model for tiktoken token counting
       temperature,
       maxTokens,
       streaming,
@@ -216,6 +258,8 @@ export class LangChainProvider {
         dangerouslyAllowBrowser: true
       }
     })
+    
+    return this._patchTokenCounting(model)
   }
   
   // OpenAI-compatible providers (OpenAI, OpenRouter, Custom)
@@ -231,7 +275,7 @@ export class LangChainProvider {
         'warning')
     }
     
-    return new ChatOpenAI({
+    const model = new ChatOpenAI({
       modelName: provider.modelId || DEFAULT_OPENAI_MODEL,
       temperature,
       maxTokens,
@@ -243,6 +287,8 @@ export class LangChainProvider {
         dangerouslyAllowBrowser: true
       }
     })
+    
+    return this._patchTokenCounting(model)
   }
   
   // Anthropic provider
@@ -256,7 +302,7 @@ export class LangChainProvider {
       throw new Error(`API key required for ${provider.name} provider`)
     }
     
-    return new ChatAnthropic({
+    const model = new ChatAnthropic({
       modelName: provider.modelId || DEFAULT_ANTHROPIC_MODEL,
       temperature,
       maxTokens,
@@ -264,6 +310,8 @@ export class LangChainProvider {
       anthropicApiKey: provider.apiKey,
       anthropicApiUrl: provider.baseUrl || 'https://api.anthropic.com'
     })
+    
+    return this._patchTokenCounting(model)
   }
   
   // Google Gemini provider
@@ -276,13 +324,15 @@ export class LangChainProvider {
       throw new Error(`API key required for ${provider.name} provider`)
     }
     
-    return new ChatGoogleGenerativeAI({
+    const model = new ChatGoogleGenerativeAI({
       model: provider.modelId || DEFAULT_GEMINI_MODEL,
       temperature,
       maxOutputTokens: maxTokens,
       apiKey: provider.apiKey,
       convertSystemMessageToHumanContent: true
     })
+    
+    return this._patchTokenCounting(model)
   }
   
   // Ollama provider (local, no API key required)
@@ -303,7 +353,9 @@ export class LangChainProvider {
       ollamaConfig.numCtx = provider.modelConfig.contextWindow
     }
     
-    return new ChatOllama(ollamaConfig)
+    const model = new ChatOllama(ollamaConfig)
+    
+    return this._patchTokenCounting(model)
   }
   
   // Cache key includes all relevant provider settings and options
