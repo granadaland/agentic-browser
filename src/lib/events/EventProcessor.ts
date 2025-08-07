@@ -173,7 +173,7 @@ export class EventProcessor {
         icon: '🌐',
         description: (args) => args?.url ? `Navigating to ${args.url}` : 'Navigating to page'
       },
-      'tab_operations_tool': {
+      'tab_operations': {
         name: 'Tab Operations',
         icon: '📑',
         description: (args) => {
@@ -184,6 +184,41 @@ export class EventProcessor {
           if (args?.action === 'close') return 'Closing tabs';
           return args?.action || 'Managing tabs';
         }
+      },
+      'find_element': {
+        name: 'Find Elements',
+        icon: '🔍',
+        description: (args) => `Finding elements with selector: ${args?.selector || 'unknown'}`
+      },
+      'interact': {
+        name: 'Interaction',
+        icon: '👆',
+        description: (args) => `${args?.action || 'Interacting'} with element`
+      },
+      'scroll': {
+        name: 'Scroll',
+        icon: '📜',
+        description: (args) => `Scrolling ${args?.direction || 'unknown direction'}`
+      },
+      'search': {
+        name: 'Search',
+        icon: '🔎',
+        description: (args) => `Searching for: ${args?.query || 'unknown query'}`
+      },
+      'group_tabs': {
+        name: 'Group Tabs',
+        icon: '📁',
+        description: (args) => `Grouping tabs by: ${args?.groupBy || 'category'}`
+      },
+      'get_selected_tabs': {
+        name: 'Get Selected Tabs',
+        icon: '📋',
+        description: () => 'Getting selected tabs'
+      },
+      'refresh_browser_state': {
+        name: 'Refresh Browser State',
+        icon: '🔄',
+        description: () => 'Refreshing browser state'
       },
       'done_tool': {
         name: 'Completion',
