@@ -1,5 +1,5 @@
-@import '../shared/variables';
-@import '../shared/mixins';
+@use '../shared/variables' as *;
+@use '../shared/mixins' as *;
 
 .container {
   background: var(--surface-primary);

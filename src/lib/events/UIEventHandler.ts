@@ -180,11 +180,12 @@ export class UIEventHandler {
   }
 
   private handleSystemMessage(event: StreamEvent): void {
-    const { message } = event.data as any;
+    const { message, category } = event.data as any;
     
     this.sendUIMessage({
       messageType: UIMessageType.SystemMessage,
-      content: message
+      content: message,
+      data: { category }
     });
   }
 

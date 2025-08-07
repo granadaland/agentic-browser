@@ -139,16 +139,21 @@ export function MessageList({ messages, onScrollStateChange, scrollToBottom: ext
       let shouldIndent = false
       
       if (!isTodoTable && !isExecuting && message.role !== 'user') {
-        // Check if this is a Task Summary, Task Failed, or Task Analysis/Planning message
+        // Check if this is a Task Summary, Task Failed, Task Completed, or Task Analysis/Planning message
         const isTaskSummary = message.content.includes('## Task Summary:') || message.content.includes('## Task Summary')
         const isTaskFailed = message.content.includes('## Task Failed')
+        const isTaskCompleted = message.content.includes('## Task Completed') || 
+                               message.content.includes('Task Complete') || 
+                               message.content.includes('Task Completed') ||
+                               message.content.includes('Task completed successfully') ||
+                               message.content.includes('Task completed.')
         const isTaskAnalysisOrPlanning = message.content.includes('Analyzing task complexity') || 
                                         message.content.includes('Creating a step-by-step plan') ||
                                         message.content.includes('Analyzing task') ||
                                         message.content.includes('Creating plan')
         
-        // Don't indent Task Summary, Task Failed, or Task Analysis/Planning messages
-        if (!isTaskSummary && !isTaskFailed && !isTaskAnalysisOrPlanning) {
+        // Don't indent Task Summary, Task Failed, Task Completed, or Task Analysis/Planning messages
+        if (!isTaskSummary && !isTaskFailed && !isTaskCompleted && !isTaskAnalysisOrPlanning) {
           // Check if there's a Task Manager before this message
           const hasTaskManagerBefore = previousTodoIndex !== -1
           
@@ -324,7 +329,7 @@ export function MessageList({ messages, onScrollStateChange, scrollToBottom: ext
         aria-label="Welcome screen with example prompts"
       >
         {/* Animated paw prints running across the screen */}
-        <AnimatedPawPrints />
+        {/*<AnimatedPawPrints />*/}
 
         {/* Enhanced spotlight elements */}
         <div className="absolute inset-0 z-5 pointer-events-none">

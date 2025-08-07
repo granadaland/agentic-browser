@@ -29,8 +29,9 @@ export function formatToolOutput(toolName: string, result: ToolResult): string {
       return `Created ${output.steps.length} step execution plan`;
     }
 
-    case 'tab_operations': {
-      // Return raw JSON for tab data so it can be properly formatted in the UI
+    case 'tab_operations':
+    case 'tab_operations_tool': {
+      // If the tool returned a human-friendly string (e.g. "Created new tab ..."), show it
       if (typeof output === 'string') {
         try {
           const tabs = JSON.parse(output);
@@ -45,8 +46,11 @@ export function formatToolOutput(toolName: string, result: ToolResult): string {
             return output;
           }
         } catch {
-          // If parsing fails, return as-is
+          // Not JSON array of tabs -> return the message as-is
+          return output;
         }
+        // String but parsed into non-array structure -> return as-is
+        return output;
       }
       
       // For non-tab data or errors, return formatted message
@@ -63,22 +67,54 @@ export function formatToolOutput(toolName: string, result: ToolResult): string {
       return `Task validation: ${status}`;
     }
 
+    case 'todo_manager_tool': {
+      // Handle different todo manager actions
+      if (output && typeof output === 'object') {
+        // For get_next action, show just the content
+        if (output.id && output.content && output.status) {
+          return output.content;
+        }
+        // For other actions, show the result message
+        if (typeof output === 'string') {
+          return output;
+        }
+      }
+      // Fallback to JSON for unknown formats
+      return JSON.stringify(output);
+    }
+
     case 'navigation_tool': {
+      if (typeof output === 'string') {
+        return output;
+      }
       // Output: { url: string, success: boolean } or similar
       const navUrl = output.url || 'Unknown URL';
       const navStatus = output.success !== undefined ? (output.success ? 'Success' : 'Failed') : 'Complete';
       return `Navigation - ${navStatus}`;
     }
 
-    case 'find_element': {
-      // Output: { elements: [{ selector: string, text: string, position: {x,y} }] }
-      if (!output.elements || !Array.isArray(output.elements)) {
-        return JSON.stringify(output);
+    case 'find_element':
+    case 'find_element_tool': {
+      // Some implementations return a JSON string with {found,index,confidence,reasoning}
+      if (typeof output === 'string') {
+        try {
+          const parsed = JSON.parse(output);
+          if (typeof parsed === 'object' && parsed) {
+            if (typeof parsed.found === 'boolean' && parsed.index !== undefined) {
+              return parsed.found
+                ? `Found element at index ${parsed.index} (${parsed.confidence || 'unknown'} confidence)`
+                : (parsed.reasoning || 'No element found');
+            }
+          }
+          // Unknown JSON structure -> show raw
+          return output;
+        } catch {
+          // Not JSON -> show raw string
+          return output;
+        }
       }
-      if (output.elements.length === 0) {
-        return 'No elements found';
-      }
-      return `Found ${output.elements.length} element${output.elements.length > 1 ? 's' : ''}`;
+      // Unknown non-string structure -> stringify
+      return JSON.stringify(output);
     }
 
     case 'classification_tool': {
@@ -87,31 +123,45 @@ export function formatToolOutput(toolName: string, result: ToolResult): string {
       return `Task classified as ${taskType}`;
     }
 
-    case 'interact': {
+    case 'interact':
+    case 'interact_tool': {
+      if (typeof output === 'string') {
+        return output;
+      }
       // Output: { success: boolean, action: string, element?: string }
-      const action = output.action || 'Unknown action';
-      const status = output.success ? 'Success' : 'Failed';
+      const action = (output as any).action || 'Unknown action';
+      const status = (output as any).success ? 'Success' : 'Failed';
       return `${action} - ${status}`;
     }
 
-    case 'scroll': {
+    case 'scroll':
+    case 'scroll_tool': {
+      if (typeof output === 'string') {
+        return output;
+      }
       // Output: { success: boolean, direction?: string, amount?: number }
-      const direction = output.direction || 'Unknown direction';
-      const amount = output.amount !== undefined ? `${output.amount}px` : '';
-      const status = output.success ? 'Success' : 'Failed';
+      const direction = (output as any).direction || 'Unknown direction';
+      const amount = (output as any).amount !== undefined ? `${(output as any).amount}px` : '';
+      const status = (output as any).success ? 'Success' : 'Failed';
       return `Scrolled ${direction} ${amount} - ${status}`;
     }
 
-    case 'search': {
-      // Output: { matches: [{ text: string, selector: string }], query: string }
-      if (!output.matches || !Array.isArray(output.matches)) {
+    case 'search':
+    case 'search_tool': {
+      // Many implementations return a descriptive string (e.g., Searched for "..." on ...)
+      if (typeof output === 'string') {
+        return output;
+      }
+      // Otherwise, attempt structured rendering
+      const anyOut = output as any;
+      if (!anyOut?.matches || !Array.isArray(anyOut.matches)) {
         return JSON.stringify(output);
       }
-      const query = output.query || 'Unknown query';
-      if (output.matches.length === 0) {
+      const query = anyOut.query || 'Unknown query';
+      if (anyOut.matches.length === 0) {
         return `No matches found for "${query}"`;
       }
-      return `Found ${output.matches.length} match${output.matches.length > 1 ? 'es' : ''} for "${query}"`;
+      return `Found ${anyOut.matches.length} match${anyOut.matches.length > 1 ? 'es' : ''} for "${query}"`;
     }
 
     case 'refresh_browser_state_tool': {
@@ -119,15 +169,21 @@ export function formatToolOutput(toolName: string, result: ToolResult): string {
       return 'Browser state refreshed';
     }
 
-    case 'group_tabs': {
+    case 'group_tabs':
+    case 'group_tabs_tool': {
+      if (typeof output === 'string') {
+        return output;
+      }
       // Output: { groups: [{ name: string, tabs: [...] }] }
-      if (!output.groups || !Array.isArray(output.groups)) {
+      const anyOut = output as any;
+      if (!anyOut?.groups || !Array.isArray(anyOut.groups)) {
         return JSON.stringify(output);
       }
-      return `Created ${output.groups.length} tab group${output.groups.length > 1 ? 's' : ''}`;
+      return `Created ${anyOut.groups.length} tab group${anyOut.groups.length > 1 ? 's' : ''}`;
     }
 
-    case 'get_selected_tabs': {
+    case 'get_selected_tabs':
+    case 'get_selected_tabs_tool': {
       // Return raw JSON for selected tab data so it can be properly formatted in the UI
       if (typeof output === 'string') {
         try {
@@ -143,7 +199,10 @@ export function formatToolOutput(toolName: string, result: ToolResult): string {
           }
         } catch {
           // If parsing fails, return as-is
+          return output;
         }
+        // String but parsed into non-array structure -> return as-is
+        return output;
       }
       
       // For non-tab data or errors, return formatted message
@@ -165,16 +224,8 @@ export function formatToolOutput(toolName: string, result: ToolResult): string {
       }
     }
 
-    case 'todo_manager_tool': {
-      // Output: string (success message) or XML for list action
-      if (typeof output === 'string') {
-        return output;
-      }
-      return JSON.stringify(output);
-    }
-
     default:
-      // Fallback to simple JSON string
-      return JSON.stringify(output);
+      // Fallback: return raw string outputs, otherwise JSON-stringify objects
+      return typeof output === 'string' ? output : JSON.stringify(output);
   }
 }

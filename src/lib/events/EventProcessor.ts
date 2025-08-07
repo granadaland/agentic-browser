@@ -121,8 +121,8 @@ export class EventProcessor {
   /**
    * Emit info message
    */
-  info(message: string): void {
-    this.eventBus.emitSystemMessage(message, 'info', 'BrowserAgent');
+  info(message: string, category?: string): void {
+    this.eventBus.emitSystemMessage(message, 'info', 'BrowserAgent', category);
   }
 
   /**

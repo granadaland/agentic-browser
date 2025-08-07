@@ -819,7 +819,7 @@ export function SidePanel({
                 </div>
               ) : (
                 <div className={styles.debugLoading}>
-                  <LoadingPawTrail />
+                  {/*<LoadingPawTrail />*/}
                   <span>Loading settings</span>
                 </div>
               )}

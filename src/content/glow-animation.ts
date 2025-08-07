@@ -7,6 +7,7 @@
   const GLOW_OVERLAY_ID = 'nxtscape-glow-overlay'
   const GLOW_STYLES_ID = 'nxtscape-glow-styles'
   const GLOW_INITIALIZED_KEY = 'nxtscape-glow-initialized'
+  const GLOW_ENABLED_KEY = 'nxtscape-glow-enabled'  // Stored in chrome.storage.local
   
   // Check if already initialized to prevent duplicate listeners
   if ((window as any)[GLOW_INITIALIZED_KEY]) {
@@ -28,26 +29,31 @@
     style.textContent = `
       @keyframes nxtscape-glow-pulse {
         0% {
-          box-shadow: 
-            inset 0 0 77px 38px transparent,
-            inset 0 0 64px 32px rgba(251, 102, 24, 0.05),
-            inset 0 0 51px 26px rgba(251, 102, 24, 0.1),
-            inset 0 0 38px 19px rgba(251, 102, 24, 0.15);
+          box-shadow:
+            inset 0 0 42px 19px transparent,
+            inset 0 0 36px 16px rgba(251, 102, 24, 0.06),
+            inset 0 0 30px 13px rgba(251, 102, 24, 0.12),
+            inset 0 0 24px 10px rgba(251, 102, 24, 0.18);
         }
         50% {
-          box-shadow: 
-            inset 0 0 96px 51px transparent,
-            inset 0 0 83px 45px rgba(251, 102, 24, 0.08),
-            inset 0 0 70px 38px rgba(251, 102, 24, 0.15),
-            inset 0 0 58px 32px rgba(251, 102, 24, 0.2);
+          box-shadow:
+            inset 0 0 52px 25px transparent,
+            inset 0 0 46px 23px rgba(251, 102, 24, 0.10),
+            inset 0 0 39px 19px rgba(251, 102, 24, 0.18),
+            inset 0 0 33px 16px rgba(251, 102, 24, 0.24);
         }
         100% {
-          box-shadow: 
-            inset 0 0 77px 38px transparent,
-            inset 0 0 64px 32px rgba(251, 102, 24, 0.05),
-            inset 0 0 51px 26px rgba(251, 102, 24, 0.1),
-            inset 0 0 38px 19px rgba(251, 102, 24, 0.15);
+          box-shadow:
+            inset 0 0 42px 19px transparent,
+            inset 0 0 36px 16px rgba(251, 102, 24, 0.06),
+            inset 0 0 30px 13px rgba(251, 102, 24, 0.12),
+            inset 0 0 24px 10px rgba(251, 102, 24, 0.18);
         }
+      }
+      
+      @keyframes nxtscape-glow-fade-in {
+        from { opacity: 0; }
+        to { opacity: 0.6; }
       }
       
       #${GLOW_OVERLAY_ID} {
@@ -58,7 +64,11 @@
         height: 100% !important;
         pointer-events: none !important;
         z-index: 2147483647 !important;
-        animation: nxtscape-glow-pulse 3s ease-in-out infinite !important;
+        opacity: 0;
+        will-change: opacity;
+        animation: 
+          nxtscape-glow-pulse 3s ease-in-out infinite,
+          nxtscape-glow-fade-in 420ms cubic-bezier(0.22, 1, 0.36, 1) forwards !important;
       }
     `
     document.head.appendChild(style)
@@ -92,6 +102,26 @@
       console.log('[Nxtscape] Glow animation stopped')
     }
   }
+
+  /**
+   * Read whether glow is enabled (default true)
+   */
+  function isGlowEnabled (): Promise<boolean> {
+    return new Promise((resolve) => {
+      try {
+        chrome.storage?.local?.get(GLOW_ENABLED_KEY, (result) => {
+          // If key is missing, treat as enabled by default
+          const enabled = result && Object.prototype.hasOwnProperty.call(result, GLOW_ENABLED_KEY)
+            ? result[GLOW_ENABLED_KEY] !== false
+            : true
+          resolve(enabled)
+        })
+      } catch (_e) {
+        // Fail-open to avoid breaking flows
+        resolve(true)
+      }
+    })
+  }
   
   /**
    * Message listener
@@ -102,10 +132,16 @@
     }
     
     switch (request.action) {
-      case 'startGlow':
-        startGlow()
-        sendResponse({ success: true })
-        break
+      case 'startGlow': {
+        // Gate on persisted setting
+        isGlowEnabled().then((enabled) => {
+          if (enabled) {
+            startGlow()
+          }
+          sendResponse({ success: true, skipped: !enabled })
+        })
+        return true
+      }
         
       case 'stopGlow':
         stopGlow()

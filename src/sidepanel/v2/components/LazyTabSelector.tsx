@@ -9,6 +9,7 @@ const TabSelector = lazy(() => import('./shared/TabSelector').then(module => ({
 interface LazyTabSelectorProps {
   isOpen: boolean
   onClose: () => void
+  onTabSelect?: (tabId: number) => void
 }
 
 /**
@@ -23,7 +24,7 @@ export function LazyTabSelector(props: LazyTabSelectorProps) {
     <Suspense 
       fallback={
         <div className="flex items-center justify-center p-4 text-muted-foreground">
-          <LoadingPawTrail />
+          {/*<LoadingPawTrail />*/}
         </div>
       }
     >

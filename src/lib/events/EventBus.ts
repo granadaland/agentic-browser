@@ -87,7 +87,8 @@ export const ToolResultDataSchema = z.object({
 
 export const SystemMessageDataSchema = z.object({
   message: z.string(),  // System message
-  level: z.enum(['info', 'warning', 'error']).default('info')  // Message level
+  level: z.enum(['info', 'warning', 'error']).default('info'),  // Message level
+  category: z.string().optional()  // Optional category tag (e.g., 'startup')
 });
 
 export const SystemThinkingDataSchema = z.object({
@@ -357,11 +358,11 @@ export class EventBus extends EventEmitter {
     });
   }
 
-  emitSystemMessage(message: string, level: 'info' | 'warning' | 'error' = 'info', source?: string): void {
+  emitSystemMessage(message: string, level: 'info' | 'warning' | 'error' = 'info', source?: string, category?: string): void {
     this.emitStreamEvent({
       type: 'system.message',
       source,
-      data: { message, level }
+      data: { message, level, category }
     });
   }
 

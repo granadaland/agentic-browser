@@ -7,6 +7,7 @@ import { useTabsStore, BrowserTab } from '@/sidepanel/store/tabsStore';
 export const TabSelectorPropsSchema = z.object({
   isOpen: z.boolean(),  // Whether the selector is open
   onClose: z.function(),  // Callback when selector should close
+  onTabSelect: z.function().optional(),  // Callback when a tab is selected
   className: z.string().optional(),  // Additional CSS class
   filterQuery: z.string().optional(),  // Filter query for tab search
 });
@@ -15,6 +16,7 @@ export const TabSelectorPropsSchema = z.object({
 type TabSelectorComponentProps = {
   isOpen: boolean;
   onClose: () => void;
+  onTabSelect?: (tabId: number) => void;
   className?: string;
   filterQuery?: string;
 }
@@ -28,6 +30,7 @@ type TabSelectorComponentProps = {
 export const TabSelector: React.FC<TabSelectorComponentProps> = ({
   isOpen,
   onClose,
+  onTabSelect,
   className,
   filterQuery = '',
 }) => {
@@ -110,6 +113,7 @@ export const TabSelector: React.FC<TabSelectorComponentProps> = ({
             const activeTab = filteredTabs[activeIndex];
             if (activeTab) {
               toggleTabSelection(activeTab.id);
+              onTabSelect?.(activeTab.id);
               onClose();
             }
           }
@@ -214,6 +218,7 @@ export const TabSelector: React.FC<TabSelectorComponentProps> = ({
                   )}
                   onClick={() => {
                     toggleTabSelection(tab.id);
+                    onTabSelect?.(tab.id);
                     onClose();
                   }}
                   role="option"
