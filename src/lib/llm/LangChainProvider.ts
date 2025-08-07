@@ -86,12 +86,11 @@ export class LangChainProvider {
     // Otherwise determine based on provider type and model
     switch (provider.type) {
       case 'browseros':
-        // BrowserOS/Nxtscape uses various models through proxy
+        // BrowserOS/Nxtscape uses gemini 2.5 flash by default
         return { maxTokens: 1_000_000 }
         
       case 'openai_compatible':
       case 'openrouter':
-        // Check model name for context window size
         const modelId = provider.modelId || DEFAULT_OPENAI_MODEL
         if (modelId.includes('gpt-4') || modelId.includes('o1') || modelId.includes('o3') || modelId.includes('o4')) {
           return { maxTokens: 128_000 }
@@ -99,7 +98,6 @@ export class LangChainProvider {
         return { maxTokens: 32_768 }
         
       case 'anthropic':
-        // Claude models
         const anthropicModel = provider.modelId || DEFAULT_ANTHROPIC_MODEL
         if (anthropicModel.includes('claude-3.7') || anthropicModel.includes('claude-4')) {
           return { maxTokens: 200_000 }
@@ -107,7 +105,6 @@ export class LangChainProvider {
         return { maxTokens: 100_000 }
         
       case 'google_gemini':
-        // Gemini models
         const geminiModel = provider.modelId || DEFAULT_GEMINI_MODEL
         if (geminiModel.includes('2.5') || geminiModel.includes('2.0')) {
           return { maxTokens: 1_500_000 }
@@ -115,7 +112,6 @@ export class LangChainProvider {
         return { maxTokens: 1_000_000 }
         
       case 'ollama':
-        // Ollama models vary widely
         const ollamaModel = provider.modelId || DEFAULT_OLLAMA_MODEL
         if (ollamaModel.includes('mixtral') || ollamaModel.includes('llama') || 
             ollamaModel.includes('qwen') || ollamaModel.includes('deepseek')) {
@@ -132,18 +128,15 @@ export class LangChainProvider {
     }
   }
   
-  // Get current provider info (useful for debugging)
   getCurrentProvider(): BrowserOSProvider | null {
     return this.currentProvider
   }
   
-  // Public action methods
   clearCache(): void {
     llmCache.clear()
     this.currentProvider = null
   }
   
-  // Private helper methods
   
   /**
    * Patches token counting methods on any chat model for ultra-fast approximation.
@@ -151,20 +144,17 @@ export class LangChainProvider {
    * Uses bit shift operations for speed: 4 chars ≈ 1 token
    */
   private _patchTokenCounting<T extends BaseChatModel>(model: T): T {
-    // Performance-critical constants (local for better JIT optimization)
-    const CHARS_PER_TOKEN_SHIFT = 2  // Bit shift for division by 4: x >> 2
-    const MESSAGE_OVERHEAD = 20      // Estimated chars for message structure (role, formatting)
-    const COMPLEX_CONTENT_ESTIMATE = 50  // Rough char estimate for non-string content
-    const FIXED_TOKEN_ESTIMATE = 100     // Fixed return value when counting is disabled
-    const FIXED_MESSAGE_ESTIMATE = 500   // Fixed return value for messages when disabled
+    const _CHARS_PER_TOKEN = 2  // Bit shift for division by 4: x >> 2
+    const _MESSAGE_OVERHEAD = 20      // Estimated chars for message structure (role, formatting)
+    const _COMPLEX_CONTENT_ESTIMATE = 100  // Rough char estimate for non-string content
     
     // Cast model to any for monkey-patching
     const m = model as any
     
     // Ultra-fast mode: skip counting entirely for maximum performance
     if (LangChainProvider.SKIP_TOKEN_COUNTING) {
-      m.getNumTokens = async () => FIXED_TOKEN_ESTIMATE
-      m.getNumTokensFromMessages = async () => FIXED_MESSAGE_ESTIMATE
+      m.getNumTokens = async () => 100 
+      m.getNumTokensFromMessages = async () => 5000 
       return model
     }
     
@@ -172,19 +162,17 @@ export class LangChainProvider {
     m.getNumTokens = async function(text: string): Promise<number> {
       // Add 3 before shift for ceiling division: (x + 3) >> 2 ≈ Math.ceil(x / 4)
       // This is ~2-3x faster than Math.ceil(x / 4)
-      return (text.length + 3) >> CHARS_PER_TOKEN_SHIFT
+      return (text.length + 3) >> _CHARS_PER_TOKEN
     }
     
     // Optimized token counting for message arrays
     m.getNumTokensFromMessages = async function(messages: BaseMessage[]): Promise<number> {
       // Pre-calculate total overhead for all messages (faster than per-message addition)
-      let totalChars = messages.length * MESSAGE_OVERHEAD
+      let totalChars = messages.length * _MESSAGE_OVERHEAD
       
-      // Optimized loop focusing on the common case
       for (const msg of messages) {
         const content = (msg as any).content
         
-        // Handle the 99% case first: string content
         if (typeof content === 'string') {
           totalChars += content.length
           continue  // Skip remaining checks for speed
@@ -197,15 +185,14 @@ export class LangChainProvider {
           totalChars += content.length << 6  
         } else if (content) {
           // Fixed estimate for other content types
-          totalChars += COMPLEX_CONTENT_ESTIMATE
+          totalChars += _COMPLEX_CONTENT_ESTIMATE
         }
-        
         // Note: Skipping name and additional_kwargs for speed
         // These are rare and have minimal impact on token count
       }
       
       // Use bit shift for final division with ceiling
-      return (totalChars + 3) >> CHARS_PER_TOKEN_SHIFT
+      return (totalChars + 3) >> _CHARS_PER_TOKEN
     }
     
     return model
