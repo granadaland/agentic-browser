@@ -169,7 +169,7 @@ export function ChatInput({ isConnected, isProcessing }: ChatInputProps) {
   const getPlaceholder = () => {
     if (!isConnected) return 'Disconnected'
     if (isProcessing) return 'Interrupt with new task'
-    return 'Ask me anything'
+    return 'Ask me anything...'
   }
   
   const getHintText = () => {
@@ -186,7 +186,7 @@ export function ChatInput({ isConnected, isProcessing }: ChatInputProps) {
   }
   
   return (
-    <div className="relative bg-gradient-to-t from-background via-background to-background/95 p-2 flex-shrink-0 overflow-hidden">
+    <div className="relative bg-gradient-to-t from-background via-background to-background/95 px-2 py-1 flex-shrink-0 overflow-hidden">
       
       
       {/* Select Tabs Button (appears when '@' is present) */}
@@ -209,12 +209,12 @@ export function ChatInput({ isConnected, isProcessing }: ChatInputProps) {
         </div> */}
         
         {showTabSelector && (
-          <div className="px-4 mb-2">
+          <div className="px-2 mb-1">
             <SelectTabsButton />
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="w-full px-4" role="form" aria-label="Chat input form">
+        <form onSubmit={handleSubmit} className="w-full px-2" role="form" aria-label="Chat input form">
           <div className="relative flex items-end w-full transition-all duration-300 ease-out">
             <Textarea
               ref={textareaRef}
@@ -223,9 +223,10 @@ export function ChatInput({ isConnected, isProcessing }: ChatInputProps) {
               placeholder={getPlaceholder()}
               disabled={!isConnected}
               className={cn(
-                'max-h-[200px] resize-none pr-20 text-sm w-full',
+                'max-h-[200px] resize-none pr-16 text-sm w-full',
                 'bg-background/80 backdrop-blur-sm border-2 border-brand/30',
-                'focus:ring-2 focus:ring-brand focus:ring-offset-2 focus:border-brand',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60 focus-visible:ring-offset-2 focus-visible:border-brand/60',
+                'focus:outline-none focus:ring-2 focus:ring-brand/60 focus:ring-offset-2 focus:border-brand/60',
                 'hover:border-brand/50 hover:bg-background/90',
                 'rounded-2xl shadow-lg',
                 'px-3 py-2',
@@ -243,7 +244,7 @@ export function ChatInput({ isConnected, isProcessing }: ChatInputProps) {
               type="submit"
               disabled={!isConnected || (!input.trim() && !isProcessing)}
               size="sm"
-              className="absolute right-2 bottom-2 h-10 px-4 rounded-xl bg-gradient-to-r from-brand to-brand/80 hover:from-brand/90 hover:to-brand/70 text-white font-medium shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 focus:ring-2 focus:ring-brand focus:ring-offset-2"
+              className="absolute right-2 bottom-2 h-10 px-4 rounded-xl bg-gradient-to-r from-brand to-brand/80 hover:from-brand/90 hover:to-brand/70 text-white font-medium shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60 focus-visible:ring-offset-2"
               variant={isProcessing && !input.trim() ? 'destructive' : 'default'}
               aria-label={isProcessing && !input.trim() ? 'Cancel current task' : 'Send message'}
             >
@@ -258,7 +259,7 @@ export function ChatInput({ isConnected, isProcessing }: ChatInputProps) {
         
         <div 
           id="input-hint" 
-          className="mt-2 sm:mt-3 text-center text-xs text-muted-foreground font-medium flex items-center justify-center gap-2 px-2"
+          className="mt-1 sm:mt-2 text-center text-xs text-muted-foreground font-medium flex items-center justify-center gap-2 px-2"
           role="status"
           aria-live="polite"
         >

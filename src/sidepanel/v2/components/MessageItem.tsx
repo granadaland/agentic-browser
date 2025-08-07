@@ -10,6 +10,7 @@ import { TaskManagerDropdown } from './TaskManagerDropdown'
 interface MessageItemProps {
   message: Message
   shouldIndent?: boolean
+  showLocalIndentLine?: boolean  // When true, renders per-item vertical line
 }
 
 // Helper function to detect and parse JSON content
@@ -170,7 +171,7 @@ const SelectedTabDataDisplay = ({ content }: SelectedTabDataDisplayProps) => {
  * Renders individual messages with role-based styling
  * Memoized to prevent re-renders when message hasn't changed
  */
-export const MessageItem = memo(function MessageItem({ message, shouldIndent = false }: MessageItemProps) {
+export const MessageItem = memo(function MessageItem({ message, shouldIndent = false, showLocalIndentLine = false }: MessageItemProps) {
   const isUser = message.role === 'user'
   const isError = message.metadata?.error || message.content.includes('## Task Failed')
   const isSystem = message.role === 'system'
@@ -401,8 +402,6 @@ export const MessageItem = memo(function MessageItem({ message, shouldIndent = f
               <div className="text-base font-semibold">Task Complete</div>
               <div className="text-sm text-muted-foreground mt-1">The task has been completed successfully.</div>
             </div>
-            {/* Animated line below task completion messages */}
-            <div className="h-px bg-gradient-to-r from-brand/20 via-brand/30 to-brand/20 animate-draw-line" />
           </div>
         )
 
@@ -415,8 +414,6 @@ export const MessageItem = memo(function MessageItem({ message, shouldIndent = f
               className="break-words"
               compact={false}
             />
-            {/* Animated line below task summary/failed messages */}
-            <div className="h-px bg-gradient-to-r from-brand/20 via-brand/30 to-brand/20 animate-draw-line" />
           </div>
         )
       
@@ -461,8 +458,8 @@ export const MessageItem = memo(function MessageItem({ message, shouldIndent = f
       } : undefined}
     >
       
-      {/* Vertical connecting line for indented messages */}
-      {shouldIndent && (
+      {/* Vertical connecting line for indented messages (used only when not grouped) */}
+      {shouldIndent && showLocalIndentLine && (
         <div className="absolute left-[-16px] top-0 bottom-0 w-px bg-gradient-to-b from-brand/30 via-brand/20 to-brand/10" />
       )}
 
@@ -484,8 +481,8 @@ export const MessageItem = memo(function MessageItem({ message, shouldIndent = f
           messageStyling.shadow,
           isUser ? 'group-hover:scale-[1.02]' : '',
           messageStyling.bubble,
-          // Add subtle grey text styling for indented messages
-          shouldIndent && 'opacity-70 text-muted-foreground/70'
+          // Slightly darker text for indented bubble messages to improve contrast
+          shouldIndent && 'opacity-90 text-foreground'
         )}>
           {/* Glow effect */}
           <div className={cn(
@@ -518,7 +515,7 @@ export const MessageItem = memo(function MessageItem({ message, shouldIndent = f
           'mr-4 mt-1 max-w-[85%]',
           isCompleting && 'animate-dash-off-left',
           // Add subtle styling for indented messages
-          shouldIndent && 'opacity-70'
+          shouldIndent && 'opacity-90'
         )}>
           {isExecuting ? (
             <div className="flex items-center gap-3 text-sm font-medium text-muted-foreground">
@@ -530,7 +527,7 @@ export const MessageItem = memo(function MessageItem({ message, shouldIndent = f
               'text-sm',
               isStartup
                 ? 'text-muted-foreground'
-                : (shouldIndent ? 'text-muted-foreground/70' : 'text-foreground')
+                : (shouldIndent ? 'text-foreground' : 'text-foreground')
             )}>
               {renderContent()}
             </div>

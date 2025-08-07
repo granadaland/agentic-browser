@@ -69,7 +69,6 @@ const ALL_EXAMPLES = [
 ]
 
 // Animation constants
-const ANIMATION_INTERVAL = 8000 // 8 seconds between animations
 const DISPLAY_COUNT = 5 // Show 5 examples at a time
 
 /**
@@ -242,37 +241,22 @@ export function MessageList({ messages, onScrollStateChange, scrollToBottom: ext
     return result
   }, [shuffledPool])
 
-  // Animation effect for cycling examples
+  // Refresh examples only when the welcome view is shown (on mount or when messages become empty)
+  const wasEmptyRef = useRef<boolean>(messages.length === 0)
   useEffect(() => {
-    if (messages.length > 0) return // Don't animate when there are messages
-
-    const interval = setInterval(() => {
-      if (isAnimating) return // Skip if already animating
-      
-      setIsAnimating(true)
-      
-      // Start animation - all items slide down
-      setTimeout(() => {
-        setCurrentExamples(prevExamples => {
-          // Remove one from top (pop)
-          const newExamples = prevExamples.slice(0, -1)
-          
-          // Add one to bottom (unshift)
-          const newExample = getRandomExample(1)[0]
-          newExamples.unshift(newExample)
-          
-          return newExamples
-        })
-        
-        // Reset animation state after transition completes
-        setTimeout(() => {
-          setIsAnimating(false)
-        }, 500) // Match CSS transition duration
-      }, 300) // Delay before changing content
-    }, ANIMATION_INTERVAL)
-
-    return () => clearInterval(interval)
-  }, [messages.length, getRandomExample, isAnimating])
+    const isEmpty = messages.length === 0
+    if (isEmpty && !wasEmptyRef.current) {
+      // Reinitialize examples when transitioning back to empty state
+      const shuffled = [...ALL_EXAMPLES].sort(() => 0.5 - Math.random())
+      setShuffledPool(shuffled)
+      const initialExamples: string[] = []
+      for (let i = 0; i < DISPLAY_COUNT; i++) {
+        if (shuffled.length > 0) initialExamples.push(shuffled.pop()!)
+      }
+      setCurrentExamples(initialExamples)
+    }
+    wasEmptyRef.current = isEmpty
+  }, [messages.length])
 
   // Check if we're at the bottom of the scroll container
   useEffect(() => {
@@ -328,37 +312,10 @@ export function MessageList({ messages, onScrollStateChange, scrollToBottom: ext
         role="region"
         aria-label="Welcome screen with example prompts"
       >
-        {/* Animated paw prints running across the screen */}
-        {/*<AnimatedPawPrints />*/}
+              {/* Animated paw prints running across the screen */}
+      {/*<AnimatedPawPrints />*/}
 
-        {/* Enhanced spotlight elements */}
-        <div className="absolute inset-0 z-5 pointer-events-none">
-          {/* Spotlight 1 - Larger and more prominent */}
-          <div
-            className="absolute top-1/4 left-1/4 w-40 h-40 rounded-full animate-float-enhanced"
-            style={{
-              background: 'radial-gradient(circle, rgba(251,101,31,0.4) 0%, rgba(251,101,31,0.1) 50%, rgba(251,101,31,0) 80%)',
-            }}
-          ></div>
-
-          {/* Spotlight 2 - Enhanced */}
-          <div
-            className="absolute top-3/4 right-1/4 w-32 h-32 rounded-full animate-float-enhanced"
-            style={{
-              background: 'radial-gradient(circle, rgba(251,101,31,0.35) 0%, rgba(251,101,31,0.08) 50%, rgba(251,101,31,0) 80%)',
-              animationDelay: '1s',
-            }}
-          ></div>
-
-          {/* Spotlight 3 - Enhanced */}
-          <div
-            className="absolute top-1/2 left-1/2 w-24 h-24 rounded-full animate-float-enhanced"
-            style={{
-              background: 'radial-gradient(circle, rgba(251,101,31,0.3) 0%, rgba(251,101,31,0.06) 50%, rgba(251,101,31,0) 80%)',
-              animationDelay: '2s',
-            }}
-          ></div>
-        </div>
+      {/* Orange glow spotlights removed */}
 
         {/* Main content */}
         <div className="relative z-10">
@@ -372,7 +329,7 @@ export function MessageList({ messages, onScrollStateChange, scrollToBottom: ext
           </div>
 
           {/* Example Prompts */}
-          <div className="mb-8">
+          <div className="mb-8 mt-16">
             <h3 className="text-lg font-semibold text-foreground mb-6 animate-fade-in-up" style={{ animationDelay: '0.4s' }}>
               What would you like to do?
             </h3>
@@ -412,13 +369,6 @@ export function MessageList({ messages, onScrollStateChange, scrollToBottom: ext
               ))}
             </div>
           </div>
-          
-          {/* Footer */}
-          <div className="animate-fade-in-up" style={{ animationDelay: '1s' }}>
-            <p className="text-xs text-muted-foreground" aria-live="polite">
-              Examples refresh every few seconds
-            </p>
-          </div>
         </div>
       </div>
     )
@@ -442,21 +392,69 @@ export function MessageList({ messages, onScrollStateChange, scrollToBottom: ext
       >
         {/* Messages List */}
         <div className="p-6 space-y-3 pb-4">
-          {processedMessages.map(({ message, position, animationDelay, isNewMessage }) => (
-            <div 
-              key={message.id}
-              className={`${isNewMessage ? 'animate-fade-in-up' : ''}`}
-              style={{ animationDelay: isNewMessage ? `${animationDelay}s` : undefined }}
-              data-todo-position={position.isFirst ? 'first' : position.isLast ? 'last' : null}
-              data-todo-index={position.todoIndex}
-              data-between-todos={position.isBetweenTodos ? 'true' : 'false'}
-              data-has-previous-todo={position.hasPreviousTodo ? 'true' : 'false'}
-              data-has-next-todo={position.hasNextTodo ? 'true' : 'false'}
-              data-should-indent={position.shouldIndent ? 'true' : 'false'}
-            >
-              <MessageItem message={message} shouldIndent={position.shouldIndent} />
-            </div>
-          ))}
+          {(() => {
+            // Find first indented message to start the group line
+            const firstIndent = processedMessages.findIndex(pm => pm.position.shouldIndent)
+            if (firstIndent === -1) {
+              // No indented messages; render normally
+              return processedMessages.map(({ message, position, animationDelay, isNewMessage }) => (
+                <div
+                  key={message.id}
+                  className={isNewMessage ? 'animate-fade-in' : ''}
+                  style={{ animationDelay: isNewMessage ? `${animationDelay}s` : undefined }}
+                  data-todo-position={position.isFirst ? 'first' : position.isLast ? 'last' : null}
+                  data-todo-index={position.todoIndex}
+                  data-between-todos={position.isBetweenTodos ? 'true' : 'false'}
+                  data-has-previous-todo={position.hasPreviousTodo ? 'true' : 'false'}
+                  data-has-next-todo={position.hasNextTodo ? 'true' : 'false'}
+                  data-should-indent={position.shouldIndent ? 'true' : 'false'}
+                >
+                  <MessageItem message={message} shouldIndent={position.shouldIndent} showLocalIndentLine={position.shouldIndent} />
+                </div>
+              ))
+            }
+
+            // Render messages before the indented group
+            const before = processedMessages.slice(0, firstIndent).map(({ message, position, animationDelay, isNewMessage }) => (
+              <div
+                key={message.id}
+                className={isNewMessage ? 'animate-fade-in' : ''}
+                style={{ animationDelay: isNewMessage ? `${animationDelay}s` : undefined }}
+                data-todo-position={position.isFirst ? 'first' : position.isLast ? 'last' : null}
+                data-todo-index={position.todoIndex}
+                data-between-todos={position.isBetweenTodos ? 'true' : 'false'}
+                data-has-previous-todo={position.hasPreviousTodo ? 'true' : 'false'}
+                data-has-next-todo={position.hasNextTodo ? 'true' : 'false'}
+                data-should-indent={position.shouldIndent ? 'true' : 'false'}
+              >
+                <MessageItem message={message} shouldIndent={position.shouldIndent} showLocalIndentLine={position.shouldIndent} />
+              </div>
+            ))
+
+            // Render messages from first indented onwards with a single continuous vertical line
+            const after = (
+              <div className="relative pl-8 before:content-[''] before:absolute before:left-[12px] before:top-0 before:bottom-0 before:w-px before:bg-gradient-to-b before:from-brand/40 before:via-brand/30 before:to-brand/20">
+                {processedMessages.slice(firstIndent).map(({ message, position, animationDelay, isNewMessage }) => (
+                  <div
+                    key={message.id}
+                    className={isNewMessage ? 'animate-fade-in' : ''}
+                    style={{ animationDelay: isNewMessage ? `${animationDelay}s` : undefined }}
+                    data-todo-position={position.isFirst ? 'first' : position.isLast ? 'last' : null}
+                    data-todo-index={position.todoIndex}
+                    data-between-todos={position.isBetweenTodos ? 'true' : 'false'}
+                    data-has-previous-todo={position.hasPreviousTodo ? 'true' : 'false'}
+                    data-has-next-todo={position.hasNextTodo ? 'true' : 'false'}
+                    data-should-indent={'true'}
+                  >
+                    {/* Pass shouldIndent true but hide per-item line via group container */}
+                    <MessageItem message={message} shouldIndent={true} showLocalIndentLine={false} />
+                  </div>
+                ))}
+              </div>
+            )
+
+            return (<>{before}{after}</>)
+          })()}
         </div>
       </div>
       
