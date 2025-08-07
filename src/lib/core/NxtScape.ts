@@ -3,7 +3,6 @@ import { EventBus, EventProcessor } from "@/lib/events";
 import { Logging } from "@/lib/utils/Logging";
 import { BrowserContext } from "@/lib/browser/BrowserContext";
 import { ExecutionContext } from "@/lib/runtime/ExecutionContext";
-import { ExecutionState } from "@/lib/runtime/ExecutionStateManager";
 import { MessageManager } from "@/lib/runtime/MessageManager";
 import { profileStart, profileEnd, profileAsync } from "@/lib/utils/profiler";
 import { BrowserAgent } from "@/lib/agent/BrowserAgent";
@@ -188,7 +187,7 @@ export class NxtScape {
         "NxtScape",
         "Another task is already running. Cleaning up...",
       );
-      await this._internalCancel();
+      this._internalCancel();
     }
 
     // Only reset abort controller for new conversations or after user cancellation
@@ -211,9 +210,6 @@ export class NxtScape {
 
     // Mark execution as started
     this.executionContext.startExecution(currentTabId);
-    
-    // Set state to STARTING
-    this.executionContext.setExecutionState(ExecutionState.STARTING);
 
     // Update the event bus and event processor for this execution
     this.executionContext.setEventBus(eventBus);
@@ -300,30 +296,17 @@ export class NxtScape {
    * Cancel the currently running task
    * @returns Object with cancellation info including the query that was cancelled
    */
-  public async cancel(): Promise<{ wasCancelled: boolean; query?: string; timedOut?: boolean }> {
-    const currentState = this.executionContext.getExecutionState();
-    
-    // Only cancel if in a cancellable state
-    if (currentState === ExecutionState.RUNNING || 
-        currentState === ExecutionState.STARTING) {
+  public cancel(): { wasCancelled: boolean; query?: string } {
+    if (this.abortController && !this.abortController.signal.aborted) {
       const cancelledQuery = this.currentQuery;
       Logging.log(
         "NxtScape",
         `User cancelling current task execution: "${cancelledQuery}"`,
       );
-      
-      // This will transition to ABORTING and wait for ABORTED
-      await this.executionContext.cancelExecution(/*isUserInitiated=*/ true);
-      
-      // Check if we reached ABORTED or timed out
-      const finalState = this.executionContext.getExecutionState();
-      const timedOut = finalState === ExecutionState.ABORTING;
-      
-      return { 
-        wasCancelled: true, 
-        query: cancelledQuery || undefined,
-        timedOut: timedOut
-      };
+      this.executionContext.cancelExecution(
+        /*isUserInitiatedsCancellation=*/ true,
+      );
+      return { wasCancelled: true, query: cancelledQuery || undefined };
     }
 
     return { wasCancelled: false };
@@ -335,16 +318,14 @@ export class NxtScape {
    * to ensure clean state by cancelling any ongoing work.
    * @private
    */
-  private async _internalCancel(): Promise<void> {
-    const currentState = this.executionContext.getExecutionState();
-    if (currentState === ExecutionState.RUNNING || 
-        currentState === ExecutionState.STARTING) {
+  private _internalCancel(): void {
+    if (this.abortController && !this.abortController.signal.aborted) {
       Logging.log(
         "NxtScape",
         "Internal cleanup: cancelling previous execution",
       );
       // false = not user-initiated, this is internal cleanup
-      await this.executionContext.cancelExecution(false);
+      this.executionContext.cancelExecution(false);
     }
   }
 

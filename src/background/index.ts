@@ -678,18 +678,18 @@ function handleGetTabsPort(
  * @param port - Port to send response through
  * @param id - Optional message ID for correlation
  */
-async function handleCancelTaskPort(
+function handleCancelTaskPort(
   payload: CancelTaskMessage['payload'],
   port: chrome.runtime.Port,
   id?: string
-): Promise<void> {
+): void {
   try {
     const { reason, source } = payload
     
     debugLog(`Task cancellation requested from ${source || 'unknown'}: ${reason || 'No reason provided'}`)
     
-    // Attempt to cancel the current task (now async)
-    const cancellationResult = await nxtScape.cancel()
+    // Attempt to cancel the current task
+    const cancellationResult = nxtScape.cancel()
     
     if (cancellationResult.wasCancelled) {
       const cancelledQuery = cancellationResult.query || 'Unknown query';
