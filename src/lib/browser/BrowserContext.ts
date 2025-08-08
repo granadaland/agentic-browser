@@ -431,16 +431,22 @@ ${elementsText}
       const tab = await this.getTargetTab();
       if (tab && tab.windowId) {
         const window = await chrome.windows.get(tab.windowId);
-        return window;
+        if (window) {
+          return window;
+        }
       }
     } catch (error) {
       Logging.log('BrowserContextV2', `Failed to get window from target tab: ${error}`, 'warning');
     }
     
     // Fall back to current window
-    const window = await chrome.windows.getCurrent();
-    if (window) {
-      return window;
+    try {
+      const window = await chrome.windows.getCurrent();
+      if (window) {
+        return window;
+      }
+    } catch (error) {
+      Logging.log('BrowserContextV2', `Failed to get current window: ${error}`, 'error');
     }
 
     throw new Error('No window found');

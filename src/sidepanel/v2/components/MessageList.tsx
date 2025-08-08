@@ -18,58 +18,57 @@ const ALL_EXAMPLES = [
   // Tab Management
   "Group my tabs by app or purpose",
   "Find tabs related to machine learning",
-  "Close tabs I haven't touched in 7 days",
+  // "Close tabs I haven't touched in 7 days",
   "Highlight the tab where I was last shopping",
   "Save all Facebook tabs to a reading list",
-  "Pin tabs I use daily",
-  "Archive tabs from last week's research",
+  // "Pin tabs I use daily",
+  // "Archive tabs from last week's research",
   "Reopen the tab I accidentally closed",
-  "Mute all tabs except the one playing music",
+  // "Mute all tabs except the one playing music",
 
   // Page Analysis
   "Summarize this article for me",
   "What are the key points on this page?",
-  "Check if this article is AI-generated",
+  // "Check if this article is AI-generated",
   "Extract all links and sources from this page",
   "Extract all news headlines from this page",
-  "List all images and their alt text",
-  "Detect the reading level of this article",
-  "Highlight quotes or cited studies",
+  // "List all images and their alt text",
+  // "Detect the reading level of this article",
+  // "Highlight quotes or cited studies",
   "Compare this page to another tab I'm viewing",
 
   // Search & Discovery
   "Find top-rated headphones under $100",
-  "Find the cheapest flight to San Francisco",
+  // "Find the cheapest flight to San Francisco",
   "Search YouTube for videos explaining BrowserOS",
-  "Look up reviews for this product",
+  // "Look up reviews for this product",
   "Search Reddit for discussions about this topic",
-  "Find recipes using the ingredients in my tabs",
-  "Show me recent news about this company",
-  "Search for open-source alternatives to this tool",
+  // "Find recipes using the ingredients in my tabs",
+  // "Show me recent news about this company",
+  // "Search for open-source alternatives to this tool",
 
   // Actions & Automation
   "Open amazon.com and order Sensodyne toothpaste",
   "Write a tweet saying Hello World",
-  "Add this page to my bookmarks",
-  "Download the PDF linked on this page",
-  "Translate this page to Spanish",
-  "Email this article to myself",
-  "Create a calendar event based on this page",
-  "Copy all code snippets from this tab",
+  // "Add this page to my bookmarks",
+  // "Download the PDF linked on this page",
+  // "Translate this page to Spanish",
+  // "Email this article to myself",
+  // "Create a calendar event based on this page",
+  // "Copy all code snippets from this tab",
 
   // AI & Content Tools
-  "Rewrite this paragraph to be more concise",
+  // "Rewrite this paragraph to be more concise",
   "Generate a summary tweet for this article",
-  "Explain this code like I'm five",
+  // "Explain this code like I'm five",
   "Draft a reply to this comment",
   "Rate the tone of this blog post",
-  "Suggest improvements to this documentation",
+  // "Suggest improvements to this documentation",
   "Turn this article into a LinkedIn post",
-  "Detect bias or opinionated language in this page",
+  // "Detect bias or opinionated language in this page",
 ]
 
 // Animation constants
-const ANIMATION_INTERVAL = 8000 // 8 seconds between animations
 const DISPLAY_COUNT = 5 // Show 5 examples at a time
 
 /**
@@ -242,37 +241,22 @@ export function MessageList({ messages, onScrollStateChange, scrollToBottom: ext
     return result
   }, [shuffledPool])
 
-  // Animation effect for cycling examples
+  // Refresh examples only when the welcome view is shown (on mount or when messages become empty)
+  const wasEmptyRef = useRef<boolean>(messages.length === 0)
   useEffect(() => {
-    if (messages.length > 0) return // Don't animate when there are messages
-
-    const interval = setInterval(() => {
-      if (isAnimating) return // Skip if already animating
-      
-      setIsAnimating(true)
-      
-      // Start animation - all items slide down
-      setTimeout(() => {
-        setCurrentExamples(prevExamples => {
-          // Remove one from top (pop)
-          const newExamples = prevExamples.slice(0, -1)
-          
-          // Add one to bottom (unshift)
-          const newExample = getRandomExample(1)[0]
-          newExamples.unshift(newExample)
-          
-          return newExamples
-        })
-        
-        // Reset animation state after transition completes
-        setTimeout(() => {
-          setIsAnimating(false)
-        }, 500) // Match CSS transition duration
-      }, 300) // Delay before changing content
-    }, ANIMATION_INTERVAL)
-
-    return () => clearInterval(interval)
-  }, [messages.length, getRandomExample, isAnimating])
+    const isEmpty = messages.length === 0
+    if (isEmpty && !wasEmptyRef.current) {
+      // Reinitialize examples when transitioning back to empty state
+      const shuffled = [...ALL_EXAMPLES].sort(() => 0.5 - Math.random())
+      setShuffledPool(shuffled)
+      const initialExamples: string[] = []
+      for (let i = 0; i < DISPLAY_COUNT; i++) {
+        if (shuffled.length > 0) initialExamples.push(shuffled.pop()!)
+      }
+      setCurrentExamples(initialExamples)
+    }
+    wasEmptyRef.current = isEmpty
+  }, [messages.length])
 
   // Check if we're at the bottom of the scroll container
   useEffect(() => {
@@ -328,37 +312,10 @@ export function MessageList({ messages, onScrollStateChange, scrollToBottom: ext
         role="region"
         aria-label="Welcome screen with example prompts"
       >
-        {/* Animated paw prints running across the screen */}
-        {/*<AnimatedPawPrints />*/}
+              {/* Animated paw prints running across the screen */}
+      {/*<AnimatedPawPrints />*/}
 
-        {/* Enhanced spotlight elements */}
-        <div className="absolute inset-0 z-5 pointer-events-none">
-          {/* Spotlight 1 - Larger and more prominent */}
-          <div
-            className="absolute top-1/4 left-1/4 w-40 h-40 rounded-full animate-float-enhanced"
-            style={{
-              background: 'radial-gradient(circle, rgba(251,101,31,0.4) 0%, rgba(251,101,31,0.1) 50%, rgba(251,101,31,0) 80%)',
-            }}
-          ></div>
-
-          {/* Spotlight 2 - Enhanced */}
-          <div
-            className="absolute top-3/4 right-1/4 w-32 h-32 rounded-full animate-float-enhanced"
-            style={{
-              background: 'radial-gradient(circle, rgba(251,101,31,0.35) 0%, rgba(251,101,31,0.08) 50%, rgba(251,101,31,0) 80%)',
-              animationDelay: '1s',
-            }}
-          ></div>
-
-          {/* Spotlight 3 - Enhanced */}
-          <div
-            className="absolute top-1/2 left-1/2 w-24 h-24 rounded-full animate-float-enhanced"
-            style={{
-              background: 'radial-gradient(circle, rgba(251,101,31,0.3) 0%, rgba(251,101,31,0.06) 50%, rgba(251,101,31,0) 80%)',
-              animationDelay: '2s',
-            }}
-          ></div>
-        </div>
+      {/* Orange glow spotlights removed */}
 
         {/* Main content */}
         <div className="relative z-10">
@@ -372,7 +329,7 @@ export function MessageList({ messages, onScrollStateChange, scrollToBottom: ext
           </div>
 
           {/* Example Prompts */}
-          <div className="mb-8">
+          <div className="mb-8 mt-16">
             <h3 className="text-lg font-semibold text-foreground mb-6 animate-fade-in-up" style={{ animationDelay: '0.4s' }}>
               What would you like to do?
             </h3>
@@ -393,7 +350,7 @@ export function MessageList({ messages, onScrollStateChange, scrollToBottom: ext
                 >
                   <Button
                     variant="outline"
-                    className="group relative text-sm h-auto py-3 px-4 whitespace-normal bg-background/50 backdrop-blur-sm border-2 border-brand/30 hover:border-brand hover:bg-brand/5 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg focus:ring-2 focus:ring-brand focus:ring-offset-2 overflow-hidden w-full"
+                    className="group relative text-sm h-auto py-3 px-4 whitespace-normal bg-background/50 backdrop-blur-sm border-2 border-brand/30 hover:border-brand hover:bg-brand/5 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg focus-visible:outline-none overflow-hidden w-full"
                     onClick={() => handleExampleClick(prompt)}
                     aria-label={`Use example: ${prompt}`}
                   >
@@ -412,13 +369,6 @@ export function MessageList({ messages, onScrollStateChange, scrollToBottom: ext
               ))}
             </div>
           </div>
-          
-          {/* Footer */}
-          <div className="animate-fade-in-up" style={{ animationDelay: '1s' }}>
-            <p className="text-xs text-muted-foreground" aria-live="polite">
-              Examples refresh every few seconds
-            </p>
-          </div>
         </div>
       </div>
     )
@@ -430,7 +380,7 @@ export function MessageList({ messages, onScrollStateChange, scrollToBottom: ext
       
       {/* Messages container */}
       <div 
-        className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-brand/30 scrollbar-track-transparent"
+        className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-thin scrollbar-thumb-brand/30 scrollbar-track-transparent"
         style={{
           background: 'radial-gradient(ellipse at top right, hsl(var(--background)) 0%, hsl(var(--background)) 40%, transparent 100%)'
         }}
@@ -442,21 +392,69 @@ export function MessageList({ messages, onScrollStateChange, scrollToBottom: ext
       >
         {/* Messages List */}
         <div className="p-6 space-y-3 pb-4">
-          {processedMessages.map(({ message, position, animationDelay, isNewMessage }) => (
-            <div 
-              key={message.id}
-              className={`${isNewMessage ? 'animate-fade-in-up' : ''}`}
-              style={{ animationDelay: isNewMessage ? `${animationDelay}s` : undefined }}
-              data-todo-position={position.isFirst ? 'first' : position.isLast ? 'last' : null}
-              data-todo-index={position.todoIndex}
-              data-between-todos={position.isBetweenTodos ? 'true' : 'false'}
-              data-has-previous-todo={position.hasPreviousTodo ? 'true' : 'false'}
-              data-has-next-todo={position.hasNextTodo ? 'true' : 'false'}
-              data-should-indent={position.shouldIndent ? 'true' : 'false'}
-            >
-              <MessageItem message={message} shouldIndent={position.shouldIndent} />
-            </div>
-          ))}
+          {(() => {
+            // Find first indented message to start the group line
+            const firstIndent = processedMessages.findIndex(pm => pm.position.shouldIndent)
+            if (firstIndent === -1) {
+              // No indented messages; render normally
+              return processedMessages.map(({ message, position, animationDelay, isNewMessage }) => (
+                <div
+                  key={message.id}
+                  className={isNewMessage ? 'animate-fade-in' : ''}
+                  style={{ animationDelay: isNewMessage ? `${animationDelay}s` : undefined }}
+                  data-todo-position={position.isFirst ? 'first' : position.isLast ? 'last' : null}
+                  data-todo-index={position.todoIndex}
+                  data-between-todos={position.isBetweenTodos ? 'true' : 'false'}
+                  data-has-previous-todo={position.hasPreviousTodo ? 'true' : 'false'}
+                  data-has-next-todo={position.hasNextTodo ? 'true' : 'false'}
+                  data-should-indent={position.shouldIndent ? 'true' : 'false'}
+                >
+                  <MessageItem message={message} shouldIndent={position.shouldIndent} showLocalIndentLine={position.shouldIndent} />
+                </div>
+              ))
+            }
+
+            // Render messages before the indented group
+            const before = processedMessages.slice(0, firstIndent).map(({ message, position, animationDelay, isNewMessage }) => (
+              <div
+                key={message.id}
+                className={isNewMessage ? 'animate-fade-in' : ''}
+                style={{ animationDelay: isNewMessage ? `${animationDelay}s` : undefined }}
+                data-todo-position={position.isFirst ? 'first' : position.isLast ? 'last' : null}
+                data-todo-index={position.todoIndex}
+                data-between-todos={position.isBetweenTodos ? 'true' : 'false'}
+                data-has-previous-todo={position.hasPreviousTodo ? 'true' : 'false'}
+                data-has-next-todo={position.hasNextTodo ? 'true' : 'false'}
+                data-should-indent={position.shouldIndent ? 'true' : 'false'}
+              >
+                <MessageItem message={message} shouldIndent={position.shouldIndent} showLocalIndentLine={position.shouldIndent} />
+              </div>
+            ))
+
+            // Render messages from first indented onwards with a single continuous vertical line
+            const after = (
+              <div className="relative pl-4 before:content-[''] before:absolute before:left-[8px] before:top-0 before:bottom-0 before:w-px before:bg-gradient-to-b before:from-brand/40 before:via-brand/30 before:to-brand/20">
+                {processedMessages.slice(firstIndent).map(({ message, position, animationDelay, isNewMessage }) => (
+                  <div
+                    key={message.id}
+                    className={isNewMessage ? 'animate-fade-in' : ''}
+                    style={{ animationDelay: isNewMessage ? `${animationDelay}s` : undefined }}
+                    data-todo-position={position.isFirst ? 'first' : position.isLast ? 'last' : null}
+                    data-todo-index={position.todoIndex}
+                    data-between-todos={position.isBetweenTodos ? 'true' : 'false'}
+                    data-has-previous-todo={position.hasPreviousTodo ? 'true' : 'false'}
+                    data-has-next-todo={position.hasNextTodo ? 'true' : 'false'}
+                    data-should-indent={'true'}
+                  >
+                    {/* Pass shouldIndent true but hide per-item line via group container and prevent extra left margin */}
+                    <MessageItem message={message} shouldIndent={true} showLocalIndentLine={false} applyIndentMargin={false} />
+                  </div>
+                ))}
+              </div>
+            )
+
+            return (<>{before}{after}</>)
+          })()}
         </div>
       </div>
       

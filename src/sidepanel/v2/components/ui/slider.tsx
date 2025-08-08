@@ -48,7 +48,7 @@ export function Slider({
         aria-label={ariaLabel}
         className={cn(
           'w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer',
-          'focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2',
+          'focus-visible:outline-none',
           'disabled:opacity-50 disabled:cursor-not-allowed',
           // Custom styling for webkit browsers
           '[&::-webkit-slider-thumb]:appearance-none',

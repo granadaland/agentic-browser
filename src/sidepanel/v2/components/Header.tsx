@@ -7,7 +7,7 @@ import { SettingsModal } from './SettingsModal'
 import { HelpSection } from './HelpSection'
 import { HelpIcon, SettingsIcon, PauseIcon, ResetIcon, GitHubIcon } from './ui/Icons'
 
-const GITHUB_REPO_URL: string = 'https://github.com/browseros-ai/BrowserOS-agent'
+const GITHUB_REPO_URL: string = 'https://github.com/browseros-ai/BrowserOS'
 
 interface HeaderProps {
   onReset: () => void
@@ -59,7 +59,7 @@ export const Header = memo(function Header({ onReset, showReset, isProcessing }:
   return (
     <>
       <header 
-        className="flex items-center justify-between px-4 py-1 bg-gradient-to-r from-background via-background to-background/95 border-b border-border/50"
+        className="relative flex items-center justify-between h-12 px-3 bg-gradient-to-r from-background via-background to-background/95 border-b border-border/50"
         role="banner"
       >
 
@@ -69,35 +69,26 @@ export const Header = memo(function Header({ onReset, showReset, isProcessing }:
               trackClick('star_github')
               window.open(GITHUB_REPO_URL, '_blank', 'noopener,noreferrer')
             }}
-            variant="outline"
+            variant="ghost"
             size="sm"
             className="gap-2 hover:bg-brand/5 hover:text-brand transition-all duration-300"
             aria-label="Star on GitHub"
             title="Star on GitHub"
           >
             <GitHubIcon />
-            GitHub
+            Star us on Github
           </Button>
-          {/* Connection status indicator */}
-          <div
-            className="flex items-center"
-            role="status"
-            aria-label={`Connection status: ${connected ? 'Connected' : 'Disconnected'}`}
-          >
-            <div
-              className={`w-2 h-2 rounded-full ${connected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}
-              aria-hidden="true"
-            />
-          </div>
         </div>
         
-        <nav className="flex items-center gap-2" role="navigation" aria-label="Chat controls">
+
+
+        <nav className="flex items-center gap-3" role="navigation" aria-label="Chat controls">
           {/* Help button */}
           <Button
             onClick={handleHelpClick}
             variant="ghost"
             size="sm"
-            className="h-8 w-8 p-0 hover:bg-brand/5 hover:text-brand transition-all duration-300"
+            className="h-9 w-9 p-0 rounded-xl hover:bg-brand/10 hover:text-brand transition-all duration-300"
             aria-label="Open help"
           >
             <HelpIcon />
@@ -108,7 +99,7 @@ export const Header = memo(function Header({ onReset, showReset, isProcessing }:
             onClick={handleSettingsClick}
             variant="ghost"
             size="sm"
-            className="h-8 w-8 p-0 hover:bg-brand/5 hover:text-brand transition-all duration-300"
+            className="h-9 w-9 p-0 rounded-xl hover:bg-brand/10 hover:text-brand transition-all duration-300"
             aria-label="Open settings"
           >
             <SettingsIcon />
@@ -117,9 +108,9 @@ export const Header = memo(function Header({ onReset, showReset, isProcessing }:
           {isProcessing && (
             <Button
               onClick={handleCancel}
-              variant="outline"
+              variant="ghost"
               size="sm"
-              className="text-xs border-brand/30 hover:border-brand hover:bg-brand/5 transition-all duration-300"
+              className="text-xs hover:bg-brand/5 hover:text-brand transition-all duration-300"
               aria-label="Pause current task"
             >
               <PauseIcon />
