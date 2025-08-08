@@ -225,8 +225,8 @@ export function ChatInput({ isConnected, isProcessing }: ChatInputProps) {
               className={cn(
                 'max-h-[200px] resize-none pr-16 text-sm w-full',
                 'bg-background/80 backdrop-blur-sm border-2 border-brand/30',
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-muted-foreground/40 focus-visible:ring-offset-2 focus-visible:border-brand/60',
-                'focus:outline-none focus:ring-2 focus:ring-muted-foreground/40 focus:ring-offset-2 focus:border-brand/60',
+                'focus-visible:outline-none focus-visible:border-brand/60',
+                'focus:outline-none focus:border-brand/60',
                 'hover:border-brand/50 hover:bg-background/90',
                 'rounded-2xl shadow-lg',
                 'px-3 py-2',
@@ -244,7 +244,7 @@ export function ChatInput({ isConnected, isProcessing }: ChatInputProps) {
               type="submit"
               disabled={!isConnected || (!input.trim() && !isProcessing)}
               size="sm"
-              className="absolute right-2 bottom-2 h-10 px-4 rounded-xl bg-gradient-to-r from-brand to-brand/80 hover:from-brand/90 hover:to-brand/70 text-white font-medium shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-muted-foreground/40 focus-visible:ring-offset-2"
+              className="absolute right-2 bottom-2 h-10 px-4 rounded-xl bg-gradient-to-r from-brand to-brand/80 hover:from-brand/90 hover:to-brand/70 text-white font-medium shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 focus-visible:outline-none"
               variant={isProcessing && !input.trim() ? 'destructive' : 'default'}
               aria-label={isProcessing && !input.trim() ? 'Cancel current task' : 'Send message'}
             >

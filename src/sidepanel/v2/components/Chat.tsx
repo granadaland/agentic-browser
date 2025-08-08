@@ -85,7 +85,7 @@ export function Chat({ isConnected }: ChatProps) {
               trackFeature('scroll_to_bottom')
               handleScrollToBottom()
             }}
-            className="absolute -top-12 right-4 p-3 bg-brand text-white rounded-full shadow-xl hover:bg-brand/90 transition-all duration-200 animate-in fade-in slide-in-from-bottom-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-muted-foreground/40 focus-visible:ring-offset-2 z-10 border-2 border-white/20 hover:scale-110"
+            className="absolute -top-12 right-4 p-3 bg-brand text-white rounded-full shadow-xl hover:bg-brand/90 transition-all duration-200 animate-in fade-in slide-in-from-bottom-2 focus-visible:outline-none z-10 border-2 border-white/20 hover:scale-110"
             aria-label="Scroll to bottom of messages"
             type="button"
           >

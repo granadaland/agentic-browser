@@ -108,13 +108,12 @@ export const Header = memo(function Header({ onReset, showReset, isProcessing }:
           {isProcessing && (
             <Button
               onClick={handleCancel}
-              variant="outline"
+              variant="ghost"
               size="sm"
-              className="text-xs hover:bg-brand/5 transition-all duration-300"
+              className="h-9 w-9 p-0 rounded-xl hover:bg-brand/10 hover:text-brand transition-all duration-300"
               aria-label="Pause current task"
             >
               <PauseIcon />
-              Pause
             </Button>
           )}
           
