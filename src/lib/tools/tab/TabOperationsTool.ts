@@ -36,10 +36,16 @@ export class TabOperationsTool {
   private async _listTabs(): Promise<ToolOutput> {
     try {
       const currentWindow = await this.executionContext.browserContext.getCurrentWindow()
+      
+      // Safety check in case window is undefined
+      if (!currentWindow || !currentWindow.id) {
+        return toolError('Failed to get current window information')
+      }
+      
       const tabs = await chrome.tabs.query({ windowId: currentWindow.id })
       
       const formattedTabs = tabs
-        .filter(tab => tab.id !== undefined && tab.url && tab.title)
+        .filter(tab => tab.id !== undefined && tab.url && tab.title && tab.windowId !== undefined)
         .map(tab => ({
           id: tab.id!,
           url: tab.url!,
@@ -61,7 +67,7 @@ export class TabOperationsTool {
       const tabs = await chrome.tabs.query({})
       
       const formattedTabs = tabs
-        .filter(tab => tab.id !== undefined && tab.url && tab.title)
+        .filter(tab => tab.id !== undefined && tab.url && tab.title && tab.windowId !== undefined)
         .map(tab => ({
           id: tab.id!,
           url: tab.url!,
