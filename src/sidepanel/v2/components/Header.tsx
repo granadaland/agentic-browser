@@ -75,7 +75,8 @@ export const Header = memo(function Header({ onReset, showReset, isProcessing }:
             aria-label="Star on GitHub"
             title="Star on GitHub"
           >
-            ⭐ Support us on Github
+            <GitHubIcon />
+            Star us on Github
           </Button>
         </div>
         
