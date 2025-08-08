@@ -1,13 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { Textarea } from '@/sidepanel/components/ui/textarea'
 import { Button } from '@/sidepanel/components/ui/button'
-import { SelectTabsButton } from './SelectTabsButton'
+import { LazyTabSelector } from './LazyTabSelector'
+import { useTabsStore, BrowserTab } from '@/sidepanel/store/tabsStore'
 import { useChatStore } from '../stores/chatStore'
 import { useKeyboardShortcuts, useAutoResize } from '../hooks/useKeyboardShortcuts'
 import { useSidePanelPortMessaging } from '@/sidepanel/hooks'
 import { MessageType } from '@/lib/types/messaging'
 import { cn } from '@/sidepanel/lib/utils'
-import { CloseIcon, SendIcon, LoadingPawTrail } from './ui/Icons'
+import { SendIcon, LoadingPawTrail } from './ui/Icons'
 
 
 interface ChatInputProps {
@@ -27,6 +28,7 @@ export function ChatInput({ isConnected, isProcessing }: ChatInputProps) {
   
   const { addMessage, setProcessing, selectedTabIds, clearSelectedTabs } = useChatStore()
   const { sendMessage } = useSidePanelPortMessaging()
+  const { getContextTabs, toggleTabSelection } = useTabsStore()
   
   // Auto-resize textarea
   useAutoResize(textareaRef, input)
@@ -95,31 +97,10 @@ export function ChatInput({ isConnected, isProcessing }: ChatInputProps) {
   
   const handleSubmit = (e?: React.FormEvent) => {
     e?.preventDefault()
-    
-    // If processing and no input, act like pause button (cancel current task)
-    if (isProcessing && !input.trim()) {
-      handleCancel()
-      return
-    }
-
-    if (isProcessing && input.trim()) {
-      // Interrupt and follow-up pattern
-      const followUpQuery = input.trim()
-      
-      // Cancel current task
-      sendMessage(MessageType.CANCEL_TASK, {
-        reason: 'User interrupted with new query',
-        source: 'sidepanel'
-      })
-      
-      // Keep processing state and submit follow-up after delay
-      setTimeout(() => {
-        submitTask(followUpQuery)
-      }, 300)
-    } else {
-      // Normal submission
-      submitTask(input)
-    }
+    // Block submissions while processing
+    if (isProcessing) return
+    if (!input.trim()) return
+    submitTask(input)
   }
   
   const handleCancel = () => {
@@ -152,6 +133,17 @@ export function ChatInput({ isConnected, isProcessing }: ChatInputProps) {
     setShowTabSelector(false)
     textareaRef.current?.focus()
   }
+
+  const handleTabSelected = (tabId: number) => {
+    // Remove trailing '@' that triggered the selector
+    setInput(prev => prev.replace(/@$/, ''))
+  }
+
+  const handleRemoveSelectedTab = (tabId: number): void => {
+    toggleTabSelection(tabId)
+  }
+
+  const selectedContextTabs: BrowserTab[] = getContextTabs()
   
   // Keyboard shortcuts
   useKeyboardShortcuts(
@@ -168,13 +160,13 @@ export function ChatInput({ isConnected, isProcessing }: ChatInputProps) {
   
   const getPlaceholder = () => {
     if (!isConnected) return 'Disconnected'
-    if (isProcessing) return 'Interrupt with new task'
+    if (isProcessing) return 'Task running…'
     return 'Ask me anything...'
   }
   
   const getHintText = () => {
     if (!isConnected) return 'Waiting for connection'
-    if (isProcessing) return 'Press Enter to interrupt • Esc to cancel'
+    if (isProcessing) return 'Task running… Press Esc to cancel'
     return 'Press Enter to send • @ to select tabs'
   }
 
@@ -186,7 +178,7 @@ export function ChatInput({ isConnected, isProcessing }: ChatInputProps) {
   }
   
   return (
-    <div className="relative bg-gradient-to-t from-background via-background to-background/95 px-2 py-1 flex-shrink-0 overflow-hidden">
+    <div className="relative bg-[hsl(var(--header))] border-t border-border/50 px-2 py-1 flex-shrink-0 overflow-hidden">
       
       
       {/* Select Tabs Button (appears when '@' is present) */}
@@ -208,9 +200,47 @@ export function ChatInput({ isConnected, isProcessing }: ChatInputProps) {
           </Button>
         </div> */}
         
-        {showTabSelector && (
+        {/* Selected tabs chips */}
+        {selectedContextTabs.length > 0 && (
           <div className="px-2 mb-1">
-            <SelectTabsButton />
+            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
+              {selectedContextTabs.map(tab => (
+                <div
+                  key={tab.id}
+                  className="flex items-center gap-2 pl-2 pr-1 py-1 rounded-full bg-muted text-foreground/90 border border-border shadow-sm shrink-0"
+                  title={tab.title}
+                >
+                  <div className="w-4 h-4 rounded-sm overflow-hidden bg-muted-foreground/10 flex items-center justify-center">
+                    {tab.favIconUrl ? (
+                      <img src={tab.favIconUrl} alt="" className="w-full h-full object-contain" />
+                    ) : (
+                      <div className="w-full h-full bg-muted-foreground/20" />
+                    )}
+                  </div>
+                  <span className="text-xs max-w-[140px] truncate">
+                    {tab.title}
+                  </span>
+                  <button
+                    type="button"
+                    className="ml-1 inline-flex items-center justify-center w-4 h-4 rounded-full hover:bg-foreground/10 text-xs text-muted-foreground hover:text-foreground"
+                    aria-label={`Remove ${tab.title} from selection`}
+                    onClick={() => handleRemoveSelectedTab(tab.id)}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {showTabSelector && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+            <LazyTabSelector
+              isOpen={showTabSelector}
+              onClose={handleTabSelectorClose}
+              onTabSelect={handleTabSelected}
+            />
           </div>
         )}
 
@@ -242,17 +272,13 @@ export function ChatInput({ isConnected, isProcessing }: ChatInputProps) {
             
             <Button
               type="submit"
-              disabled={!isConnected || (!input.trim() && !isProcessing)}
+              disabled={!isConnected || isProcessing || !input.trim()}
               size="sm"
               className="absolute right-2 bottom-2 h-10 px-4 rounded-xl bg-gradient-to-r from-brand to-brand/80 hover:from-brand/90 hover:to-brand/70 text-white font-medium shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 focus-visible:outline-none"
-              variant={isProcessing && !input.trim() ? 'destructive' : 'default'}
-              aria-label={isProcessing && !input.trim() ? 'Cancel current task' : 'Send message'}
+              variant={'default'}
+              aria-label={'Send message'}
             >
-              {isProcessing && !input.trim() ? (
-                <CloseIcon />
-              ) : (
-                <SendIcon />
-              )}
+              <SendIcon />
             </Button>
           </div>
         </form>

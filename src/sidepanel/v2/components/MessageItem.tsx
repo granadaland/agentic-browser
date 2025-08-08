@@ -96,12 +96,12 @@ const TabDataDisplay = ({ content }: TabDataDisplayProps) => {
       </div>
       
       {Object.entries(tabsByWindow).map(([windowId, tabs]) => (
-        <div key={windowId} className="bg-muted/30 rounded-lg p-3 border border-border/50">
+        <div key={windowId} className="tab-card bg-muted/30 rounded-lg p-3">
           <div className="space-y-2">
             {tabs.map((tab) => (
               <div 
                 key={tab.id} 
-                className="flex items-start gap-3 p-2 bg-background/50 rounded border border-border/30 hover:bg-background/70 transition-colors"
+                className="flex items-start gap-3 p-2 bg-background/50 rounded hover:bg-background/70 transition-colors"
               >
                 <div className="flex-shrink-0 w-2 h-2 rounded-full bg-brand/60 mt-2"></div>
                 <div className="flex-1 min-w-0">
@@ -143,12 +143,12 @@ const SelectedTabDataDisplay = ({ content }: SelectedTabDataDisplayProps) => {
         Selected {tabData.length} tab{tabData.length !== 1 ? 's' : ''}
       </div>
       
-      <div className="bg-muted/30 rounded-lg p-3 border border-border/50">
+      <div className="tab-card bg-muted/30 rounded-lg p-3">
         <div className="space-y-2">
           {tabData.map((tab) => (
             <div 
               key={tab.id} 
-              className="flex items-start gap-3 p-2 bg-background/50 rounded border border-border/30 hover:bg-background/70 transition-colors"
+              className="flex items-start gap-3 p-2 bg-background/50 rounded hover:bg-background/70 transition-colors"
             >
               <div className="flex-shrink-0 w-2 h-2 rounded-full bg-brand/60 mt-2"></div>
               <div className="flex-1 min-w-0">
@@ -167,6 +167,97 @@ const SelectedTabDataDisplay = ({ content }: SelectedTabDataDisplayProps) => {
   )
 }
 
+// Extracted items (links/headlines) minimal display
+interface ExtractedItemsDisplayProps { content: string }
+
+type ExtractedLink = { source?: string, url: string }
+
+const urlRegex = /https?:\/\/[^\s)>,]+/g
+
+const sanitizeUrl = (u: string): string => {
+  return u.replace(/[),]+$/g, '')
+}
+
+const parseExtractedLinks = (content: string): ExtractedLink[] => {
+  const results: ExtractedLink[] = []
+  if (!content) return results
+  const labelRegex = /([A-Z][A-Za-z0-9 .&-]{1,50}):/g
+  const segments: Array<{ label?: string, text: string }> = []
+  let match: RegExpExecArray | null
+  const labels: Array<{ label: string, index: number }> = []
+  while ((match = labelRegex.exec(content)) !== null) {
+    labels.push({ label: match[1].trim(), index: match.index })
+  }
+  if (labels.length === 0) {
+    const urls = content.match(urlRegex) || []
+    urls.forEach(u => results.push({ url: sanitizeUrl(u) }))
+    return results
+  }
+  labels.forEach((l, i) => {
+    const start = l.index + l.label.length + 1
+    const end = i + 1 < labels.length ? labels[i + 1].index : content.length
+    const text = content.slice(start, end)
+    const urls = text.match(urlRegex) || []
+    urls.forEach(u => results.push({ source: l.label, url: sanitizeUrl(u) }))
+  })
+  return results
+}
+
+const parseExtractedHeadlines = (content: string): string[] => {
+  return content
+    .split(/\r?\n+/)
+    .map(s => s.trim())
+    .filter(s => s.length > 0 && !urlRegex.test(s))
+}
+
+const shortenUrl = (u: string): string => {
+  try {
+    const parsed = new URL(u)
+    return parsed.host
+  } catch {
+    return u
+  }
+}
+
+const ExtractedItemsDisplay = ({ content }: ExtractedItemsDisplayProps) => {
+  const links = parseExtractedLinks(content)
+  const headlines = links.length === 0 ? parseExtractedHeadlines(content) : []
+  type Item = { primary: string, secondary?: string }
+  const items: Item[] = links.length > 0 
+    ? links.map(l => ({ primary: l.source || shortenUrl(l.url), secondary: l.url }))
+    : headlines.map(h => ({ primary: h }))
+
+  if (items.length === 0) {
+    return <div className="text-sm text-muted-foreground">No extracted content</div>
+  }
+
+  return (
+    <div className="space-y-1">
+      <div className="extract-card bg-muted/30 rounded-lg p-2">
+        <div className="space-y-1">
+          {items.map((it, idx) => (
+            <details key={`${it.primary}-${idx}`} className="group">
+              <summary className="cursor-pointer list-none text-sm text-foreground flex items-center gap-2">
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-brand/60" />
+                <span className="truncate">
+                  {it.secondary ? `${it.primary} — ${shortenUrl(it.secondary)}` : it.primary}
+                </span>
+              </summary>
+              <div className="mt-1 ml-4 text-xs text-muted-foreground break-words">
+                {it.secondary ? (
+                  <a href={it.secondary} target="_blank" rel="noreferrer" className="underline">{it.secondary}</a>
+                ) : (
+                  <span className="whitespace-pre-wrap">{it.primary}</span>
+                )}
+              </div>
+            </details>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /**
  * MessageItem component
  * Renders individual messages with role-based styling
@@ -178,10 +269,12 @@ export const MessageItem = memo<MessageItemProps>(function MessageItem({ message
   const isSystem = message.role === 'system'
   const { markMessageAsCompleting, removeExecutingMessage, messages, executingMessageRemoving } = useChatStore()
   
-  const isExecuting = message.metadata?.isExecuting || message.content.includes('executing') || message.content.includes('Executing')
+  // Prefer metadata flags over content heuristics
+  const isExecuting = message.metadata?.isExecuting === true
   const isCompleting = message.metadata?.isCompleting || (isExecuting && executingMessageRemoving)
   const [isAnimating, setIsAnimating] = useState(false)
   const [slideUpAmount, setSlideUpAmount] = useState(0)
+  const kind = message.metadata?.kind
 
   // Memoize expensive content checks to avoid recalculation on every render
   const contentChecks = useMemo(() => {
@@ -194,6 +287,7 @@ export const MessageItem = memo<MessageItemProps>(function MessageItem({ message
                                 content.includes('Creating a step-by-step plan') ||
                                 content.includes('Analyzing task') ||
                                 content.includes('Creating plan'),
+      isTopLevelHeading: content.trim().startsWith('## ') || content.includes('\n## '),
       isTaskComplete: content.includes('## Task Completed') || 
                      content.includes('Task Complete') || 
                      content.includes('Task Completed') ||
@@ -207,18 +301,18 @@ export const MessageItem = memo<MessageItemProps>(function MessageItem({ message
     // User message styling
     if (isUser) {
       return {
-        bubble: 'ml-4 bg-gradient-to-br from-brand/90 to-brand/80 text-white rounded-br-md backdrop-blur-sm border border-transparent',
-        glow: 'bg-gradient-to-bl from-brand/20 to-transparent',
-        shadow: 'shadow-lg hover:shadow-xl'  // User messages get hover shadow
+        bubble: 'ml-4 bg-brand text-white rounded-br-md',
+        glow: '',
+        shadow: ''
       }
     }
 
     // Special styling for TODO lists (task manager)
     if (contentChecks.isTodoTable) {
       return {
-        bubble: 'mr-4 bg-gradient-to-br from-card/80 to-card/60 text-foreground rounded-bl-md border-border/50',
-        glow: '',  // Remove hover gradient for task manager
-        shadow: 'shadow-lg'  // Task manager gets static shadow, no hover effect
+        bubble: 'mr-4 bg-card text-foreground rounded-bl-md',
+        glow: '',
+        shadow: ''
       }
     }
 
@@ -272,14 +366,47 @@ export const MessageItem = memo<MessageItemProps>(function MessageItem({ message
 
   // Memoize content renderer to avoid recalculation
   const contentRenderer = useMemo(() => {
+    // Always render Task Manager via component if detected
+    if (contentChecks.isTodoTable) {
+      return 'todo-table'
+    }
+
+    // Tab data (formatted list) should take precedence over generic tool-result rendering
+    const jsonData = parseJsonContent(message.content)
+    if (jsonData && isTabData(jsonData)) {
+      return 'tab-data'
+    }
+    if (jsonData && isSelectedTabData(jsonData)) {
+      return 'selected-tab-data'
+    }
+
+    // Normalize by metadata.kind first
+    if (kind === 'tool-result') {
+      if (message.metadata?.toolName === 'extract_tool') {
+        // Uniform minimal styling for extract tool (links or headlines)
+        return 'extracted-items'
+      }
+      return 'tool-result'
+    }
+    if (kind === 'task-result') {
+      return message.metadata?.success ? 'task-complete' : 'task-summary'
+    }
+    if (kind === 'stream') {
+      return 'markdown'
+    }
+    if (kind === 'error') {
+      return 'task-failed'
+    }
+    if (kind === 'cancel') {
+      return 'plain-text'
+    }
+    if (kind === 'system') {
+      return 'plain-text'
+    }
+    
     // User messages - plain text
     if (isUser) {
       return 'plain-text'
-    }
-
-    // TODO lists - custom table rendering
-    if (contentChecks.isTodoTable) {
-      return 'todo-table'
     }
 
     // Task summaries - markdown with special styling
@@ -295,15 +422,6 @@ export const MessageItem = memo<MessageItemProps>(function MessageItem({ message
     // Task completion - special single line display
     if (contentChecks.isTaskComplete) {
       return 'task-complete'
-    }
-
-    // Check for JSON content (like tab data)
-    const jsonData = parseJsonContent(message.content)
-    if (jsonData && isTabData(jsonData)) {
-      return 'tab-data'
-    }
-    if (jsonData && isSelectedTabData(jsonData)) {
-      return 'selected-tab-data'
     }
 
     // Tool-specific messages - check metadata
@@ -396,6 +514,9 @@ export const MessageItem = memo<MessageItemProps>(function MessageItem({ message
       case 'selected-tab-data':
         return <SelectedTabDataDisplay content={message.content} />
 
+      case 'extracted-items':
+        return <ExtractedItemsDisplay content={message.content} />
+
       case 'task-complete':
         return (
           <div className="space-y-3">
@@ -418,7 +539,44 @@ export const MessageItem = memo<MessageItemProps>(function MessageItem({ message
           </div>
         )
       
-      case 'tool-result':
+      case 'tool-result': {
+        // Safeguard: never override extractor rendering here
+        if (message.metadata?.toolName === 'extract_tool') {
+          return (
+            <ExtractedItemsDisplay content={message.content} />
+          )
+        }
+        const rawName = message.metadata?.toolName || 'tool'
+        const content = typeof message.content === 'string' ? message.content : ''
+        // Remove inline prefix if present to avoid duplication when showing label
+        const baseName = rawName.replace(/_tool$/, '')
+        const prefixRegex = new RegExp(`^(${rawName}|${baseName})\\s*-\\s*`, 'i')
+        const cleanContent = content.replace(prefixRegex, '')
+        
+        if (shouldIndent) {
+          // Orange-line grouped messages: show compact label above content
+          return (
+            <div className="flex flex-col gap-0.5">
+              <div className="text-[10px] uppercase tracking-wide text-muted-foreground/80 leading-tight">
+                {rawName}
+              </div>
+              <div className="text-sm text-muted-foreground font-medium">
+                {cleanContent || ''}
+              </div>
+            </div>
+          )
+        }
+        
+        // Non-indented messages: keep single-line, prefixed style
+        const singleLine = cleanContent
+          ? `${rawName} - ${cleanContent}`
+          : rawName
+        return (
+          <div className="text-sm text-muted-foreground font-medium">
+            {singleLine}
+          </div>
+        )
+      }
       case 'markdown':
         return (
           <MarkdownContent
@@ -480,7 +638,6 @@ export const MessageItem = memo<MessageItemProps>(function MessageItem({ message
         <div className={cn(
           'relative max-w-[85%] rounded-2xl px-3 py-1 transition-all duration-300',
           messageStyling.shadow,
-          isUser ? 'group-hover:scale-[1.02]' : '',
           messageStyling.bubble,
           // Slightly darker text for indented bubble messages to improve contrast
           shouldIndent && 'opacity-90 text-foreground'
