@@ -7,7 +7,7 @@ import { useKeyboardShortcuts, useAutoResize } from '../hooks/useKeyboardShortcu
 import { useSidePanelPortMessaging } from '@/sidepanel/hooks'
 import { MessageType } from '@/lib/types/messaging'
 import { cn } from '@/sidepanel/lib/utils'
-import { CloseIcon, SendIcon, LoadingPawTrail } from './ui/Icons'
+import { SendIcon, LoadingPawTrail } from './ui/Icons'
 
 
 interface ChatInputProps {
@@ -95,31 +95,10 @@ export function ChatInput({ isConnected, isProcessing }: ChatInputProps) {
   
   const handleSubmit = (e?: React.FormEvent) => {
     e?.preventDefault()
-    
-    // If processing and no input, act like pause button (cancel current task)
-    if (isProcessing && !input.trim()) {
-      handleCancel()
-      return
-    }
-
-    if (isProcessing && input.trim()) {
-      // Interrupt and follow-up pattern
-      const followUpQuery = input.trim()
-      
-      // Cancel current task
-      sendMessage(MessageType.CANCEL_TASK, {
-        reason: 'User interrupted with new query',
-        source: 'sidepanel'
-      })
-      
-      // Keep processing state and submit follow-up after delay
-      setTimeout(() => {
-        submitTask(followUpQuery)
-      }, 300)
-    } else {
-      // Normal submission
-      submitTask(input)
-    }
+    // Block submissions while processing
+    if (isProcessing) return
+    if (!input.trim()) return
+    submitTask(input)
   }
   
   const handleCancel = () => {
@@ -168,13 +147,13 @@ export function ChatInput({ isConnected, isProcessing }: ChatInputProps) {
   
   const getPlaceholder = () => {
     if (!isConnected) return 'Disconnected'
-    if (isProcessing) return 'Interrupt with new task'
+    if (isProcessing) return 'Task running…'
     return 'Ask me anything...'
   }
   
   const getHintText = () => {
     if (!isConnected) return 'Waiting for connection'
-    if (isProcessing) return 'Press Enter to interrupt • Esc to cancel'
+    if (isProcessing) return 'Task running… Press Esc to cancel'
     return 'Press Enter to send • @ to select tabs'
   }
 
@@ -242,17 +221,13 @@ export function ChatInput({ isConnected, isProcessing }: ChatInputProps) {
             
             <Button
               type="submit"
-              disabled={!isConnected || (!input.trim() && !isProcessing)}
+              disabled={!isConnected || isProcessing || !input.trim()}
               size="sm"
               className="absolute right-2 bottom-2 h-10 px-4 rounded-xl bg-gradient-to-r from-brand to-brand/80 hover:from-brand/90 hover:to-brand/70 text-white font-medium shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 focus-visible:outline-none"
-              variant={isProcessing && !input.trim() ? 'destructive' : 'default'}
-              aria-label={isProcessing && !input.trim() ? 'Cancel current task' : 'Send message'}
+              variant={'default'}
+              aria-label={'Send message'}
             >
-              {isProcessing && !input.trim() ? (
-                <CloseIcon />
-              ) : (
-                <SendIcon />
-              )}
+              <SendIcon />
             </Button>
           </div>
         </form>

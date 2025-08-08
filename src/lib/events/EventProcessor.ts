@@ -156,87 +156,50 @@ export class EventProcessor {
     icon: string;
     description: string;
   } {
-    // Tool display mapping
+    // Normalize name for lookup (strip trailing _tool suffix)
+    const key = toolName.replace(/_tool$/, '');
+
+    // Past-tense, user-friendly names for results; present-tense descriptions for progress
     const toolInfo: Record<string, { name: string; icon: string; description?: (args: any) => string }> = {
-      'classification_tool': {
-        name: 'Task Analysis',
-        icon: '🔍',
-        description: () => 'Analyzing task complexity'
-      },
-      'planner_tool': {
-        name: 'Planning',
-        icon: '📋',
-        description: (args) => `Creating ${args?.max_steps || 3}-step plan`
-      },
-      'navigation_tool': {
-        name: 'Navigation',
-        icon: '🌐',
-        description: (args) => args?.url ? `Navigating to ${args.url}` : 'Navigating to page'
-      },
-      'tab_operations': {
-        name: 'Tab Operations',
-        icon: '📑',
-        description: (args) => {
-          if (args?.action === 'list') return 'Listing tabs in current window';
-          if (args?.action === 'list_all') return 'Listing all tabs';
-          if (args?.action === 'new') return 'Creating new tab';
-          if (args?.action === 'switch') return 'Switching tabs';
-          if (args?.action === 'close') return 'Closing tabs';
-          return args?.action || 'Managing tabs';
-        }
-      },
-      'find_element': {
-        name: 'Find Elements',
-        icon: '🔍',
-        description: (args) => `Finding elements with selector: ${args?.selector || 'unknown'}`
-      },
-      'interact': {
-        name: 'Interaction',
-        icon: '👆',
-        description: (args) => `${args?.action || 'Interacting'} with element`
-      },
-      'scroll': {
-        name: 'Scroll',
-        icon: '📜',
-        description: (args) => `Scrolling ${args?.direction || 'unknown direction'}`
-      },
-      'search': {
-        name: 'Search',
-        icon: '🔎',
-        description: (args) => `Searching for: ${args?.query || 'unknown query'}`
-      },
-      'group_tabs': {
-        name: 'Group Tabs',
-        icon: '📁',
-        description: (args) => `Grouping tabs by: ${args?.groupBy || 'category'}`
-      },
-      'get_selected_tabs': {
-        name: 'Get Selected Tabs',
-        icon: '📋',
-        description: () => 'Getting selected tabs'
-      },
-      'refresh_browser_state': {
-        name: 'Refresh Browser State',
-        icon: '🔄',
-        description: () => 'Refreshing browser state'
-      },
-      'done_tool': {
-        name: 'Completion',
-        icon: '✅',
-        description: () => 'Marking task as complete'
-      }
+      // Analysis & planning
+      classification: { name: 'Analyzed task', icon: '🔍', description: () => 'Analyzing task' },
+      planner: { name: 'Created plan', icon: '📋', description: (args) => `Creating ${args?.max_steps || 3}-step plan` },
+
+      // Navigation & page ops
+      navigation: { name: 'Opened page', icon: '🌐', description: (args) => args?.url ? `Navigating to ${args.url}` : 'Navigating to page' },
+      refresh_browser_state: { name: 'Updated page state', icon: '🔄', description: () => 'Refreshing browser state' },
+
+      // Tabs
+      tab_operations: { name: 'Managed tabs', icon: '📑', description: (args) => {
+        if (args?.action === 'list') return 'Listing tabs in current window';
+        if (args?.action === 'list_all') return 'Listing all tabs';
+        if (args?.action === 'new') return 'Creating new tab';
+        if (args?.action === 'switch') return 'Switching tabs';
+        if (args?.action === 'close') return 'Closing tabs';
+        return args?.action || 'Managing tabs';
+      } },
+      get_selected_tabs: { name: 'Selected tabs', icon: '📋', description: () => 'Getting selected tabs' },
+      group_tabs: { name: 'Grouped tabs', icon: '📁', description: (args) => `Grouping tabs by: ${args?.groupBy || 'category'}` },
+
+      // DOM
+      find_element: { name: 'Found elements', icon: '🔍', description: (args) => `Finding elements with selector: ${args?.selector || 'unknown'}` },
+      interact: { name: 'Performed page action', icon: '👆', description: (args) => `${args?.action || 'Interacting'} with element` },
+      scroll: { name: 'Scrolled page', icon: '📜', description: (args) => `Scrolling ${args?.direction || 'unknown direction'}` },
+
+      // Search & extract
+      search: { name: 'Searched web', icon: '🔎', description: (args) => `Searching for: ${args?.query || 'unknown query'}` },
+      extract: { name: 'Extracted content', icon: '📄', description: () => 'Extracting content' },
+
+      // Workflow
+      todo_manager: { name: 'Updated tasks', icon: '📝', description: () => 'Updating tasks' },
+      validator: { name: 'Validated task', icon: '✅', description: () => 'Validating task' },
+      done: { name: 'Marked task complete', icon: '✅', description: () => 'Marking task as complete' },
+      result: { name: 'Summarized results', icon: '🧾', description: () => 'Summarizing results' },
+      screenshot: { name: 'Captured screenshot', icon: '📸', description: () => 'Capturing screenshot' }
     };
 
-    const info = toolInfo[toolName] || {
-      name: toolName,
-      icon: '🔧',
-      description: () => `Executing ${toolName}`
-    };
+    const info = toolInfo[key] || { name: toolName, icon: '🔧', description: () => `Executing ${toolName}` };
 
-    return {
-      name: info.name,
-      icon: info.icon,
-      description: info.description ? info.description(args) : `Executing ${info.name}`
-    };
+    return { name: info.name, icon: info.icon, description: info.description ? info.description(args) : `Executing ${info.name}` };
   }
 }
