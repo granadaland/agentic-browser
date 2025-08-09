@@ -1,4 +1,7 @@
 import { MessageType, LogMessage, ExecuteQueryMessage, AgentStreamUpdateMessage, CancelTaskMessage, ResetConversationMessage, GetTabsMessage } from '@/lib/types/messaging'
+import { LLMSettingsReader } from '@/lib/llm/settings/LLMSettingsReader'
+import { langChainProvider } from '@/lib/llm/LangChainProvider'
+import { BrowserOSProvidersConfigSchema, BROWSEROS_PREFERENCE_KEYS } from '@/lib/llm/settings/browserOSTypes'
 import { PortName, PortMessage } from '@/lib/runtime/PortMessaging'
 import { Logging } from '@/lib/utils/Logging'
 import { NxtScape } from '@/lib/core/NxtScape'
@@ -82,6 +85,8 @@ const connectedPorts = new Map<string, chrome.runtime.Port>();
 // Side panel state tracking
 let isPanelOpen = false;
 let isToggling = false; // Prevent rapid toggle issues
+let providersPollIntervalId: number | null = null
+let lastProvidersConfigJson: string | null = null
 
 
 
@@ -108,6 +113,27 @@ function initialize(): void {
   chrome.tabs.onRemoved.addListener((tabId) => {
     glowService.handleTabClosed(tabId)
   })
+  
+  // Listen for provider changes saved to chrome.storage.local (Chromium settings)
+  try {
+    chrome.storage.onChanged.addListener((changes: { [key: string]: chrome.storage.StorageChange }, areaName: string) => {
+      if (areaName !== 'local') return
+      const key = BROWSEROS_PREFERENCE_KEYS.PROVIDERS
+      const change = changes[key]
+      if (!change) return
+      try {
+        const raw = typeof change.newValue === 'string' ? JSON.parse(change.newValue) : change.newValue
+        const config = BrowserOSProvidersConfigSchema.parse(raw)
+        lastProvidersConfigJson = JSON.stringify(config)
+        try { langChainProvider.clearCache() } catch (_) {}
+        broadcastProvidersConfig(config)
+      } catch (_e) {
+        // Ignore parse/validation errors
+      }
+    })
+  } catch (_e) {
+    // storage.onChanged may not be available in all contexts
+  }
   
   
   // Register action click listener to toggle side panel
@@ -232,6 +258,8 @@ function handlePortConnection(port: chrome.runtime.Port): void {
     captureEvent('side_panel_opened', {
       source: 'port_connection'
     })
+    // Kick a fetch and start polling for external changes
+    startProvidersPolling()
   }
   
   // Register the port with LogUtility for centralized logging
@@ -254,6 +282,7 @@ function handlePortConnection(port: chrome.runtime.Port): void {
       captureEvent('side_panel_closed', {
         source: 'port_disconnection'
       })
+      stopProvidersPolling()
     }
     
     // Unregister the port from LogUtility
@@ -300,6 +329,14 @@ function handlePortMessage(message: PortMessage, port: chrome.runtime.Port): voi
       case MessageType.GET_TABS:
         // GET_TABS message received
         handleGetTabsPort(payload as GetTabsMessage['payload'], port, id)
+        break
+
+      case MessageType.GET_LLM_PROVIDERS:
+        handleGetLlmProvidersPort(port, id)
+        break
+
+      case MessageType.SAVE_LLM_PROVIDERS:
+        handleSaveLlmProvidersPort(payload, port, id)
         break
         
       case MessageType.GET_TAB_HISTORY:
@@ -540,6 +577,22 @@ function broadcastStreamUpdate(update: AgentStreamUpdateMessage['payload']): voi
   }
 }
 
+// Broadcast latest providers config to all connected UIs
+function broadcastProvidersConfig(config: unknown): void {
+  for (const [name, port] of connectedPorts) {
+    if (name === PortName.SIDEPANEL_TO_BACKGROUND) {
+      try {
+        port.postMessage({
+          type: MessageType.WORKFLOW_STATUS,
+          payload: { status: 'success', data: { providersConfig: config } }
+        })
+      } catch (error) {
+        debugLog(`Failed to broadcast providers config to ${name}: ${error}`, 'warning')
+      }
+    }
+  }
+}
+
 
 /**
  * Handles heartbeat messages to keep port connection alive
@@ -666,6 +719,89 @@ function handleGetTabsPort(
         status: 'error',
         error: `Failed to get tabs: ${errorMessage}`
       },
+      id
+    })
+  }
+}
+
+// Get LLM providers configuration
+async function handleGetLlmProvidersPort(
+  port: chrome.runtime.Port,
+  id?: string
+): Promise<void> {
+  try {
+    const config = await LLMSettingsReader.readAllProviders()
+    lastProvidersConfigJson = JSON.stringify(config)
+    port.postMessage({
+      type: MessageType.WORKFLOW_STATUS,
+      payload: { status: 'success', data: { providersConfig: config } },
+      id
+    })
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    debugLog(`Error handling GET_LLM_PROVIDERS: ${errorMessage}`, 'error')
+    port.postMessage({
+      type: MessageType.WORKFLOW_STATUS,
+      payload: { status: 'error', error: `Failed to read providers: ${errorMessage}` },
+      id
+    })
+  }
+}
+
+// Save LLM providers configuration
+function handleSaveLlmProvidersPort(
+  payload: unknown,
+  port: chrome.runtime.Port,
+  id?: string
+): void {
+  try {
+    const config = BrowserOSProvidersConfigSchema.parse(payload)
+    const browserOS = (chrome as any)?.browserOS as { setPref?: (name: string, value: any, pageId?: string, cb?: (ok: boolean) => void) => void } | undefined
+    if (browserOS?.setPref) {
+      browserOS.setPref(
+        BROWSEROS_PREFERENCE_KEYS.PROVIDERS,
+        JSON.stringify(config),
+        undefined,
+        (success?: boolean) => {
+          if (success) {
+            try { langChainProvider.clearCache() } catch (_) {}
+            lastProvidersConfigJson = JSON.stringify(config)
+            broadcastProvidersConfig(config)
+          }
+          port.postMessage({
+            type: MessageType.WORKFLOW_STATUS,
+            payload: success ? { status: 'success' } : { status: 'error', error: 'Save failed' },
+            id
+          })
+        }
+      )
+    } else {
+      // Fallback to chrome.storage.local for dev
+      try {
+        const key = BROWSEROS_PREFERENCE_KEYS.PROVIDERS
+        chrome.storage?.local?.set({ [key]: JSON.stringify(config) }, () => {
+          try { langChainProvider.clearCache() } catch (_) {}
+          lastProvidersConfigJson = JSON.stringify(config)
+          broadcastProvidersConfig(config)
+          port.postMessage({
+            type: MessageType.WORKFLOW_STATUS,
+            payload: { status: 'success' },
+            id
+          })
+        })
+      } catch (_e) {
+        port.postMessage({
+          type: MessageType.WORKFLOW_STATUS,
+          payload: { status: 'error', error: 'Save failed' },
+          id
+        })
+      }
+    }
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    port.postMessage({
+      type: MessageType.WORKFLOW_STATUS,
+      payload: { status: 'error', error: errorMessage },
       id
     })
   }
@@ -845,3 +981,30 @@ function handleGlowStopPort(
 
 // Initialize the extension
 initialize()
+
+// Poll providers when panel is open; compare and broadcast on change
+async function pollProvidersOnce(): Promise<void> {
+  try {
+    const config = await LLMSettingsReader.readAllProviders()
+    const json = JSON.stringify(config)
+    if (json !== lastProvidersConfigJson) {
+      lastProvidersConfigJson = json
+      try { langChainProvider.clearCache() } catch (_) {}
+      broadcastProvidersConfig(config)
+    }
+  } catch (_e) {}
+}
+
+function startProvidersPolling(): void {
+  if (providersPollIntervalId !== null) return
+  // Immediate poll then interval
+  void pollProvidersOnce()
+  providersPollIntervalId = setInterval(() => { void pollProvidersOnce() }, 1500) as unknown as number
+}
+
+function stopProvidersPolling(): void {
+  if (providersPollIntervalId !== null) {
+    clearInterval(providersPollIntervalId as unknown as number)
+    providersPollIntervalId = null
+  }
+}

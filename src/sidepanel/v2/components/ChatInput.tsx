@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect, useMemo } from 'react'
 import { Textarea } from '@/sidepanel/components/ui/textarea'
 import { Button } from '@/sidepanel/components/ui/button'
 import { LazyTabSelector } from './LazyTabSelector'
@@ -9,6 +9,7 @@ import { useSidePanelPortMessaging } from '@/sidepanel/hooks'
 import { MessageType } from '@/lib/types/messaging'
 import { cn } from '@/sidepanel/lib/utils'
 import { SendIcon, LoadingPawTrail } from './ui/Icons'
+import { BrowserOSProvidersConfig, BrowserOSProvider } from '@/lib/llm/settings/browserOSTypes'
 
 
 interface ChatInputProps {
@@ -25,13 +26,46 @@ export function ChatInput({ isConnected, isProcessing }: ChatInputProps) {
   const [input, setInput] = useState('')
   const [showTabSelector, setShowTabSelector] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const [providerOk, setProviderOk] = useState<boolean>(true)
+  const [historyIndex, setHistoryIndex] = useState<number>(-1)
+  const [draftBeforeHistory, setDraftBeforeHistory] = useState<string>('')
   
   const { addMessage, setProcessing, selectedTabIds, clearSelectedTabs } = useChatStore()
-  const { sendMessage } = useSidePanelPortMessaging()
+  const messages = useChatStore(state => state.messages)
+  const { sendMessage, addMessageListener, removeMessageListener, connected: portConnected } = useSidePanelPortMessaging()
   const { getContextTabs, toggleTabSelection } = useTabsStore()
+  // Provider health: only consider UI connected if current default provider is usable
+  useEffect(() => {
+    const computeOk = (cfg: BrowserOSProvidersConfig) => {
+      const def = cfg.providers.find(p => p.id === cfg.defaultProviderId)
+      setProviderOk(isProviderUsable(def || null))
+    }
+
+    const handleWorkflow = (payload: any) => {
+      // Only update when explicit providers config is present
+      if (payload && payload.data && payload.data.providersConfig) {
+        computeOk(payload.data.providersConfig as BrowserOSProvidersConfig)
+      }
+    }
+
+    addMessageListener<any>(MessageType.WORKFLOW_STATUS, handleWorkflow)
+    return () => removeMessageListener<any>(MessageType.WORKFLOW_STATUS, handleWorkflow)
+  }, [addMessageListener, removeMessageListener])
+
+  const isProviderUsable = (provider: BrowserOSProvider | null): boolean => {
+    // If the provider exists in the list, treat it as usable regardless of field completeness
+    return !!provider
+  }
+
+  const connectionOk = isConnected || portConnected
+  const uiConnected = connectionOk && providerOk
   
   // Auto-resize textarea
   useAutoResize(textareaRef, input)
+
+  const userHistory: string[] = useMemo(() => {
+    return messages.filter(m => m.role === 'user').map(m => m.content)
+  }, [messages])
   
   // Focus textarea on mount and when processing stops
   useEffect(() => {
@@ -62,13 +96,12 @@ export function ChatInput({ isConnected, isProcessing }: ChatInputProps) {
   const submitTask = (query: string) => {
     if (!query.trim()) return
     
-    if (!isConnected) {
+    if (!uiConnected) {
       // Show error message in chat
-      addMessage({
-        role: 'system',
-        content: 'Cannot send message: Extension is disconnected',
-        metadata: { error: true }
-      })
+      const msg = !connectionOk
+        ? 'Cannot send message: Extension is disconnected'
+        : 'Cannot send message: Provider not configured'
+      addMessage({ role: 'system', content: msg, metadata: { error: true } })
       return
     }
     
@@ -91,6 +124,8 @@ export function ChatInput({ isConnected, isProcessing }: ChatInputProps) {
     
     // Clear input and selected tabs
     setInput('')
+    setHistoryIndex(-1)
+    setDraftBeforeHistory('')
     clearSelectedTabs()
     setShowTabSelector(false)
   }
@@ -128,6 +163,52 @@ export function ChatInput({ isConnected, isProcessing }: ChatInputProps) {
       setShowTabSelector(false)
     }
   }
+
+  const moveCaretToEnd = (): void => {
+    const ta = textareaRef.current
+    if (!ta) return
+    const len: number = input.length
+    ta.focus()
+    ta.setSelectionRange(len, len)
+  }
+
+  // Handle ArrowUp/ArrowDown history navigation when caret is at boundaries
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>): void => {
+    if (showTabSelector) return
+    if (e.altKey || e.ctrlKey || e.metaKey) return
+    const ta = textareaRef.current
+    if (!ta) return
+    const atStart: boolean = ta.selectionStart === 0 && ta.selectionEnd === 0
+    const atEnd: boolean = ta.selectionStart === input.length && ta.selectionEnd === input.length
+
+    if (e.key === 'ArrowUp' && !e.shiftKey) {
+      if (!atStart) return
+      if (userHistory.length === 0) return
+      e.preventDefault()
+      if (historyIndex === -1) setDraftBeforeHistory(input)
+      const nextIndex: number = historyIndex === -1 ? userHistory.length - 1 : Math.max(0, historyIndex - 1)
+      setHistoryIndex(nextIndex)
+      setInput(userHistory[nextIndex] || '')
+      requestAnimationFrame(moveCaretToEnd)
+      return
+    }
+
+    if (e.key === 'ArrowDown' && !e.shiftKey) {
+      if (!atEnd) return
+      if (userHistory.length === 0) return
+      if (historyIndex === -1) return
+      e.preventDefault()
+      const nextIndex: number = historyIndex + 1
+      if (nextIndex >= userHistory.length) {
+        setHistoryIndex(-1)
+        setInput(draftBeforeHistory)
+      } else {
+        setHistoryIndex(nextIndex)
+        setInput(userHistory[nextIndex] || '')
+      }
+      requestAnimationFrame(moveCaretToEnd)
+    }
+  }
   
   const handleTabSelectorClose = () => {
     setShowTabSelector(false)
@@ -159,19 +240,21 @@ export function ChatInput({ isConnected, isProcessing }: ChatInputProps) {
   )
   
   const getPlaceholder = () => {
-    if (!isConnected) return 'Disconnected'
+    if (!connectionOk) return 'Disconnected'
+    if (!providerOk) return 'Provider error'
     if (isProcessing) return 'Task running…'
     return 'Ask me anything...'
   }
   
   const getHintText = () => {
-    if (!isConnected) return 'Waiting for connection'
+    if (!connectionOk) return 'Waiting for connection'
+    if (!providerOk) return 'Provider not configured'
     if (isProcessing) return 'Task running… Press Esc to cancel'
     return 'Press Enter to send • @ to select tabs'
   }
 
   const getLoadingIndicator = () => {
-    if (!isConnected || isProcessing) {
+    if (!uiConnected || isProcessing) {
       return <LoadingPawTrail />
     }
     return null
@@ -250,8 +333,9 @@ export function ChatInput({ isConnected, isProcessing }: ChatInputProps) {
               ref={textareaRef}
               value={input}
               onChange={handleInputChange}
+              onKeyDown={handleKeyDown}
               placeholder={getPlaceholder()}
-              disabled={!isConnected}
+              disabled={!uiConnected}
               className={cn(
                 'max-h-[200px] resize-none pr-16 text-sm w-full',
                 'bg-background/80 backdrop-blur-sm border-2 border-brand/30',
@@ -261,18 +345,18 @@ export function ChatInput({ isConnected, isProcessing }: ChatInputProps) {
                 'rounded-2xl shadow-lg',
                 'px-3 py-2',
                 'transition-all duration-300 ease-out',
-                !isConnected && 'opacity-50 cursor-not-allowed bg-muted'
+                 !uiConnected && 'opacity-50 cursor-not-allowed bg-muted'
               )}
               rows={1}
               aria-label="Chat message input"
               aria-describedby="input-hint"
-              aria-invalid={!isConnected}
-              aria-disabled={!isConnected}
+               aria-invalid={!uiConnected}
+               aria-disabled={!uiConnected}
             />
             
             <Button
               type="submit"
-              disabled={!isConnected || isProcessing || !input.trim()}
+              disabled={!uiConnected || isProcessing || !input.trim()}
               size="sm"
               className="absolute right-2 bottom-2 h-10 px-4 rounded-xl bg-gradient-to-r from-brand to-brand/80 hover:from-brand/90 hover:to-brand/70 text-white font-medium shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 focus-visible:outline-none"
               variant={'default'}
