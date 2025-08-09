@@ -480,7 +480,7 @@ export class BrowserAgent {
       // Skip emitting refresh_browser_state_tool to prevent browser state from appearing in UI
       // Also skip result_tool to avoid duplicating the final summary in the UI
       if (toolName !== 'refresh_browser_state_tool' && toolName !== 'result_tool') {
-        // this.eventEmitter.emitToolResult(toolName, result);
+        this.eventEmitter.emitToolResult(toolName, result);
       }
 
       // Add the result back to the message history for context
