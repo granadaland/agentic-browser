@@ -261,7 +261,7 @@ export class BrowserAgent {
     const args = { task };
     
     try {
-      this.eventEmitter.executingTool('classification_tool', args);
+      this.eventEmitter.toolStart('classification_tool', args);
       const result = await classificationTool.func(args);
       const parsedResult = JSON.parse(result);
       
@@ -464,7 +464,7 @@ export class BrowserAgent {
       // we'll disable at the end of agent execution
       await this._maybeStartGlowAnimation(toolName);
 
-      this.eventEmitter.executingTool(toolName, args);
+      this.eventEmitter.toolStart(toolName, args);
       const result = await tool.func(args);
       
       // Check abort after tool execution completes
@@ -523,7 +523,7 @@ export class BrowserAgent {
       max_steps: BrowserAgent.MAX_STEPS_FOR_COMPLEX_TASKS
     };
 
-    this.eventEmitter.executingTool('planner_tool', args);
+    this.eventEmitter.toolStart('planner_tool', args);
     const result = await plannerTool.func(args);
     const parsedResult = JSON.parse(result);
     
@@ -553,7 +553,7 @@ export class BrowserAgent {
 
     const args = { task };
     try {
-      this.eventEmitter.executingTool('validator_tool', args);
+      this.eventEmitter.toolStart('validator_tool', args);
       const result = await validatorTool.func(args);
       const parsedResult = JSON.parse(result);
       
