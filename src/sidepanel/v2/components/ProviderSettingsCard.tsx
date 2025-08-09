@@ -54,10 +54,8 @@ export function ProviderSettingsCard(): JSX.Element | null {
       }
     }
     addMessageListener<any>(MessageType.WORKFLOW_STATUS, handler)
-    // Request providers on mount
-    sendMessage(MessageType.GET_LLM_PROVIDERS as any, {})
     return () => removeMessageListener<any>(MessageType.WORKFLOW_STATUS, handler)
-  }, [addMessageListener, removeMessageListener, sendMessage])
+  }, [addMessageListener, removeMessageListener])
 
   const onSelectProvider = (providerId: string) => {
     if (!config) return
