@@ -1,25 +1,20 @@
 import React, { memo, useEffect, useState, useMemo, useCallback } from 'react'
 import { MarkdownContent } from './shared/Markdown'
+import { ExpandableSection } from './shared/ExpandableSection'
 import { cn } from '@/sidepanel/lib/utils'
 import type { Message } from '../stores/chatStore'
 import { useChatStore } from '../stores/chatStore'
 //import { UserIcon } from './ui/Icons'
 import { DogHeadSpinner } from './ui/DogHeadSpinner'
+import { ChevronDownIcon, ChevronUpIcon } from './ui/Icons'
 import { TaskManagerDropdown } from './TaskManagerDropdown'
+import { useSettingsStore } from '@/sidepanel/v2/stores/settingsStore'
 
 interface MessageItemProps {
   message: Message
   shouldIndent?: boolean
   showLocalIndentLine?: boolean  // When true, renders per-item vertical line
   applyIndentMargin?: boolean  // Control whether to apply left margin for indent
-}
-
-// Format timestamp once using the message's own timestamp
-const formatTime = (ts: Date | string | undefined): string => {
-  if (!ts) return ''
-  const d = typeof ts === 'string' ? new Date(ts) : ts
-  if (!(d instanceof Date) || isNaN(d.getTime())) return ''
-  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
 // Helper function to detect and parse JSON content
@@ -102,29 +97,30 @@ const TabDataDisplay = ({ content }: TabDataDisplayProps) => {
       <div className="text-sm font-medium text-foreground mb-3">
         Found {tabData.length} tab{tabData.length !== 1 ? 's' : ''} across {Object.keys(tabsByWindow).length} window{Object.keys(tabsByWindow).length !== 1 ? 's' : ''}
       </div>
-      
-      {Object.entries(tabsByWindow).map(([windowId, tabs]) => (
-        <div key={windowId} className="tab-card bg-muted/30 rounded-lg p-3">
-          <div className="space-y-2">
-            {tabs.map((tab) => (
-              <div 
-                key={tab.id} 
-                className="flex items-start gap-3 p-2 bg-background/50 rounded hover:bg-background/70 transition-colors"
-              >
-                <div className="flex-shrink-0 w-2 h-2 rounded-full bg-brand/60 mt-2"></div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium text-foreground truncate" title={tab.title}>
-                    {tab.title}
-                  </div>
-                  <div className="text-xs text-muted-foreground truncate" title={tab.url}>
-                    {tab.url}
+      <ExpandableSection itemCount={tabData.length} threshold={6} collapsedMaxHeight={224}>
+        {Object.entries(tabsByWindow).map(([windowId, tabs]) => (
+          <div key={windowId} className="tab-card bg-muted/30 rounded-lg p-3">
+            <div className="space-y-2">
+              {tabs.map((tab) => (
+                <div 
+                  key={tab.id} 
+                  className="flex items-start gap-3 p-2 bg-background/50 rounded hover:bg-background/70 transition-colors"
+                >
+                  <div className="flex-shrink-0 w-2 h-2 rounded-full bg-brand/60 mt-2"></div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium text-foreground truncate" title={tab.title}>
+                      {tab.title}
+                    </div>
+                    <div className="text-xs text-muted-foreground truncate" title={tab.url}>
+                      {tab.url}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
-      ))}
+        ))}
+      </ExpandableSection>
     </div>
   )
 }
@@ -150,27 +146,28 @@ const SelectedTabDataDisplay = ({ content }: SelectedTabDataDisplayProps) => {
       <div className="text-sm font-medium text-foreground mb-3">
         Selected {tabData.length} tab{tabData.length !== 1 ? 's' : ''}
       </div>
-      
-      <div className="tab-card bg-muted/30 rounded-lg p-3">
-        <div className="space-y-2">
-          {tabData.map((tab) => (
-            <div 
-              key={tab.id} 
-              className="flex items-start gap-3 p-2 bg-background/50 rounded hover:bg-background/70 transition-colors"
-            >
-              <div className="flex-shrink-0 w-2 h-2 rounded-full bg-brand/60 mt-2"></div>
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium text-foreground truncate" title={tab.title}>
-                  {tab.title}
-                </div>
-                <div className="text-xs text-muted-foreground truncate" title={tab.url}>
-                  {tab.url}
+      <ExpandableSection itemCount={tabData.length} threshold={6} collapsedMaxHeight={224}>
+        <div className="tab-card bg-muted/30 rounded-lg p-3">
+          <div className="space-y-2">
+            {tabData.map((tab) => (
+              <div 
+                key={tab.id} 
+                className="flex items-start gap-3 p-2 bg-background/50 rounded hover:bg-background/70 transition-colors"
+              >
+                <div className="flex-shrink-0 w-2 h-2 rounded-full bg-brand/60 mt-2"></div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium text-foreground truncate" title={tab.title}>
+                    {tab.title}
+                  </div>
+                  <div className="text-xs text-muted-foreground truncate" title={tab.url}>
+                    {tab.url}
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
-      </div>
+      </ExpandableSection>
     </div>
   )
 }
@@ -241,27 +238,83 @@ const ExtractedItemsDisplay = ({ content }: ExtractedItemsDisplayProps) => {
 
   return (
     <div className="space-y-1">
-      <div className="extract-card bg-muted/30 rounded-lg p-2">
-        <div className="space-y-1">
-          {items.map((it, idx) => (
-            <details key={`${it.primary}-${idx}`} className="group">
-              <summary className="cursor-pointer list-none text-sm text-foreground flex items-center gap-2">
-                <span className="inline-block w-1.5 h-1.5 rounded-full bg-brand/60" />
-                <span className="truncate">
-                  {it.secondary ? `${it.primary} — ${shortenUrl(it.secondary)}` : it.primary}
-                </span>
-              </summary>
-              <div className="mt-1 ml-4 text-xs text-muted-foreground break-words">
-                {it.secondary ? (
-                  <a href={it.secondary} target="_blank" rel="noreferrer" className="underline">{it.secondary}</a>
-                ) : (
-                  <span className="whitespace-pre-wrap">{it.primary}</span>
-                )}
-              </div>
-            </details>
-          ))}
+      <ExpandableSection itemCount={items.length} threshold={6} collapsedMaxHeight={192}>
+        <div className="extract-card bg-muted/30 rounded-lg p-2">
+          <div className="space-y-1">
+            {items.map((it, idx) => (
+              <details key={`${it.primary}-${idx}`} className="group">
+                <summary className="cursor-pointer list-none text-sm text-foreground flex items-center gap-2">
+                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-brand/60" />
+                  <span className="truncate">
+                    {it.secondary ? `${it.primary} — ${shortenUrl(it.secondary)}` : it.primary}
+                  </span>
+                </summary>
+                <div className="mt-1 ml-4 text-xs text-muted-foreground break-words">
+                  {it.secondary ? (
+                    <a href={it.secondary} target="_blank" rel="noreferrer" className="underline">{it.secondary}</a>
+                  ) : (
+                    <span className="whitespace-pre-wrap">{it.primary}</span>
+                  )}
+                </div>
+              </details>
+            ))}
+          </div>
         </div>
-      </div>
+      </ExpandableSection>
+    </div>
+  )
+}
+
+// Defaults
+const AUTO_COLLAPSE_DELAY_MS = 10000  // Auto-collapse delay for indented tool messages
+
+// Inline collapsible tool result (super subtle, no background)
+interface ToolResultInlineProps { name: string, content: string, autoCollapseAfterMs?: number }
+
+const ToolResultInline = ({ name, content, autoCollapseAfterMs }: ToolResultInlineProps) => {
+  const [expanded, setExpanded] = useState<boolean>(true)
+  const timerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    // Reset and (re)schedule collapse when content/name or delay changes
+    if (timerRef.current) {
+      clearTimeout(timerRef.current)
+      timerRef.current = null
+    }
+    const isEnabled = typeof autoCollapseAfterMs === 'number' && autoCollapseAfterMs > 0
+    if (isEnabled) {
+      setExpanded(true)
+      timerRef.current = setTimeout(() => {
+        // Simple guard: if setting is off at fire time, do nothing
+        if (!useSettingsStore.getState().autoCollapseTools) return
+        setExpanded(false)
+        timerRef.current = null
+      }, autoCollapseAfterMs)
+    }
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current)
+    }
+  }, [autoCollapseAfterMs, name, content])
+
+  return (
+    <div className="flex flex-col gap-0.5 select-text">
+      <button
+        type="button"
+        aria-expanded={expanded}
+        onClick={() => setExpanded(!expanded)}
+        className="text-[10px] uppercase tracking-wide text-muted-foreground/80 leading-tight inline-flex items-center gap-1 cursor-pointer focus:outline-none"
+      >
+        <span>{name}</span>
+        <span className="shrink-0 text-muted-foreground/70">
+          {expanded ? <ChevronUpIcon className="w-3 h-3" /> : <ChevronDownIcon className="w-3 h-3" />}
+        </span>
+      </button>
+
+      {expanded && (
+        <div className="text-sm text-muted-foreground font-medium">
+          {content || ''}
+        </div>
+      )}
     </div>
   )
 }
@@ -272,6 +325,7 @@ const ExtractedItemsDisplay = ({ content }: ExtractedItemsDisplayProps) => {
  * Memoized to prevent re-renders when message hasn't changed
  */
 export const MessageItem = memo<MessageItemProps>(function MessageItem({ message, shouldIndent = false, showLocalIndentLine = false, applyIndentMargin = true }: MessageItemProps) {
+  const { autoCollapseTools } = useSettingsStore()
   const isUser = message.role === 'user'
   const isError = message.metadata?.error || message.content.includes('## Task Failed')
   const isSystem = message.role === 'system'
@@ -391,8 +445,10 @@ export const MessageItem = memo<MessageItemProps>(function MessageItem({ message
     // Normalize by metadata.kind first
     if (kind === 'tool-result') {
       if (message.metadata?.toolName === 'extract_tool') {
-        // Uniform minimal styling for extract tool (links or headlines)
-        return 'extracted-items'
+        // Render extracted items only on success-like content; errors should use standard tool-result styling
+        const content = typeof message.content === 'string' ? message.content : ''
+        const isErrorLike = !!message.metadata?.error || /^Error in extract_tool:/i.test(content)
+        return isErrorLike ? 'tool-result' : 'extracted-items'
       }
       return 'tool-result'
     }
@@ -548,11 +604,15 @@ export const MessageItem = memo<MessageItemProps>(function MessageItem({ message
         )
       
       case 'tool-result': {
-        // Safeguard: never override extractor rendering here
+        // Only render extracted items card for successful extract_tool results
         if (message.metadata?.toolName === 'extract_tool') {
-          return (
-            <ExtractedItemsDisplay content={message.content} />
-          )
+          const contentStr = typeof message.content === 'string' ? message.content : ''
+          const isErrorLike = !!message.metadata?.error || /^Error in extract_tool:/i.test(contentStr)
+          if (!isErrorLike) {
+            return (
+              <ExtractedItemsDisplay content={message.content} />
+            )
+          }
         }
         const rawName = message.metadata?.toolName || 'tool'
         const content = typeof message.content === 'string' ? message.content : ''
@@ -561,29 +621,14 @@ export const MessageItem = memo<MessageItemProps>(function MessageItem({ message
         const prefixRegex = new RegExp(`^(${rawName}|${baseName})\\s*-\\s*`, 'i')
         const cleanContent = content.replace(prefixRegex, '')
         
-        if (shouldIndent) {
-          // Orange-line grouped messages: show compact label above content
+        // Use the same collapsible style both inside and outside the orange section
           return (
-            <div className="flex flex-col gap-0.5">
-              <div className="text-[10px] uppercase tracking-wide text-muted-foreground/80 leading-tight">
-                {rawName}
-              </div>
-              <div className="text-sm text-muted-foreground font-medium">
-                {cleanContent || ''}
-              </div>
-            </div>
+            <ToolResultInline
+              name={rawName}
+              content={cleanContent}
+              autoCollapseAfterMs={autoCollapseTools && shouldIndent ? AUTO_COLLAPSE_DELAY_MS : undefined}
+            />
           )
-        }
-        
-        // Non-indented messages: keep single-line, prefixed style
-        const singleLine = cleanContent
-          ? `${rawName} - ${cleanContent}`
-          : rawName
-        return (
-          <div className="text-sm text-muted-foreground font-medium">
-            {singleLine}
-          </div>
-        )
       }
       case 'markdown':
         return (
@@ -607,6 +652,7 @@ export const MessageItem = memo<MessageItemProps>(function MessageItem({ message
   
   // Startup status lines metadata flag
   const isStartup = !!message.metadata && (message.metadata as any).isStartup === true
+  const isToolResult = contentRenderer === 'tool-result'
 
   return (
     <div 
@@ -671,14 +717,16 @@ export const MessageItem = memo<MessageItemProps>(function MessageItem({ message
           {/* Timestamp - only show for specific message types */}
           {displayOptions.shouldShowTimestamp && (
             <div className={cn('text-xs opacity-50', isUser ? 'text-right' : 'text-left')}>
-              {formatTime(message.timestamp)}
+              {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </div>
           )}
         </div>
       ) : (
         // Non-bubble messages (system messages, tool results, task summaries, etc.)
         <div className={cn(
-          'mr-4 mt-1 max-w-[85%]',
+          'mr-4 max-w-[85%]',
+          // Reduce vertical spacing for non-indented tool results
+          !shouldIndent && isToolResult ? '!mt-0' : 'mt-1',
           isCompleting && 'animate-dash-off-left',
           // Add subtle styling for indented messages
           shouldIndent && 'opacity-90'
