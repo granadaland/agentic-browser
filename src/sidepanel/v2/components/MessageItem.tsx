@@ -99,7 +99,7 @@ const TabDataDisplay = ({ content }: TabDataDisplayProps) => {
       </div>
       <ExpandableSection itemCount={tabData.length} threshold={6} collapsedMaxHeight={224}>
         {Object.entries(tabsByWindow).map(([windowId, tabs]) => (
-          <div key={windowId} className="tab-card bg-muted/30 rounded-lg p-3">
+          <div key={windowId} className="tab-card bg-muted/50 rounded-lg p-3">
             <div className="space-y-2">
               {tabs.map((tab) => (
                 <div 
@@ -147,7 +147,7 @@ const SelectedTabDataDisplay = ({ content }: SelectedTabDataDisplayProps) => {
         Selected {tabData.length} tab{tabData.length !== 1 ? 's' : ''}
       </div>
       <ExpandableSection itemCount={tabData.length} threshold={6} collapsedMaxHeight={224}>
-        <div className="tab-card bg-muted/30 rounded-lg p-3">
+        <div className="tab-card bg-muted/50 rounded-lg p-3">
           <div className="space-y-2">
             {tabData.map((tab) => (
               <div 
@@ -239,7 +239,7 @@ const ExtractedItemsDisplay = ({ content }: ExtractedItemsDisplayProps) => {
   return (
     <div className="space-y-1">
       <ExpandableSection itemCount={items.length} threshold={6} collapsedMaxHeight={192}>
-        <div className="extract-card bg-muted/30 rounded-lg p-2">
+        <div className="extract-card bg-muted/50 rounded-lg p-2">
           <div className="space-y-1">
             {items.map((it, idx) => (
               <details key={`${it.primary}-${idx}`} className="group">

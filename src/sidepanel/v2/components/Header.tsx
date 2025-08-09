@@ -79,7 +79,7 @@ export const Header = memo(function Header({ onReset, showReset, isProcessing }:
     // Initial fetch
     sendMessage(MessageType.GET_LLM_PROVIDERS as any, {})
     return () => removeMessageListener<any>(MessageType.WORKFLOW_STATUS, handler)
-  }, [addMessageListener, removeMessageListener, sendMessage])
+  }, [])
 
   return (
     <>

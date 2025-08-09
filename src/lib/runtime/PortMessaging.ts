@@ -37,6 +37,7 @@ export class PortMessaging {
   private heartbeatIntervalMs = 5000;  // Send heartbeat every 5 seconds
   private autoReconnect = false;
   private reconnectTimeoutMs = 1000;  // Wait 1 second before reconnecting
+  private pendingMessages: Array<{ type: MessageType; payload: unknown; id?: string }> = []
 
   constructor() {}
 
@@ -70,6 +71,9 @@ export class PortMessaging {
       
       // Start heartbeat to keep connection alive
       this.startHeartbeat();
+      
+      // Flush any messages queued before connection was established
+      this.flushPendingMessages()
       
       return true;
     } catch (error) {
@@ -223,13 +227,17 @@ export class PortMessaging {
     if (trySend()) return true;
 
     // If not connected and autoReconnect is on, attempt a short delayed retry
-    if (this.autoReconnect) {
-      setTimeout(() => {
-        trySend();
-      }, 150);
-    } else {
-      console.error('[PortMessaging] Cannot send message: Not connected');
+    if (!this.connected) {
+      // Queue the message to be sent after connection establishes
+      this.pendingMessages.push({ type, payload, id: messageId })
+      if (this.autoReconnect) {
+        setTimeout(() => {
+          trySend();
+        }, 150);
+      }
+      return true; // Treat as accepted; it will be sent on connect
     }
+    console.error('[PortMessaging] Cannot send message: Not connected');
     return false;
   }
 
@@ -280,5 +288,20 @@ export class PortMessaging {
    */
   private notifyConnectionListeners(connected: boolean): void {
     this.connectionListeners.forEach(listener => listener(connected));
+  }
+
+  // Flush queued messages after a connection is established
+  private flushPendingMessages(): void {
+    if (!this.connected || !this.port) return
+    const queued = [...this.pendingMessages]
+    this.pendingMessages = []
+    queued.forEach(msg => {
+      try {
+        const m: PortMessage = { type: msg.type, payload: msg.payload, id: msg.id }
+        this.port!.postMessage(m)
+      } catch (_e) {
+        // If sending fails, drop silently to avoid loops
+      }
+    })
   }
 }
