@@ -286,7 +286,7 @@ export class SubAgent {
         continue;
       }
 
-      this.eventEmitter.executingTool(toolName, args);
+      this.eventEmitter.toolStart(toolName, args);
       const result = await tool.func(args);
       const parsedResult = JSON.parse(result);
       
