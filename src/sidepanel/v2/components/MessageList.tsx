@@ -23,7 +23,7 @@ const ALL_EXAMPLES = [
   "Save all Facebook tabs to a reading list",
   // "Pin tabs I use daily",
   // "Archive tabs from last week's research",
-  "Reopen the tab I accidentally closed",
+  // "Reopen the tab I accidentally closed",
   // "Mute all tabs except the one playing music",
 
   // Page Analysis
@@ -35,7 +35,7 @@ const ALL_EXAMPLES = [
   // "List all images and their alt text",
   // "Detect the reading level of this article",
   // "Highlight quotes or cited studies",
-  "Compare this page to another tab I'm viewing",
+  // "Compare this page to another tab I'm viewing",
 
   // Search & Discovery
   "Find top-rated headphones under $100",
@@ -61,7 +61,7 @@ const ALL_EXAMPLES = [
   // "Rewrite this paragraph to be more concise",
   "Generate a summary tweet for this article",
   // "Explain this code like I'm five",
-  "Draft a reply to this comment",
+  // "Draft a reply to this comment",
   "Rate the tone of this blog post",
   // "Suggest improvements to this documentation",
   "Turn this article into a LinkedIn post",
