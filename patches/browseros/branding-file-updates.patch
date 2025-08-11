@@ -1,7 +1,7 @@
-From bd59642e3bda4d9d87dd7b0a553e25bd4b49ef9a Mon Sep 17 00:00:00 2001
+From 8d1ca75ba0a9a2f9f9e18c5644e7769cbec977a6 Mon Sep 17 00:00:00 2001
 From: Nikhil Sonti <nikhilsv92@gmail.com>
 Date: Thu, 24 Jul 2025 13:26:50 -0700
-Subject: [PATCH 18/20] browseros branding for file paths
+Subject: [PATCH] browseros branding for file paths
 
 ---
  chrome/common/chrome_constants.cc              | 18 +++++++++---------

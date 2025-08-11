@@ -1,4 +1,4 @@
-From 105d7bed3a2f334860a5bcb2caebf3f381e18207 Mon Sep 17 00:00:00 2001
+From 76248fc35ecce3c9c53c0b60713e524d8105f395 Mon Sep 17 00:00:00 2001
 From: Nikhil Sonti <nikhilsv92@gmail.com>
 Date: Tue, 29 Jul 2025 16:48:31 -0700
 Subject: [PATCH] BrowserOS extensions OTA updater

@@ -1,7 +1,7 @@
-From 120a5231cb3df5dc698d4f0db3193050b9114638 Mon Sep 17 00:00:00 2001
+From ffc2064316b9e38ad219bb5517de1855e8046540 Mon Sep 17 00:00:00 2001
 From: Nikhil Sonti <nikhilsv92@gmail.com>
-Date: Sun, 18 May 2025 11:12:33 +0100
-Subject: [PATCH] Disable info bar in CDP
+Date: Tue, 22 Jul 2025 21:33:59 -0700
+Subject: [PATCH] patch: disable-info-bar-in-cdp
 
 ---
  chrome/browser/extensions/api/debugger/debugger_api.cc | 2 +-

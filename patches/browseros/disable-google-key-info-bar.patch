@@ -1,7 +1,7 @@
-From 9bdb1b3292b46e2daf648661e848eacdb5d5f088 Mon Sep 17 00:00:00 2001
+From 8ec0008662cd2597a5bf7d77efd1c49d3191f6a2 Mon Sep 17 00:00:00 2001
 From: Nikhil Sonti <nikhilsv92@gmail.com>
-Date: Tue, 24 Jun 2025 18:05:58 -0700
-Subject: [PATCH] disable google key info bar
+Date: Tue, 22 Jul 2025 21:34:11 -0700
+Subject: [PATCH] patch: disable-google-key-info-bar
 
 ---
  .../ui/startup/google_api_keys_infobar_delegate.cc       | 9 ++++++---

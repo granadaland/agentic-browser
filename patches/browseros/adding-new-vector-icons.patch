@@ -1,7 +1,7 @@
-From bf9470a28e2b18c40599c7e6d5e7f5c592f29c53 Mon Sep 17 00:00:00 2001
+From 0dc6cadba7a7f65ea9ef822ee7641e314372d663 Mon Sep 17 00:00:00 2001
 From: Nikhil Sonti <nikhilsv92@gmail.com>
-Date: Fri, 11 Jul 2025 08:55:19 -0700
-Subject: [PATCH] adding new vector icons
+Date: Tue, 22 Jul 2025 21:35:58 -0700
+Subject: [PATCH] patch: adding-new-vector-icons
 
 ---
  components/vector_icons/BUILD.gn           |  2 +

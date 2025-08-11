@@ -1,7 +1,7 @@
-From b31b7e7e822c757d7984dc1c490d283c35a7e8e3 Mon Sep 17 00:00:00 2001
+From 372b58eafdcdcb6afc50855eb67e8bea1a52b94a Mon Sep 17 00:00:00 2001
 From: Nikhil Sonti <nikhilsv92@gmail.com>
 Date: Tue, 22 Jul 2025 21:36:10 -0700
-Subject: [PATCH 14/20] patch(M): embed-third-party-llm-in-side-panel
+Subject: [PATCH] patch(M): llm-chat
 
 ---
  chrome/app/chrome_command_ids.h               |   2 +

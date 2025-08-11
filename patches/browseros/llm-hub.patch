@@ -1,7 +1,7 @@
-From 0cce2c6f6213e7225d7136b19be82e79602d5753 Mon Sep 17 00:00:00 2001
+From 0f11d4438b9a1723c188d23c55ff76d80b4b8ee2 Mon Sep 17 00:00:00 2001
 From: Nikhil Sonti <nikhilsv92@gmail.com>
 Date: Tue, 22 Jul 2025 21:36:34 -0700
-Subject: [PATCH 15/20] patch(M): clash-of-gpts
+Subject: [PATCH] patch(M): llm-hub
 
 ---
  chrome/app/chrome_command_ids.h               |   1 +

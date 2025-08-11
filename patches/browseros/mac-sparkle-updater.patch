@@ -1,7 +1,7 @@
-From 8cb99ed9da476935d6750e2e20f04e1fde8a7a6d Mon Sep 17 00:00:00 2001
+From 700edf9260afe9b76b8d274f355b60586d94eafd Mon Sep 17 00:00:00 2001
 From: Nikhil Sonti <nikhilsv92@gmail.com>
-Date: Mon, 16 Jun 2025 14:14:40 -0700
-Subject: [PATCH 1/2] Nxtscape sparkler updater
+Date: Tue, 22 Jul 2025 21:35:35 -0700
+Subject: [PATCH] patch: nxtscape-updater-sparkle
 
 ---
  chrome/BUILD.gn                               |   5 +
@@ -872,10 +872,10 @@ index 0000000000000..984f9ab75b1fa
 +}
 \ No newline at end of file
 diff --git a/chrome/browser/ui/BUILD.gn b/chrome/browser/ui/BUILD.gn
-index 93096ad92c1a3..5accc0ef01f89 100644
+index b14d64308080f..bf0e13928f08e 100644
 --- a/chrome/browser/ui/BUILD.gn
 +++ b/chrome/browser/ui/BUILD.gn
-@@ -3435,6 +3435,8 @@ static_library("ui") {
+@@ -3437,6 +3437,8 @@ static_library("ui") {
        "views/frame/native_browser_frame_factory_mac.mm",
        "views/tab_contents/chrome_web_contents_view_delegate_views_mac.h",
        "views/tab_contents/chrome_web_contents_view_delegate_views_mac.mm",
@@ -884,7 +884,7 @@ index 93096ad92c1a3..5accc0ef01f89 100644
        "webui/help/version_updater_mac.mm",
        "webui/settings/mac_system_settings_handler.cc",
        "webui/settings/mac_system_settings_handler.h",
-@@ -3453,6 +3455,7 @@ static_library("ui") {
+@@ -3455,6 +3457,7 @@ static_library("ui") {
      allow_circular_includes_from += [ "//chrome/browser/apps/app_shim" ]
  
      deps += [

@@ -1,7 +1,7 @@
-From 41d77486e0399b493f577cc207750f13ccf24558 Mon Sep 17 00:00:00 2001
+From 4539a8c2e1bd668d7f1f8d247d66855a86cf8428 Mon Sep 17 00:00:00 2001
 From: Nikhil Sonti <nikhilsv92@gmail.com>
 Date: Thu, 24 Jul 2025 16:14:27 -0700
-Subject: [PATCH] BrowserOS settings page
+Subject: [PATCH] patch: settings prefs page
 
 ---
  .../api/settings_private/prefs_util.cc        |   4 +
@@ -17,16 +17,16 @@ Subject: [PATCH] BrowserOS settings page
  .../settings/settings_menu/settings_menu.html |   6 +
  .../toolbar/pinned_action_toolbar_button.cc   |  24 +-
  .../toolbar/pinned_action_toolbar_button.h    |   1 +
- chrome/common/pref_names.h                    |  12 +
- 14 files changed, 652 insertions(+), 7 deletions(-)
+ chrome/common/pref_names.h                    |   4 +
+ 14 files changed, 644 insertions(+), 7 deletions(-)
  create mode 100644 chrome/browser/resources/settings/browseros_prefs_page/browseros_prefs_page.html
  create mode 100644 chrome/browser/resources/settings/browseros_prefs_page/browseros_prefs_page.ts
 
 diff --git a/chrome/browser/extensions/api/settings_private/prefs_util.cc b/chrome/browser/extensions/api/settings_private/prefs_util.cc
-index 1869a54c5b4e4..0ffbb43806598 100644
+index 200d72995460e..1bff654e3ac42 100644
 --- a/chrome/browser/extensions/api/settings_private/prefs_util.cc
 +++ b/chrome/browser/extensions/api/settings_private/prefs_util.cc
-@@ -606,6 +606,10 @@ const PrefsUtil::TypedPrefMap& PrefsUtil::GetAllowlistedKeys() {
+@@ -607,6 +607,10 @@ const PrefsUtil::TypedPrefMap& PrefsUtil::GetAllowlistedKeys() {
    (*s_allowlist)["nxtscape.ollama_base_url"] = settings_api::PrefType::kString;
    (*s_allowlist)["nxtscape.ollama_model"] = settings_api::PrefType::kString;
  
@@ -38,10 +38,10 @@ index 1869a54c5b4e4..0ffbb43806598 100644
    // Accounts / Users / People.
    (*s_allowlist)[ash::kAccountsPrefAllowGuest] =
 diff --git a/chrome/browser/prefs/browser_prefs.cc b/chrome/browser/prefs/browser_prefs.cc
-index 5a5b278252383..cf120aacb58d3 100644
+index e6f03310af7ee..bfe1a9243a920 100644
 --- a/chrome/browser/prefs/browser_prefs.cc
 +++ b/chrome/browser/prefs/browser_prefs.cc
-@@ -2349,6 +2349,12 @@ void RegisterNxtscapePrefs(user_prefs::PrefRegistrySyncable* registry) {
+@@ -2357,6 +2357,12 @@ void RegisterNxtscapePrefs(user_prefs::PrefRegistrySyncable* registry) {
    registry->RegisterStringPref("nxtscape.ollama_api_key", "");
    registry->RegisterStringPref("nxtscape.ollama_base_url", "http://localhost:11434");
    registry->RegisterStringPref("nxtscape.ollama_model", "");
@@ -839,25 +839,17 @@ index e1557abfda184..df7f5c078211a 100644
    bool ShouldSkipExecutionForTesting() { return skip_execution_; }
  
 diff --git a/chrome/common/pref_names.h b/chrome/common/pref_names.h
-index 12f83b0cc1ab5..10c867a0660de 100644
+index a453af343fed7..b06aec04ab52e 100644
 --- a/chrome/common/pref_names.h
 +++ b/chrome/common/pref_names.h
-@@ -4273,6 +4273,18 @@ inline constexpr char kServiceWorkerToControlSrcdocIframeEnabled[] =
- // is set as a SharedWorker script URL.
- inline constexpr char kSharedWorkerBlobURLFixEnabled[] =
-     "worker.shared_worker_blob_url_fix_enabled";
-+
-+// *************** BROWSEROS PREFS ***************
-+// These are BrowserOS-specific preferences
+@@ -4288,6 +4288,10 @@ inline constexpr char kBrowserOSProviders[] = "browseros.providers";
+ // String containing the default provider ID for BrowserOS
+ inline constexpr char kBrowserOSDefaultProviderId[] = 
+     "browseros.default_provider_id";
 +
 +// Boolean that controls whether toolbar labels are shown for BrowserOS actions
 +inline constexpr char kBrowserOSShowToolbarLabels[] =
 +    "browseros.show_toolbar_labels";
-+
-+// JSON string containing custom AI providers for BrowserOS
-+inline constexpr char kBrowserOSCustomProviders[] = 
-+    "browseros.custom_providers";
-+
  }  // namespace prefs
  
  #endif  // CHROME_COMMON_PREF_NAMES_H_

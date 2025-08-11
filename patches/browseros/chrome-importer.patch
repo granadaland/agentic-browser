@@ -1,7 +1,7 @@
-From 27b2e9d7dde108ffb3a77ee8ea75e3541b9fdf4a Mon Sep 17 00:00:00 2001
+From 902c643edfb75d406434eb165ca31ade2a24f9a6 Mon Sep 17 00:00:00 2001
 From: Nikhil Sonti <nikhilsv92@gmail.com>
-Date: Fri, 4 Jul 2025 16:50:10 -0700
-Subject: [PATCH] importer patch
+Date: Tue, 22 Jul 2025 21:33:24 -0700
+Subject: [PATCH] patch(M): chrome importer
 
 ---
  chrome/app/generated_resources.grd            |   3 +
@@ -9,11 +9,11 @@ Subject: [PATCH] importer patch
  .../api/settings_private/prefs_util.cc        |   2 +
  .../external_process_importer_client.cc       |   8 +
  .../external_process_importer_client.h        |   2 +
- chrome/browser/importer/importer_list.cc      | 214 +++++
+ chrome/browser/importer/importer_list.cc      | 214 +++++++
  chrome/browser/importer/importer_uma.cc       |   4 +
  .../importer/in_process_importer_bridge.cc    |  16 +
  .../importer/in_process_importer_bridge.h     |   2 +
- chrome/browser/importer/profile_writer.cc     | 144 ++++
+ chrome/browser/importer/profile_writer.cc     | 144 +++++
  chrome/browser/importer/profile_writer.h      |   4 +
  .../people_page/import_data_browser_proxy.ts  |   1 +
  .../people_page/import_data_dialog.html       |   5 +
@@ -27,21 +27,21 @@ Subject: [PATCH] importer patch
  ...ofile_import_process_param_traits_macros.h |   4 +-
  chrome/common/pref_names.h                    |   2 +
  chrome/utility/BUILD.gn                       |   2 +
- chrome/utility/importer/chrome_importer.cc    | 736 ++++++++++++++++++
- chrome/utility/importer/chrome_importer.h     |  91 +++
+ chrome/utility/importer/chrome_importer.cc    | 591 ++++++++++++++++++
+ chrome/utility/importer/chrome_importer.h     |  80 +++
  .../external_process_importer_bridge.cc       |   7 +
  .../external_process_importer_bridge.h        |   2 +
  chrome/utility/importer/importer_creator.cc   |   3 +
  .../histograms/metadata/sql/histograms.xml    |   1 +
- 29 files changed, 1268 insertions(+), 3 deletions(-)
+ 29 files changed, 1112 insertions(+), 3 deletions(-)
  create mode 100644 chrome/utility/importer/chrome_importer.cc
  create mode 100644 chrome/utility/importer/chrome_importer.h
 
 diff --git a/chrome/app/generated_resources.grd b/chrome/app/generated_resources.grd
-index 444323aed7636..d8243b834206d 100644
+index 186d94b83cb9c..a7e94095c4dc5 100644
 --- a/chrome/app/generated_resources.grd
 +++ b/chrome/app/generated_resources.grd
-@@ -10885,6 +10885,9 @@ Check your passwords anytime in <ph name="GOOGLE_PASSWORD_MANAGER">$1<ex>Google
+@@ -10882,6 +10882,9 @@ Check your passwords anytime in <ph name="GOOGLE_PASSWORD_MANAGER">$1<ex>Google
          <message name="IDS_IMPORT_FROM_FIREFOX" desc="browser combo box: Mozilla Firefox">
            Mozilla Firefox
          </message>
@@ -66,10 +66,10 @@ index 8d41891d1717b..8064a065bbb54 100644
      <message name="IDS_SETTINGS_IMPORT_CHOOSE_FILE" desc="Text for the Choose File on dialog">
        Choose File
 diff --git a/chrome/browser/extensions/api/settings_private/prefs_util.cc b/chrome/browser/extensions/api/settings_private/prefs_util.cc
-index 1803d96b758e1..1869a54c5b4e4 100644
+index 97bb4be60af93..c27e0e96e4bce 100644
 --- a/chrome/browser/extensions/api/settings_private/prefs_util.cc
 +++ b/chrome/browser/extensions/api/settings_private/prefs_util.cc
-@@ -1190,6 +1190,8 @@ const PrefsUtil::TypedPrefMap& PrefsUtil::GetAllowlistedKeys() {
+@@ -1164,6 +1164,8 @@ const PrefsUtil::TypedPrefMap& PrefsUtil::GetAllowlistedKeys() {
        settings_api::PrefType::kBoolean;
    (*s_allowlist)[::prefs::kImportDialogSearchEngine] =
        settings_api::PrefType::kBoolean;
@@ -798,10 +798,10 @@ index aad8bc1ac7d4f..bd24de192a0ee 100644
      if (is_mac) {
 diff --git a/chrome/utility/importer/chrome_importer.cc b/chrome/utility/importer/chrome_importer.cc
 new file mode 100644
-index 0000000000000..9026dcc1ec6b1
+index 0000000000000..5a7c392fd775a
 --- /dev/null
 +++ b/chrome/utility/importer/chrome_importer.cc
-@@ -0,0 +1,736 @@
+@@ -0,0 +1,591 @@
 +// Copyright 2023 The Chromium Authors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
@@ -824,9 +824,6 @@ index 0000000000000..9026dcc1ec6b1
 +#include "chrome/common/importer/importer_url_row.h"
 +#include "chrome/grit/generated_resources.h"
 +#include "chrome/utility/importer/favicon_reencode.h"
-+#include "components/os_crypt/sync/os_crypt.h"
-+#include "components/password_manager/core/browser/password_form.h"
-+#include "components/password_manager/core/browser/password_store/login_database.h"
 +#include "sql/database.h"
 +#include "sql/statement.h"
 +#include "ui/base/l10n/l10n_util.h"
@@ -1210,123 +1207,15 @@ index 0000000000000..9026dcc1ec6b1
 +}
 +
 +void ChromeImporter::ImportPasswords() {
-+  LOG(INFO) << "ChromeImporter: Starting passwords import";
-+
-+  // Set up encryption keys for decrypting passwords
-+  base::FilePath source_path = source_path_;
-+#if BUILDFLAG(IS_WIN)
-+  // On Windows, the path is different
-+  source_path = source_path_.DirName();
-+#endif
-+
-+  // Initialize encryption using the appropriate source path
-+  if (!SetEncryptionKey(source_path)) {
-+    LOG(ERROR) << "ChromeImporter: Failed to set encryption key for passwords";
-+    return;
-+  }
-+
-+  // First try the main Login Data file
-+  ImportPasswordsFromFile(base::FilePath(FILE_PATH_LITERAL("Login Data")));
-+
-+  // Then try the account-specific Login Data file if it exists
-+  ImportPasswordsFromFile(base::FilePath(FILE_PATH_LITERAL("Login Data For Account")));
-+
-+  LOG(INFO) << "ChromeImporter: Passwords import complete";
++  // Password import is disabled - users should use CSV import from chrome://password-manager/passwords
++  LOG(INFO) << "ChromeImporter: Password import is disabled. "
++            << "Please use CSV import from chrome://password-manager/passwords";
++  return;
 +}
 +
 +void ChromeImporter::ImportPasswordsFromFile(const base::FilePath& password_filename) {
-+  base::FilePath passwords_path = source_path_.Append(password_filename);
-+  if (!base::PathExists(passwords_path)) {
-+    LOG(INFO) << "ChromeImporter: " << password_filename.value() << " file not found";
-+    return;
-+  }
-+
-+  // Create temporary directory for copying the database
-+  base::FilePath temp_directory;
-+  if (!base::CreateNewTempDirectory(base::FilePath::StringType(), &temp_directory)) {
-+    LOG(ERROR) << "ChromeImporter: Failed to create temp directory for passwords";
-+    return;
-+  }
-+
-+  // Copy the database file to avoid lock issues
-+  base::FilePath temp_passwords_path = temp_directory.Append(password_filename.BaseName());
-+  if (!base::CopyFile(passwords_path, temp_passwords_path)) {
-+    LOG(ERROR) << "ChromeImporter: Failed to copy " << password_filename.value() << " file";
-+    base::DeletePathRecursively(temp_directory);
-+    return;
-+  }
-+
-+  // Open the database using password manager's login database
-+  password_manager::LoginDatabase database(
-+      temp_passwords_path, password_manager::IsAccountStore(false));
-+
-+  if (!database.Init(base::NullCallback(), nullptr)) {
-+    LOG(ERROR) << "ChromeImporter: Failed to initialize login database";
-+    base::DeletePathRecursively(temp_directory);
-+    return;
-+  }
-+
-+  // Process regular logins
-+  std::vector<password_manager::PasswordForm> forms;
-+  bool success = database.GetAutofillableLogins(&forms);
-+  if (success) {
-+    LOG(INFO) << "ChromeImporter: Found " << forms.size() << " passwords";
-+    for (const auto& form : forms) {
-+      importer::ImportedPasswordForm imported_form;
-+      if (PasswordFormToImportedPasswordForm(form, imported_form)) {
-+        bridge_->SetPasswordForm(imported_form);
-+      }
-+    }
-+  }
-+
-+  // Process blocklisted logins
-+  std::vector<password_manager::PasswordForm> blocklist;
-+  success = database.GetBlocklistLogins(&blocklist);
-+  if (success && !blocklist.empty()) {
-+    LOG(INFO) << "ChromeImporter: Found " << blocklist.size() << " blocklisted passwords";
-+    for (const auto& form : blocklist) {
-+      importer::ImportedPasswordForm imported_form;
-+      if (PasswordFormToImportedPasswordForm(form, imported_form)) {
-+        bridge_->SetPasswordForm(imported_form);
-+      }
-+    }
-+  }
-+
-+  // Clean up temporary files
-+  base::DeletePathRecursively(temp_directory);
-+}
-+
-+bool ChromeImporter::PasswordFormToImportedPasswordForm(
-+    const password_manager::PasswordForm& form,
-+    importer::ImportedPasswordForm& imported_form) {
-+  // Skip forms with invalid schemes
-+  if (form.scheme != password_manager::PasswordForm::Scheme::kHtml &&
-+      form.scheme != password_manager::PasswordForm::Scheme::kBasic) {
-+    return false;
-+  }
-+
-+  // Set the scheme appropriately
-+  imported_form.scheme = form.scheme == password_manager::PasswordForm::Scheme::kHtml
-+                         ? importer::ImportedPasswordForm::Scheme::kHtml
-+                         : importer::ImportedPasswordForm::Scheme::kBasic;
-+
-+  // Skip inconsistent blocked forms that have credentials
-+  if (form.blocked_by_user &&
-+      (!form.username_value.empty() || !form.password_value.empty())) {
-+    return false;
-+  }
-+
-+  // Copy over all the relevant form fields
-+  imported_form.signon_realm = form.signon_realm;
-+  imported_form.url = form.url;
-+  imported_form.action = form.action;
-+  imported_form.username_element = form.username_element;
-+  imported_form.username_value = form.username_value;
-+  imported_form.password_element = form.password_element;
-+  imported_form.password_value = form.password_value;
-+  imported_form.blocked_by_user = form.blocked_by_user;
-+
-+  return true;
++  // Password import is disabled - this function is kept as a no-op for compatibility
++  return;
 +}
 +
 +void ChromeImporter::ImportAutofillFormData() {
@@ -1396,44 +1285,10 @@ index 0000000000000..9026dcc1ec6b1
 +  LOG(INFO) << "ChromeImporter: Autofill form data import complete";
 +}
 +
-+bool ChromeImporter::SetEncryptionKey(const base::FilePath& source_path) {
-+#if BUILDFLAG(IS_LINUX)
-+  // Set up crypt config for Linux
-+  std::unique_ptr<os_crypt::Config> config(new os_crypt::Config());
-+  config->product_name = l10n_util::GetStringUTF8(IDS_PRODUCT_NAME);
-+  config->should_use_preference = false;
-+  config->user_data_path = source_path;
-+  OSCrypt::SetConfig(std::move(config));
-+  return true;
-+#elif BUILDFLAG(IS_WIN)
-+  // On Windows, we need to obtain the encryption key from Local State
-+  base::FilePath local_state_path = source_path.Append(FILE_PATH_LITERAL("Local State"));
-+  if (!base::PathExists(local_state_path)) {
-+    LOG(ERROR) << "ChromeImporter: Local State file not found";
-+    return false;
-+  }
-+
-+  std::string local_state_content;
-+  if (!base::ReadFileToString(local_state_path, &local_state_content)) {
-+    LOG(ERROR) << "ChromeImporter: Failed to read Local State file";
-+    return false;
-+  }
-+
-+  std::optional<base::Value::Dict> local_state =
-+      base::JSONReader::ReadDict(local_state_content);
-+  if (!local_state) {
-+    LOG(ERROR) << "ChromeImporter: Failed to parse Local State JSON";
-+    return false;
-+  }
-+
-+  // For Mac and other platforms, we don't need to do anything special
-+  // as keychain is used automatically
-+  return true;
-+#else
-+  // For Mac, keychain is used automatically by OSCrypt
-+  return true;
-+#endif
-+}
++// Encryption key setup is disabled since password import is disabled
++// bool ChromeImporter::SetEncryptionKey(const base::FilePath& source_path) {
++//   return false;
++// }
 +
 +void ChromeImporter::ImportExtensions() {
 +  LOG(INFO) << "ChromeImporter: Starting extensions import";
@@ -1538,13 +1393,12 @@ index 0000000000000..9026dcc1ec6b1
 +
 +  return extension_ids;
 +}
-\ No newline at end of file
 diff --git a/chrome/utility/importer/chrome_importer.h b/chrome/utility/importer/chrome_importer.h
 new file mode 100644
-index 0000000000000..06317c522d5d0
+index 0000000000000..25b49c7028e1c
 --- /dev/null
 +++ b/chrome/utility/importer/chrome_importer.h
-@@ -0,0 +1,91 @@
+@@ -0,0 +1,80 @@
 +// Copyright 2023 The Chromium Authors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
@@ -1572,13 +1426,6 @@ index 0000000000000..06317c522d5d0
 +class Database;
 +}
 +
-+namespace password_manager {
-+struct PasswordForm;
-+}
-+
-+namespace importer {
-+struct ImportedPasswordForm;
-+}
 +
 +class ChromeImporter : public Importer {
 + public:
@@ -1600,10 +1447,6 @@ index 0000000000000..06317c522d5d0
 +  void ImportAutofillFormData();
 +  void ImportExtensions();
 +  void ImportPasswordsFromFile(const base::FilePath& password_filename);
-+  bool PasswordFormToImportedPasswordForm(
-+      const password_manager::PasswordForm& form,
-+      importer::ImportedPasswordForm& imported_form);
-+  bool SetEncryptionKey(const base::FilePath& source_path);
 +
 +  // Helper function to convert Chrome's time format to base::Time
 +  base::Time ChromeTimeToBaseTime(int64_t time);
@@ -1636,7 +1479,6 @@ index 0000000000000..06317c522d5d0
 +};
 +
 +#endif  // CHROME_UTILITY_IMPORTER_CHROME_IMPORTER_H_
-\ No newline at end of file
 diff --git a/chrome/utility/importer/external_process_importer_bridge.cc b/chrome/utility/importer/external_process_importer_bridge.cc
 index 0f98b3d1da6e7..9b169aab54fd9 100644
 --- a/chrome/utility/importer/external_process_importer_bridge.cc

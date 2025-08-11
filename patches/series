@@ -1,36 +1,21 @@
-nxtscape/first-run-nxtscape.patch
-
-# features
-nxtscape/importer-updates.patch
-nxtscape/add-importer-supporter-for-chrome.patch
-nxtscape/nxtscape-settings-ui.patch
-
-# chromium
-nxtscape/disable-user-gesture-restriction-on-sidepanel.patch
-nxtscape/disable-info-bar-in-cdp.patch
-nxtscape/disable-google-key-info-bar.patch
-nxtscape/disable-chrome-labs-pinning.patch
-nxtscape/fixes-to-branding.patch
-
-# agents
-nxtscape/pin-nxtscape-ai-chat.patch
-nxtscape/ai-chat-extension.patch
-nxtscape/bug-reporter-extension.patch
-nxtscape/browserOS-API.patch
-nxtscape/browseros-api-fix-coordinate-calculation.patch
-nxtscape/new-snapshot-API.patch
-
-# updater
-nxtscape/nxtscape-updater-sparkle.patch
-nxtscape/pin-nxtscape-agents-together.patch
-nxtscape/add-sparkle-info-plist-keys.patch
-nxtscape/adding-new-vector-icons.patch
-nxtscape/embed-third-party-llm-in-side-panel.patch
-nxtscape/clash-of-gpts.patch
-nxtscape/browseros-settings.patch
-nxtscape/updates-to-llm-chat-and-hub.patch
-nxtscape/updates-to-browseros-api.patch
-
-nxtscape/BrowserOS-API-for-get-set-prefs.patch
-nxtscape/BorwserOS-API-updates-improved-click-type-ad-clear-w.patch
-nxtscape/New-BrowserOS-settings-AI-page-for-providers.patch
+browseros/first-run.patch
+browseros/chrome-importer.patch
+browseros/chrome-version-updater.patch
+browseros/browseros-ota-updater.patch
+browseros/pin-extensions-toolbar.patch
+browseros/browseros-metrics.patch
+browseros/disable-user-gesture-restriction-on-sidepanel.patch
+browseros/disable-info-bar-in-cdp.patch
+browseros/browseros-ai-settings-page.patch
+browseros/disable-google-key-info-bar.patch
+browseros/disable-chrome-labs-pinning.patch
+browseros/browseros-api.patch
+browseros/browseros-api-updates.patch
+browseros/mac-sparkle-updater.patch
+browseros/add-sparkle-info-plist-keys.patch
+browseros/adding-new-vector-icons.patch
+browseros/pin-chat-and-hub.patch
+browseros/llm-hub.patch
+browseros/llm-chat.patch
+browseros/branding-file-updates.patch
+browseros/updates-llm-chat-and-hub.patch

@@ -1,7 +1,7 @@
-From 30931e9d6a8aeb734ff25c0cf560bbd92e3da33f Mon Sep 17 00:00:00 2001
+From 605dbbba266697c4fc290a0201681b9f5f8ef746 Mon Sep 17 00:00:00 2001
 From: Nikhil Sonti <nikhilsv92@gmail.com>
-Date: Fri, 18 Apr 2025 18:34:52 +0530
-Subject: [PATCH] disable user-gesture restriction on sidepanel.open
+Date: Tue, 22 Jul 2025 21:33:47 -0700
+Subject: [PATCH] patch: disable-user-gesture-restriction-on-sidepanel
 
 ---
  .../extensions/api/side_panel/side_panel_api.cc        | 10 +++++-----

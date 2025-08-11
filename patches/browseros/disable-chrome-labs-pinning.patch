@@ -1,7 +1,7 @@
-From 80fc1ca1096e8cb2c0858d695d3a0c359d9681e5 Mon Sep 17 00:00:00 2001
+From 8ff10fcbf445f98925ed17d8ba4339be50390b97 Mon Sep 17 00:00:00 2001
 From: Nikhil Sonti <nikhilsv92@gmail.com>
-Date: Fri, 11 Jul 2025 13:07:04 -0700
-Subject: [PATCH] disable chromelabs pinned by default
+Date: Tue, 22 Jul 2025 21:34:23 -0700
+Subject: [PATCH] patch: disable-chrome-labs-pinning
 
 ---
  .../pinned_toolbar/pinned_toolbar_actions_model.cc       | 4 +++-
@@ -9,7 +9,7 @@ Subject: [PATCH] disable chromelabs pinned by default
  2 files changed, 4 insertions(+), 9 deletions(-)
 
 diff --git a/chrome/browser/ui/toolbar/pinned_toolbar/pinned_toolbar_actions_model.cc b/chrome/browser/ui/toolbar/pinned_toolbar/pinned_toolbar_actions_model.cc
-index 3fd0ec6cd8da1..0b554e8cfe999 100644
+index 613d124be1752..72c9f630c905c 100644
 --- a/chrome/browser/ui/toolbar/pinned_toolbar/pinned_toolbar_actions_model.cc
 +++ b/chrome/browser/ui/toolbar/pinned_toolbar/pinned_toolbar_actions_model.cc
 @@ -236,8 +236,10 @@ void PinnedToolbarActionsModel::MaybeMigrateExistingPinnedStates() {
@@ -25,10 +25,10 @@ index 3fd0ec6cd8da1..0b554e8cfe999 100644
    }
    if (features::HasTabSearchToolbarButton() &&
 diff --git a/chrome/browser/ui/toolbar/toolbar_pref_names.cc b/chrome/browser/ui/toolbar/toolbar_pref_names.cc
-index 343376dd051fb..d2868cb83608f 100644
+index 4dd749643041a..5d3da32f57f81 100644
 --- a/chrome/browser/ui/toolbar/toolbar_pref_names.cc
 +++ b/chrome/browser/ui/toolbar/toolbar_pref_names.cc
-@@ -16,14 +16,7 @@ namespace toolbar {
+@@ -14,14 +14,7 @@ namespace toolbar {
  
  void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
    base::Value::List default_pinned_actions;

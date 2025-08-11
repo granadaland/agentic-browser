@@ -5,6 +5,7 @@
 is_debug = true
 is_official_build = false
 is_component_build = false
+use_siso=false
 
 # Compiler
 use_sysroot = true

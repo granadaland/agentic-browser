@@ -130,7 +130,7 @@ class BuildContext:
 
     def get_nxtscape_patches_dir(self) -> Path:
         """Get Nxtscape specific patches directory"""
-        return join_paths(self.get_patches_dir(), "nxtscape")
+        return join_paths(self.get_patches_dir(), "browseros")
 
     def get_sparkle_dir(self) -> Path:
         """Get Sparkle directory"""

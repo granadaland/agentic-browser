@@ -9,6 +9,23 @@
 
     <!-- Updates -->
     <item>
+      <title>Nxtscape - 0.20.0</title>
+      <description sparkle:format="plain-text">
+- New updated Agent UI!
+- Fixed MacOS bug which caused the app to crash on startup for some users. This unfortunately also makes a breaking change, requiring re-installation of extensions and logins.
+      </description>
+      <sparkle:version>7200.69</sparkle:version>
+      <sparkle:shortVersionString>0.20.1</sparkle:shortVersionString>
+      <pubDate>Fri, 09 Aug 2025 16:30:00 -0700</pubDate>
+      <link>https://nxtscape.ai</link>
+      <enclosure
+        url="http://cdn.browseros.com/dmg/BrowserOS_v0.20.1_x64.dmg"
+        sparkle:edSignature="T4s+dVxu+pPQn2pE061esTHIaD8e3mYdYItFEIfXjQtopfxutUbzHoYei3CuccKGIS1oDTVgZAR3EXaWBK5xBQ==" 
+        length="135460780"
+        type="application/octet-stream" />
+      <sparkle:minimumSystemVersion>10.15</sparkle:minimumSystemVersion>
+    </item>
+    <item>
       <title>Nxtscape - 0.19.0</title>
       <description sparkle:format="plain-text">
       </description>

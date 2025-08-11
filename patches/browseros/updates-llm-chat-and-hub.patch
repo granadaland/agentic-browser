@@ -1,14 +1,15 @@
-From 0ae687a607db8b5945aa4d35588853fe9fc6a788 Mon Sep 17 00:00:00 2001
+From 58cceea8003f85852f48c4b073b6c7e4444fc9ef Mon Sep 17 00:00:00 2001
 From: Nikhil Sonti <nikhilsv92@gmail.com>
 Date: Thu, 24 Jul 2025 13:48:38 -0700
-Subject: [PATCH 19/20] Updates to third party llm and LLM hub
+Subject: [PATCH] updates: llmchat and llmhub
 
 ---
  .../browser/ui/browser_command_controller.cc  |  14 +-
- .../clash_of_gpts_coordinator.cc              |   9 -
- .../third_party_llm_panel_coordinator.cc      | 226 +++++++++++++++++-
+ chrome/browser/ui/views/side_panel/BUILD.gn   |   1 +
+ .../clash_of_gpts_coordinator.cc              |  14 +-
+ .../third_party_llm_panel_coordinator.cc      | 257 +++++++++++++++++-
  .../third_party_llm_panel_coordinator.h       |  39 ++-
- 4 files changed, 265 insertions(+), 23 deletions(-)
+ 5 files changed, 302 insertions(+), 23 deletions(-)
 
 diff --git a/chrome/browser/ui/browser_command_controller.cc b/chrome/browser/ui/browser_command_controller.cc
 index b172b393c7b2b..52f78a5a46584 100644
@@ -39,11 +40,31 @@ index b172b393c7b2b..52f78a5a46584 100644
        }
        break;
      case IDC_SHOW_APP_MENU:
+diff --git a/chrome/browser/ui/views/side_panel/BUILD.gn b/chrome/browser/ui/views/side_panel/BUILD.gn
+index a06f78dc7e4b6..56021613259dc 100644
+--- a/chrome/browser/ui/views/side_panel/BUILD.gn
++++ b/chrome/browser/ui/views/side_panel/BUILD.gn
+@@ -172,6 +172,7 @@ source_set("side_panel") {
+     "//components/keyed_service/core",
+     "//components/language/core/browser",
+     "//components/language/core/common",
++    "//components/metrics/browseros_metrics",
+     "//components/omnibox/browser:vector_icons",
+     "//components/optimization_guide/core:features",
+     "//components/performance_manager",
 diff --git a/chrome/browser/ui/views/side_panel/clash_of_gpts/clash_of_gpts_coordinator.cc b/chrome/browser/ui/views/side_panel/clash_of_gpts/clash_of_gpts_coordinator.cc
-index ce0ab7befb361..d206407c292a2 100644
+index ce0ab7befb361..e6a8b8b97eada 100644
 --- a/chrome/browser/ui/views/side_panel/clash_of_gpts/clash_of_gpts_coordinator.cc
 +++ b/chrome/browser/ui/views/side_panel/clash_of_gpts/clash_of_gpts_coordinator.cc
-@@ -61,19 +61,10 @@ ClashOfGptsCoordinator::~ClashOfGptsCoordinator() {
+@@ -29,6 +29,7 @@
+ #include "ui/accessibility/ax_tree_update.h"
+ #include "ui/events/keycodes/keyboard_codes.h"
+ #include "third_party/blink/public/common/input/web_input_event.h"
++#include "components/metrics/browseros_metrics/browseros_metrics.h"
+ 
+ namespace {
+ 
+@@ -61,19 +62,11 @@ ClashOfGptsCoordinator::~ClashOfGptsCoordinator() {
  }
  
  void ClashOfGptsCoordinator::Show() {
@@ -60,11 +81,22 @@ index ce0ab7befb361..d206407c292a2 100644
      widget_->Activate();
 -  } else {
 -    LOG(ERROR) << "widget_ is null after CreateWindowIfNeeded!";
++    browseros_metrics::BrowserOSMetrics::Log("llmhub.shown");
    }
  }
  
+@@ -221,6 +214,9 @@ void ClashOfGptsCoordinator::SetPaneCount(int count) {
+ 
+   current_pane_count_ = count;
+   SaveState();
++  
++  browseros_metrics::BrowserOSMetrics::Log("llmhub.panecount.changed", 
++    {{"count", base::Value(count)}});
+ 
+   // Update the view if it exists
+   if (view_) {
 diff --git a/chrome/browser/ui/views/side_panel/third_party_llm/third_party_llm_panel_coordinator.cc b/chrome/browser/ui/views/side_panel/third_party_llm/third_party_llm_panel_coordinator.cc
-index 21a1737b9bb83..5e396226413b7 100644
+index 21a1737b9bb83..e0118e58a9990 100644
 --- a/chrome/browser/ui/views/side_panel/third_party_llm/third_party_llm_panel_coordinator.cc
 +++ b/chrome/browser/ui/views/side_panel/third_party_llm/third_party_llm_panel_coordinator.cc
 @@ -8,6 +8,8 @@
@@ -84,7 +116,7 @@ index 21a1737b9bb83..5e396226413b7 100644
  #include "components/prefs/pref_service.h"
  #include "components/user_prefs/user_prefs.h"
  #include "components/pref_registry/pref_registry_syncable.h"
-@@ -48,10 +51,19 @@
+@@ -48,10 +51,20 @@
  #include "ui/base/clipboard/clipboard.h"
  #include "ui/base/clipboard/scoped_clipboard_writer.h"
  #include "chrome/browser/ui/browser_commands.h"
@@ -101,10 +133,11 @@ index 21a1737b9bb83..5e396226413b7 100644
 +#include "chrome/browser/file_select_helper.h"
 +#include "content/public/browser/file_select_listener.h"
 +#include "content/public/browser/render_frame_host.h"
++#include "components/metrics/browseros_metrics/browseros_metrics.h"
  
  namespace {
  
-@@ -132,6 +144,7 @@ ThirdPartyLlmPanelCoordinator::CreateThirdPartyLlmWebView(
+@@ -132,6 +145,7 @@ ThirdPartyLlmPanelCoordinator::CreateThirdPartyLlmWebView(
    web_view_ = nullptr;
    provider_selector_ = nullptr;
    copy_feedback_label_ = nullptr;
@@ -112,7 +145,7 @@ index 21a1737b9bb83..5e396226413b7 100644
  
    // Stop observing any previous views to prevent dangling observations.
    view_observation_.RemoveAllObservations();
-@@ -197,6 +210,34 @@ ThirdPartyLlmPanelCoordinator::CreateThirdPartyLlmWebView(
+@@ -197,6 +211,34 @@ ThirdPartyLlmPanelCoordinator::CreateThirdPartyLlmWebView(
    copy_button->SetImageHorizontalAlignment(views::ImageButton::ALIGN_CENTER);
    copy_button->SetImageVerticalAlignment(views::ImageButton::ALIGN_MIDDLE);
    
@@ -147,7 +180,7 @@ index 21a1737b9bb83..5e396226413b7 100644
    // Add open in new tab button
    auto* open_button = header->AddChildView(
        std::make_unique<views::ImageButton>(base::BindRepeating(
-@@ -211,6 +252,23 @@ ThirdPartyLlmPanelCoordinator::CreateThirdPartyLlmWebView(
+@@ -211,6 +253,23 @@ ThirdPartyLlmPanelCoordinator::CreateThirdPartyLlmWebView(
    open_button->SetImageHorizontalAlignment(views::ImageButton::ALIGN_CENTER);
    open_button->SetImageVerticalAlignment(views::ImageButton::ALIGN_MIDDLE);
    
@@ -171,7 +204,25 @@ index 21a1737b9bb83..5e396226413b7 100644
    // Add separator
    container->AddChildView(std::make_unique<views::Separator>());
    
-@@ -365,6 +423,25 @@ std::u16string ThirdPartyLlmPanelCoordinator::GetProviderName(LlmProvider provid
+@@ -286,6 +345,8 @@ ThirdPartyLlmPanelCoordinator::CreateThirdPartyLlmWebView(
+   shortcuts_label->SetFontList(
+       shortcuts_label->font_list().DeriveWithSizeDelta(-1));
+   
++  browseros_metrics::BrowserOSMetrics::Log("llmchat.created");
++  
+   return container;
+ }
+ 
+@@ -306,6 +367,8 @@ void ThirdPartyLlmPanelCoordinator::DoProviderChange(LlmProvider new_provider) {
+     return;
+ 
+   provider_change_in_progress_ = true;
++  
++  browseros_metrics::BrowserOSMetrics::Log("llmchat.provider.changed");
+ 
+   if (owned_web_contents_) {
+     GURL current_url = owned_web_contents_->GetURL();
+@@ -365,6 +428,25 @@ std::u16string ThirdPartyLlmPanelCoordinator::GetProviderName(LlmProvider provid
    }
  }
  
@@ -197,7 +248,7 @@ index 21a1737b9bb83..5e396226413b7 100644
  void ThirdPartyLlmPanelCoordinator::OnOpenInNewTab() {
    if (!owned_web_contents_) {
      return;
-@@ -407,6 +484,80 @@ void ThirdPartyLlmPanelCoordinator::OnCopyContent() {
+@@ -407,6 +489,82 @@ void ThirdPartyLlmPanelCoordinator::OnCopyContent() {
        content::WebContents::AXTreeSnapshotPolicy::kSameOriginDirectDescendants);
  }
  
@@ -259,6 +310,8 @@ index 21a1737b9bb83..5e396226413b7 100644
 +  // Copy image to clipboard
 +  ui::ScopedClipboardWriter clipboard_writer(ui::ClipboardBuffer::kCopyPaste);
 +  clipboard_writer.WriteImage(image.AsBitmap());
++  
++  browseros_metrics::BrowserOSMetrics::Log("llmchat.screenshot.captured");
 +
 +  // Show success feedback
 +  if (copy_feedback_label_) {
@@ -278,7 +331,16 @@ index 21a1737b9bb83..5e396226413b7 100644
  void ThirdPartyLlmPanelCoordinator::OnAccessibilityTreeReceived(
      ui::AXTreeUpdate& update) {
    // Build a map of node IDs to node data for easy lookup
-@@ -494,6 +645,10 @@ void ThirdPartyLlmPanelCoordinator::OnViewIsDeleting(views::View* observed_view)
+@@ -446,6 +604,8 @@ void ThirdPartyLlmPanelCoordinator::OnAccessibilityTreeReceived(
+     ui::ScopedClipboardWriter clipboard_writer(ui::ClipboardBuffer::kCopyPaste);
+     clipboard_writer.WriteText(formatted_output);
+     
++    browseros_metrics::BrowserOSMetrics::Log("llmchat.content.copied");
++    
+     // Show feedback message
+     if (copy_feedback_label_) {
+       copy_feedback_label_->SetText(u"Content copied to clipboard");
+@@ -494,6 +654,10 @@ void ThirdPartyLlmPanelCoordinator::OnViewIsDeleting(views::View* observed_view)
      web_view_ = nullptr;
    }
  
@@ -289,7 +351,7 @@ index 21a1737b9bb83..5e396226413b7 100644
    // Remove observation for this view.
    view_observation_.RemoveObservation(observed_view);
  }
-@@ -627,6 +782,14 @@ content::WebContents* ThirdPartyLlmPanelCoordinator::AddNewContents(
+@@ -627,6 +791,14 @@ content::WebContents* ThirdPartyLlmPanelCoordinator::AddNewContents(
    return nullptr;
  }
  
@@ -304,7 +366,7 @@ index 21a1737b9bb83..5e396226413b7 100644
  void ThirdPartyLlmPanelCoordinator::CycleProvider() {
    // If a provider change is already in flight, ignore additional toggle
    // requests to prevent state races that could desynchronize the combobox and
-@@ -814,10 +977,71 @@ void ThirdPartyLlmPanelCoordinator::OnProfileWillBeDestroyed(Profile* profile) {
+@@ -814,10 +986,93 @@ void ThirdPartyLlmPanelCoordinator::OnProfileWillBeDestroyed(Profile* profile) {
    }
  }
  
@@ -350,6 +412,28 @@ index 21a1737b9bb83..5e396226413b7 100644
 +
 +void ThirdPartyLlmPanelCoordinator::ExecuteCommand(int command_id,
 +                                                   int event_flags) {
++  std::string event_name;
++  switch (command_id) {
++    case IDC_COPY_CONTENT:
++      event_name = "llmchat.menu.content.copied";
++      break;
++    case IDC_SCREENSHOT:
++      event_name = "llmchat.menu.screenshot.captured";
++      break;
++    case IDC_REFRESH:
++      event_name = "llmchat.menu.refresh";
++      break;
++    case IDC_OPEN_IN_NEW_TAB:
++      event_name = "llmchat.menu.newtab";
++      break;
++    case IDC_CLASH_OF_GPTS:
++      event_name = "llmchat.menu.hub";
++      break;
++  }
++  if (!event_name.empty()) {
++    browseros_metrics::BrowserOSMetrics::Log(event_name);
++  }
++  
 +  switch (command_id) {
 +    case IDC_COPY_CONTENT:
 +      OnCopyContent();
