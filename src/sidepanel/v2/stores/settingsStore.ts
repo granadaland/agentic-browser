@@ -5,7 +5,7 @@ import { z } from 'zod'
 // Settings schema
 const SettingsSchema = z.object({
   fontSize: z.number().min(13).max(21).default(14),  // Font size in pixels
-  theme: z.enum(['light', 'dark', 'gray']).default('dark'),  // App theme
+  theme: z.enum(['light', 'dark', 'gray']).default('light'),  // App theme
   autoScroll: z.boolean().default(true),  // Auto-scroll chat to bottom
   autoCollapseTools: z.boolean().default(false)  // Auto-collapse tool results
 })
@@ -24,7 +24,7 @@ interface SettingsActions {
 // Initial state
 const initialState: Settings = {
   fontSize: 14,
-  theme: 'dark',
+  theme: 'light',
   autoScroll: true,
   autoCollapseTools: false
 }
