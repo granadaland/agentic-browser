@@ -5,9 +5,9 @@ import { z } from 'zod'
 // Settings schema
 const SettingsSchema = z.object({
   fontSize: z.number().min(13).max(21).default(14),  // Font size in pixels
-  theme: z.enum(['light', 'dark', 'gray']).default('light'),  // App theme
+  theme: z.enum(['light', 'dark', 'gray']).default('dark'),  // App theme
   autoScroll: z.boolean().default(true),  // Auto-scroll chat to bottom
-  autoCollapseTools: z.boolean().default(true)  // Auto-collapse tool results
+  autoCollapseTools: z.boolean().default(false)  // Auto-collapse tool results
 })
 
 type Settings = z.infer<typeof SettingsSchema>
@@ -24,9 +24,9 @@ interface SettingsActions {
 // Initial state
 const initialState: Settings = {
   fontSize: 14,
-  theme: 'light',
+  theme: 'dark',
   autoScroll: true,
-  autoCollapseTools: true
+  autoCollapseTools: false
 }
 
 // Create the store with persistence
@@ -90,13 +90,13 @@ export const useSettingsStore = create<Settings & SettingsActions>()(
             autoScroll: true
           } as Settings
         }
-        // Migrate to v4 add autoCollapseTools default true
+        // Migrate to v4 add autoCollapseTools default false
         if (version === 3 && persisted) {
           return {
             fontSize: typeof persisted.fontSize === 'number' ? persisted.fontSize : 14,
             theme: persisted.theme === 'dark' || persisted.theme === 'gray' ? persisted.theme : 'light',
             autoScroll: typeof persisted.autoScroll === 'boolean' ? persisted.autoScroll : true,
-            autoCollapseTools: true
+            autoCollapseTools: false
           } as Settings
         }
         return persisted as Settings
