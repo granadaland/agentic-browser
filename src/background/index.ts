@@ -68,15 +68,7 @@ function debugLog(message: string, level: 'info' | 'error' | 'warning' = 'info')
   Logging.log('Background', message, level)
 }
 
-// Active tabs map (tabId -> information)
-const activeTabs = new Map<number, { url: string }>()
-
-// Navigation history tracking (tabId -> array of navigation entries)
-const tabHistory = new Map<number, Array<{
-  url: string
-  title: string
-  timestamp: number
-}>>()
+// Removed unused tab tracking maps (was not referenced)
 
 // Connected ports (name -> port)  
 const connectedPorts = new Map<string, chrome.runtime.Port>();
@@ -108,6 +100,8 @@ function initialize(): void {
   // Register port connection listener (port-based messaging only)
   chrome.runtime.onConnect.addListener(handlePortConnection)
   
+  // (moved PDF bridge to top-level for reliability)
+  
   // Register tab removal listener for glow cleanup
   chrome.tabs.onRemoved.addListener((tabId) => {
     glowService.handleTabClosed(tabId)
@@ -124,15 +118,13 @@ function initialize(): void {
         const raw = typeof change.newValue === 'string' ? JSON.parse(change.newValue) : change.newValue
         const config = BrowserOSProvidersConfigSchema.parse(raw)
         lastProvidersConfigJson = JSON.stringify(config)
-        try { langChainProvider.clearCache() } catch (_) {}
+        try { langChainProvider.clearCache() } catch (_) { /* cache clear may fail */ }
         broadcastProvidersConfig(config)
       } catch (_e) {
         // Ignore parse/validation errors
       }
     })
-  } catch (_e) {
-    // storage.onChanged may not be available in all contexts
-  }
+  } catch (_e) { /* storage.onChanged may not be available */ }
   
   
   // Register action click listener to toggle side panel
@@ -170,6 +162,8 @@ function initialize(): void {
   })
   
 }
+
+// NOTE: Removed PDF_PARSE_REQUEST runtime bridge in favor of direct side panel handler
 
 /**
  * Toggle the side panel for a specific tab with debouncing
@@ -330,6 +324,11 @@ function handlePortMessage(message: PortMessage, port: chrome.runtime.Port): voi
         handleGetTabsPort(payload as GetTabsMessage['payload'], port, id)
         break
 
+      case MessageType.PDF_PARSE_RESPONSE: {
+        // Forward PDF_PARSE_RESPONSE to whoever requested if needed (no-op here)
+        break
+      }
+
       case MessageType.GET_LLM_PROVIDERS:
         handleGetLlmProvidersPort(port, id)
         break
@@ -379,25 +378,14 @@ function handlePortMessage(message: PortMessage, port: chrome.runtime.Port): voi
  * Handles log messages
  * @param payload - Log message payload
  */
-function handleLogMessage(payload: LogMessage['payload']): void {
-  const { source, message, level = 'info' } = payload;
-  // Forward log message from other components
+function handleLogMessage(_payload: LogMessage['payload']): void {
+  // Intentionally ignored; logging is centralized via Logging utility
 }
 
 /**
  * Helper function to determine status from action string
  */
-function getStatusFromAction(action: string): 'thinking' | 'executing' | 'completed' | 'error' {
-  if (action.includes('Error') || action.includes('Failed')) {
-    return 'error'
-  } else if (action.includes('Thinking') || action.includes('Processing')) {
-    return 'thinking'
-  } else if (action.includes('Executing')) {
-    return 'executing'
-  } else {
-    return 'executing'
-  }
-}
+// Removed unused getStatusFromAction
 
 /**
  * Create EventBus, EventProcessor and UIEventHandler for streaming
@@ -555,6 +543,9 @@ async function handleExecuteQueryPort(
       },
       id
     })
+  } finally {
+    // Cleanup streaming listeners if created
+    try { if (cleanup) cleanup() } catch (_e) { /* ignore */ }
   }
 }
 
@@ -763,7 +754,7 @@ function handleSaveLlmProvidersPort(
         undefined,
         (success?: boolean) => {
           if (success) {
-            try { langChainProvider.clearCache() } catch (_) {}
+             try { langChainProvider.clearCache() } catch (_) { /* ignore */ }
             lastProvidersConfigJson = JSON.stringify(config)
             broadcastProvidersConfig(config)
           }
@@ -779,7 +770,7 @@ function handleSaveLlmProvidersPort(
       try {
         const key = BROWSEROS_PREFERENCE_KEYS.PROVIDERS
         chrome.storage?.local?.set({ [key]: JSON.stringify(config) }, () => {
-          try { langChainProvider.clearCache() } catch (_) {}
+           try { langChainProvider.clearCache() } catch (_) { /* ignore */ }
           lastProvidersConfigJson = JSON.stringify(config)
           broadcastProvidersConfig(config)
           port.postMessage({
@@ -988,10 +979,10 @@ async function pollProvidersOnce(): Promise<void> {
     const json = JSON.stringify(config)
     if (json !== lastProvidersConfigJson) {
       lastProvidersConfigJson = json
-      try { langChainProvider.clearCache() } catch (_) {}
+      try { langChainProvider.clearCache() } catch (_) { /* ignore */ }
       broadcastProvidersConfig(config)
     }
-  } catch (_e) {}
+  } catch (_e) { /* ignore polling errors */ }
 }
 
 function startProvidersPolling(): void {
