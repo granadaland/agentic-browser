@@ -5,6 +5,7 @@ import { EventBus, EventProcessor } from '@/lib/events'
 import { getLLM as getLLMFromProvider } from '@/lib/llm/LangChainProvider'
 import { BaseChatModel } from '@langchain/core/language_models/chat_models'
 import { TodoStore } from '@/lib/runtime/TodoStore'
+import { KlavisAPIManager } from '@/lib/mcp/KlavisAPIManager'
 
 /**
  * Configuration options for ExecutionContext
@@ -189,6 +190,14 @@ export class ExecutionContext {
    */
   public getCurrentTask(): string | null {
     return this._currentTask;
+  }
+
+  /**
+   * Get KlavisAPIManager singleton for MCP operations
+   * @returns The KlavisAPIManager instance
+   */
+  public getKlavisAPIManager(): KlavisAPIManager {
+    return KlavisAPIManager.getInstance()
   }
 }
  

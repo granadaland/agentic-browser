@@ -33,6 +33,7 @@ export const Header = memo(function Header({ onReset, showReset, isProcessing }:
   const [showMCPDropdown, setShowMCPDropdown] = useState(false)
   const [providersConfig, setProvidersConfig] = useState<BrowserOSProvidersConfig | null>(null)
   const [providersError, setProvidersError] = useState<string | null>(null)
+  const [mcpInstallStatus, setMcpInstallStatus] = useState<{ message: string; type: 'error' | 'success' } | null>(null)
   const { theme } = useSettingsStore()
   
   
@@ -102,6 +103,36 @@ export const Header = memo(function Header({ onReset, showReset, isProcessing }:
     // Initial fetch
     sendMessage(MessageType.GET_LLM_PROVIDERS as any, {})
     return () => removeMessageListener<any>(MessageType.WORKFLOW_STATUS, handler)
+  }, [])
+
+  // Listen for MCP server installation status
+  useEffect(() => {
+    const handler = (payload: any) => {
+      if (payload.status === 'success') {
+        // Get server name from config for display
+        const serverName = MCP_SERVERS.find(s => s.id === payload.serverId)?.name || payload.serverId
+        setMcpInstallStatus({
+          message: `${serverName} connected successfully!`,
+          type: 'success'
+        })
+      } else if (payload.status === 'auth_failed') {
+        setMcpInstallStatus({
+          message: payload.error || 'Authentication failed. Please try again.',
+          type: 'error'
+        })
+      } else if (payload.status === 'error') {
+        setMcpInstallStatus({
+          message: payload.error || 'Installation failed. Please try again.',
+          type: 'error'
+        })
+      }
+      
+      // Clear message after 5 seconds
+      setTimeout(() => setMcpInstallStatus(null), 5000)
+    }
+    
+    addMessageListener<any>(MessageType.MCP_SERVER_STATUS, handler)
+    return () => removeMessageListener<any>(MessageType.MCP_SERVER_STATUS, handler)
   }, [])
 
   return (
@@ -237,6 +268,22 @@ export const Header = memo(function Header({ onReset, showReset, isProcessing }:
           onClose={() => setShowSettings(false)}
         />
       </header>
+
+      {/* MCP Installation Status Message */}
+      {mcpInstallStatus && (
+        <div 
+          className={`
+            fixed top-14 left-1/2 transform -translate-x-1/2 z-50
+            px-4 py-2 rounded-lg shadow-lg
+            ${mcpInstallStatus.type === 'error' 
+              ? 'bg-red-500 text-white' 
+              : 'bg-green-500 text-white'}
+            animate-in fade-in slide-in-from-top-2 duration-300
+          `}
+        >
+          <p className="text-sm font-medium">{mcpInstallStatus.message}</p>
+        </div>
+      )}
 
       {/* Help Section */}
       <HelpSection 

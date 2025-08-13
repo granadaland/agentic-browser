@@ -11,6 +11,8 @@ import { UIEventHandler } from '@/lib/events/UIEventHandler'
 import posthog from 'posthog-js'
 import { isDevelopmentMode } from '@/config'
 import { GlowAnimationService } from '@/lib/services/GlowAnimationService'
+import { KlavisAPIManager } from '@/lib/mcp/KlavisAPIManager'
+import { MCP_SERVERS } from '@/config/mcpServers'
 
 /**
  * Background script for the ParallelManus extension
@@ -985,28 +987,75 @@ function handleGlowStopPort(
 /**
  * Handle MCP Install Server message
  */
-function handleMCPInstallServerPort(
+async function handleMCPInstallServerPort(
   payload: { serverId: string },
   port: chrome.runtime.Port,
   id?: string
-): void {
+): Promise<void> {
   const { serverId } = payload
   
   debugLog(`MCP server installation requested: ${serverId}`)
   
-  // TODO: Implement actual MCP server installation via Klavis API
-  // For now, simulate success after a delay
-  setTimeout(() => {
+  try {
+    // Get the server name from config
+    const serverConfig = MCP_SERVERS.find(s => s.id === serverId)
+    if (!serverConfig) {
+      throw new Error(`Unknown server ID: ${serverId}`)
+    }
+    
+    // Install the server using KlavisAPIManager
+    const manager = KlavisAPIManager.getInstance()
+    const result = await manager.installServer(serverConfig.name)
+    
+    // Check if authentication was successful
+    if (result.oauthUrl && !result.authSuccess) {
+      // OAuth was required but failed
+      port.postMessage({
+        type: MessageType.MCP_SERVER_STATUS,
+        payload: {
+          serverId,
+          status: 'auth_failed',
+          serverUrl: result.serverUrl,
+          instanceId: result.instanceId,
+          error: 'Authentication required but not completed. Please try installing again and complete the authentication.'
+        },
+        id
+      })
+      
+      debugLog(`MCP server installed but auth failed: ${serverId} (${result.instanceId})`)
+      return
+    }
+    
+    // Send success message
     port.postMessage({
       type: MessageType.MCP_SERVER_STATUS,
       payload: {
         serverId,
-        status: 'success'
+        status: 'success',
+        serverUrl: result.serverUrl,
+        instanceId: result.instanceId,
+        authenticated: result.authSuccess !== false
       },
       id
     })
-    debugLog(`MCP server installation simulated success: ${serverId}`)
-  }, 1000)
+    
+    debugLog(`MCP server installed successfully: ${serverId} (${result.instanceId}), authenticated: ${result.authSuccess !== false}`)
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Installation failed'
+    
+    // Send error message
+    port.postMessage({
+      type: MessageType.MCP_SERVER_STATUS,
+      payload: {
+        serverId,
+        status: 'error',
+        error: errorMessage
+      },
+      id
+    })
+    
+    debugLog(`MCP server installation failed: ${serverId} - ${errorMessage}`, 'error')
+  }
 }
 
 // Initialize the extension

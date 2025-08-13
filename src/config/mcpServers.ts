@@ -9,7 +9,7 @@ export const MCPServerConfigSchema = z.object({
 
 export type MCPServerConfig = z.infer<typeof MCPServerConfigSchema>
 
-// Available MCP servers
+// Available MCP servers - names must match Klavis API exactly
 export const MCP_SERVERS: MCPServerConfig[] = [
   {
     id: 'gmail',
@@ -25,5 +25,30 @@ export const MCP_SERVERS: MCPServerConfig[] = [
     id: 'github',
     name: 'GitHub',
     iconPath: 'assets/mcp_servers/github.svg',
+  },
+  {
+    id: 'slack',
+    name: 'Slack',
+    iconPath: 'assets/mcp_servers/slack.svg',
+  },
+  {
+    id: 'google-calendar',
+    name: 'Google Calendar',
+    iconPath: 'assets/mcp_servers/google-calendar.svg',
+  },
+  {
+    id: 'google-drive',
+    name: 'Google Drive',
+    iconPath: 'assets/mcp_servers/google-drive.svg',
+  },
+  {
+    id: 'notion',
+    name: 'Notion',
+    iconPath: 'assets/mcp_servers/notion.svg',
+  },
+  {
+    id: 'linear',
+    name: 'Linear',
+    iconPath: 'assets/mcp_servers/linear.svg',
   },
 ]
