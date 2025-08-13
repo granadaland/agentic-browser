@@ -5,11 +5,12 @@ import { MessageType } from '@/lib/types/messaging'
 import { useAnalytics } from '../hooks/useAnalytics'
 import { SettingsModal } from './SettingsModal'
 import { HelpSection } from './HelpSection'
-import { HelpIcon, SettingsIcon, PauseIcon, ResetIcon, ChevronDownIcon } from './ui/Icons'
+import { HelpIcon, SettingsIcon, PauseIcon, ResetIcon, ChevronDownIcon, PlusIcon } from './ui/Icons'
 import { useSettingsStore } from '@/sidepanel/v2/stores/settingsStore'
 import { useEffect } from 'react'
 import { z } from 'zod'
 import { BrowserOSProvidersConfig, BrowserOSProvidersConfigSchema } from '@/lib/llm/settings/types'
+import { MCP_SERVERS, type MCPServerConfig } from '@/config/mcpServers'
 
 const GITHUB_REPO_URL: string = 'https://github.com/browseros-ai/BrowserOS'
 
@@ -29,6 +30,7 @@ export const Header = memo(function Header({ onReset, showReset, isProcessing }:
   const { trackClick } = useAnalytics()
   const [showSettings, setShowSettings] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
+  const [showMCPDropdown, setShowMCPDropdown] = useState(false)
   const [providersConfig, setProvidersConfig] = useState<BrowserOSProvidersConfig | null>(null)
   const [providersError, setProvidersError] = useState<string | null>(null)
   const { theme } = useSettingsStore()
@@ -62,6 +64,27 @@ export const Header = memo(function Header({ onReset, showReset, isProcessing }:
     trackClick('open_help')
     setShowHelp(true)
   }
+
+  const handleMCPInstall = (serverId: string) => {
+    trackClick(`mcp_install_${serverId}`)
+    setShowMCPDropdown(false)
+    sendMessage(MessageType.MCP_INSTALL_SERVER, { serverId })
+  }
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    if (!showMCPDropdown) return
+    
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+      if (!target.closest('.mcp-dropdown-container')) {
+        setShowMCPDropdown(false)
+      }
+    }
+    
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [showMCPDropdown])
 
   // Load providers config for default provider dropdown
   useEffect(() => {
@@ -146,6 +169,40 @@ export const Header = memo(function Header({ onReset, showReset, isProcessing }:
           >
             <SettingsIcon />
           </Button>
+
+          {/* MCP Integrations dropdown */}
+          <div className="relative mcp-dropdown-container">
+            <Button
+              onClick={() => setShowMCPDropdown(!showMCPDropdown)}
+              variant="ghost"
+              size="sm"
+              className="h-9 w-9 p-0 rounded-xl hover:bg-brand/10 hover:text-brand transition-all duration-300"
+              aria-label="Connect integrations"
+            >
+              <PlusIcon />
+            </Button>
+            
+            {showMCPDropdown && (
+              <div className="absolute right-0 mt-2 w-48 rounded-lg shadow-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 z-50">
+                <div className="py-1">
+                  {MCP_SERVERS.map((server) => (
+                    <button
+                      key={server.id}
+                      onClick={() => handleMCPInstall(server.id)}
+                      className="flex items-center gap-2 w-full px-4 py-2 text-sm text-left hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                    >
+                      <img 
+                        src={chrome.runtime.getURL(server.iconPath)} 
+                        alt=""
+                        className="w-4 h-4"
+                      />
+                      <span>{server.name}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
 
           {isProcessing && (
             <Button

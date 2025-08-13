@@ -354,6 +354,10 @@ function handlePortMessage(message: PortMessage, port: chrome.runtime.Port): voi
       case MessageType.GLOW_STOP:
         handleGlowStopPort(payload as { tabId: number }, port, id)
         break
+      
+      case MessageType.MCP_INSTALL_SERVER:
+        handleMCPInstallServerPort(payload as { serverId: string }, port, id)
+        break
         
       default:
         // Unknown port message type
@@ -976,6 +980,33 @@ function handleGlowStopPort(
         id
       })
     })
+}
+
+/**
+ * Handle MCP Install Server message
+ */
+function handleMCPInstallServerPort(
+  payload: { serverId: string },
+  port: chrome.runtime.Port,
+  id?: string
+): void {
+  const { serverId } = payload
+  
+  debugLog(`MCP server installation requested: ${serverId}`)
+  
+  // TODO: Implement actual MCP server installation via Klavis API
+  // For now, simulate success after a delay
+  setTimeout(() => {
+    port.postMessage({
+      type: MessageType.MCP_SERVER_STATUS,
+      payload: {
+        serverId,
+        status: 'success'
+      },
+      id
+    })
+    debugLog(`MCP server installation simulated success: ${serverId}`)
+  }, 1000)
 }
 
 // Initialize the extension
