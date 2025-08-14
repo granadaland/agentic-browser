@@ -29,7 +29,7 @@ export class ChatAgent {
   // Constants
   private static readonly MAX_TURNS = 20
   private static readonly TOOLS = ['screenshot_tool', 'scroll_tool', 'refresh_browser_state_tool']
-  private static readonly DEFAULT_CHARS_PER_TAB = 6000
+  private static readonly INCLUDE_LINKS = true
   
   private readonly executionContext: ExecutionContext
   private readonly toolManager: ToolManager
@@ -129,20 +129,42 @@ export class ChatAgent {
     const tabs = await Promise.all(
       pages.map(async page => {
         const textSnapshot = await page.getTextSnapshot()
-        const text = textSnapshot.sections?.map((section: any) => 
-          section.content || section.text || ''
-        ).join('\n') || 'No content found'
-        
-        // Simple truncation for initial implementation
-        const truncatedText = text.length > ChatAgent.DEFAULT_CHARS_PER_TAB 
-          ? text.substring(0, ChatAgent.DEFAULT_CHARS_PER_TAB) 
-          : text
-        
+        const textSections = (textSnapshot.sections || [])
+          .map((section: any) => {
+            if (section?.textResult?.text && typeof section.textResult.text === 'string') return section.textResult.text
+            if (typeof section.text === 'string') return section.text
+            if (typeof section.content === 'string') return section.content
+            return ''
+          })
+          .map((s: string) => s.trim())
+          .filter((s: string) => s.length > 0)
+        const text = textSections.join('\n') || 'No content found'
+
+        let linksBlock = ''
+        if (ChatAgent.INCLUDE_LINKS) {
+          const linksSnapshot = await page.getLinksSnapshot()
+          const linkLines = (linksSnapshot.sections || [])
+            .flatMap((section: any) => Array.isArray(section?.linksResult?.links) ? section.linksResult.links : [])
+            .map((link: any) => {
+              const url = link?.href || link?.url || ''
+              const label = typeof link?.text === 'string' ? link.text.trim() : ''
+              const parts = [label, url].filter((p: string) => p && p.length > 0)
+              return parts.join(' - ')
+            })
+            .map((s: string) => s.trim())
+            .filter((s: string) => s.length > 0)
+          if (linkLines.length > 0) {
+            linksBlock = ['Links:', linkLines.join('\n')].join('\n')
+          }
+        }
+
+        const combined = [text, linksBlock].filter(Boolean).join('\n\n')
+
         return {
           id: page.tabId,
           url: page.url(),
           title: await page.title(),
-          text: truncatedText
+          text: combined
         }
       })
     )
