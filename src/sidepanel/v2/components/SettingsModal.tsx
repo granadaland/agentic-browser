@@ -20,7 +20,7 @@ const SettingsModalPropsSchema = z.object({
 type SettingsModalProps = z.infer<typeof SettingsModalPropsSchema>
 
 export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
-  const { fontSize, theme, autoScroll, autoCollapseTools, setFontSize, setTheme, setAutoScroll, setAutoCollapseTools } = useSettingsStore()
+  const { fontSize, theme, autoScroll, autoCollapseTools, chatMode, setFontSize, setTheme, setAutoScroll, setAutoCollapseTools, setChatMode } = useSettingsStore()
   const [glowEnabled, setGlowEnabled] = useState<boolean>(true)
   const [agentVersion, setAgentVersion] = useState<string>('1.0.0')
   const { sendMessage } = useSidePanelPortMessaging()
@@ -213,6 +213,23 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               aria-label={`${autoCollapseTools ? 'Disable' : 'Enable'} auto-collapse for tool results`}
             >
               {autoCollapseTools ? 'On' : 'Off'}
+            </Button>
+          </div>
+
+          {/* Chat Mode */}
+          <div className="flex items-center justify-between px-4 py-2 rounded-xl border border-border/50 bg-card">
+            <div>
+              <p className="text-xs font-medium text-foreground">Chat Mode (Q&A)</p>
+              <p className="text-xs text-muted-foreground">Fast responses for page questions</p>
+            </div>
+            <Button
+              onClick={() => setChatMode(!chatMode)}
+              variant="ghost"
+              size="sm"
+              className={`h-7 px-2 text-xs ${chatMode ? 'text-foreground' : 'text-muted-foreground'}`}
+              aria-label={`${chatMode ? 'Disable' : 'Enable'} chat mode`}
+            >
+              {chatMode ? 'On' : 'Off'}
             </Button>
           </div>
           </div>

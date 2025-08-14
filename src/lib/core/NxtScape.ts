@@ -6,6 +6,7 @@ import { ExecutionContext } from "@/lib/runtime/ExecutionContext";
 import { MessageManager } from "@/lib/runtime/MessageManager";
 import { profileStart, profileEnd, profileAsync } from "@/lib/utils/profiler";
 import { BrowserAgent } from "@/lib/agent/BrowserAgent";
+import { ChatAgent } from "@/lib/agent/ChatAgent";
 import { PocAgent } from "@/lib/agent/PocAgent";
 import { isPocMode } from "@/config";
 import { langChainProvider } from "@/lib/llm/LangChainProvider";
@@ -58,6 +59,7 @@ export class NxtScape {
   private executionContext!: ExecutionContext; // Will be initialized in initialize()
   private messageManager!: MessageManager; // Will be initialized in initialize()
   private browserAgent: BrowserAgent | PocAgent | null = null; // The browser agent for task execution
+  private chatAgent: ChatAgent | null = null; // The chat agent for Q&A mode
 
   private currentQuery: string | null = null; // Track current query for better cancellation messages
 
@@ -117,6 +119,10 @@ export class NxtScape {
         } else {
           this.browserAgent = new BrowserAgent(this.executionContext);
         }
+        
+        // Initialize ChatAgent for Q&A mode
+        this.chatAgent = new ChatAgent(this.executionContext);
+        Logging.log("NxtScape", "ChatAgent initialized for Q&A mode");
 
         Logging.log(
           "NxtScape",
@@ -134,6 +140,7 @@ export class NxtScape {
         // Clean up partial initialization
         this.browserContext = null as any;
         this.browserAgent = null;
+        this.chatAgent = null;
 
         throw new Error(`NxtScape initialization failed: ${errorMessage}`);
       }
@@ -145,7 +152,7 @@ export class NxtScape {
    * @returns True if initialized, false otherwise
    */
   public isInitialized(): boolean {
-    return this.browserContext !== null && this.browserAgent !== null;
+    return this.browserContext !== null && this.browserAgent !== null && this.chatAgent !== null;
   }
 
   /**
@@ -214,13 +221,21 @@ export class NxtScape {
 
 
     try {
-      // Check that browser agent is initialized
-      if (!this.browserAgent) {
-        throw new Error("BrowserAgent not initialized");
+      // Check if chat mode is enabled
+      if (this.executionContext.isChatMode()) {
+        // Use ChatAgent for Q&A mode
+        if (!this.chatAgent) {
+          throw new Error("ChatAgent not initialized");
+        }
+        Logging.log("NxtScape", "Executing in Chat Mode (Q&A)");
+        await this.chatAgent.execute(query);
+      } else {
+        // Use BrowserAgent for automation tasks
+        if (!this.browserAgent) {
+          throw new Error("BrowserAgent not initialized");
+        }
+        await this.browserAgent.execute(query);
       }
-
-      // Execute the browser agent with the task
-      await this.browserAgent.execute(query);
       
       // BrowserAgent handles all logging and result management internally
       Logging.log("NxtScape", "Agent execution completed");
@@ -301,6 +316,25 @@ export class NxtScape {
       // false = not user-initiated, this is internal cleanup
       this.executionContext.cancelExecution(false);
     }
+  }
+
+  /**
+   * Enable or disable chat mode (Q&A mode)
+   * @param enabled - Whether to enable chat mode
+   */
+  public setChatMode(enabled: boolean): void {
+    if (this.executionContext) {
+      this.executionContext.setChatMode(enabled);
+      Logging.log("NxtScape", `Chat mode ${enabled ? 'enabled' : 'disabled'}`);
+    }
+  }
+
+  /**
+   * Check if chat mode is enabled
+   * @returns Whether chat mode is enabled
+   */
+  public isChatMode(): boolean {
+    return this.executionContext ? this.executionContext.isChatMode() : false;
   }
 
   /**

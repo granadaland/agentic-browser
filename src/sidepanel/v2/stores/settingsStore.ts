@@ -7,7 +7,8 @@ const SettingsSchema = z.object({
   fontSize: z.number().min(13).max(21).default(14),  // Font size in pixels
   theme: z.enum(['light', 'dark', 'gray']).default('light'),  // App theme
   autoScroll: z.boolean().default(true),  // Auto-scroll chat to bottom
-  autoCollapseTools: z.boolean().default(false)  // Auto-collapse tool results
+  autoCollapseTools: z.boolean().default(false),  // Auto-collapse tool results
+  chatMode: z.boolean().default(false)  // Chat mode for Q&A (uses ChatAgent instead of BrowserAgent)
 })
 
 type Settings = z.infer<typeof SettingsSchema>
@@ -18,6 +19,7 @@ interface SettingsActions {
   setTheme: (theme: 'light' | 'dark' | 'gray') => void
   setAutoScroll: (enabled: boolean) => void
   setAutoCollapseTools: (enabled: boolean) => void
+  setChatMode: (enabled: boolean) => void
   resetSettings: () => void
 }
 
@@ -26,7 +28,8 @@ const initialState: Settings = {
   fontSize: 14,
   theme: 'light',
   autoScroll: true,
-  autoCollapseTools: false
+  autoCollapseTools: false,
+  chatMode: false
 }
 
 // Create the store with persistence
@@ -61,6 +64,10 @@ export const useSettingsStore = create<Settings & SettingsActions>()(
         set({ autoCollapseTools: enabled })
       },
       
+      setChatMode: (enabled) => {
+        set({ chatMode: enabled })
+      },
+      
       resetSettings: () => {
         set(initialState)
         // Reset document styles
@@ -71,7 +78,7 @@ export const useSettingsStore = create<Settings & SettingsActions>()(
     }),
     {
       name: 'nxtscape-settings',  // localStorage key
-      version: 4,
+      version: 5,
       migrate: (persisted: any, version: number) => {
         // Migrate from v1 isDarkMode -> theme
         if (version === 1 && persisted) {
@@ -96,7 +103,18 @@ export const useSettingsStore = create<Settings & SettingsActions>()(
             fontSize: typeof persisted.fontSize === 'number' ? persisted.fontSize : 14,
             theme: persisted.theme === 'dark' || persisted.theme === 'gray' ? persisted.theme : 'light',
             autoScroll: typeof persisted.autoScroll === 'boolean' ? persisted.autoScroll : true,
-            autoCollapseTools: false
+            autoCollapseTools: false,
+            chatMode: false
+          } as Settings
+        }
+        // Migrate to v5 add chatMode default false
+        if (version === 4 && persisted) {
+          return {
+            fontSize: typeof persisted.fontSize === 'number' ? persisted.fontSize : 14,
+            theme: persisted.theme === 'dark' || persisted.theme === 'gray' ? persisted.theme : 'light',
+            autoScroll: typeof persisted.autoScroll === 'boolean' ? persisted.autoScroll : true,
+            autoCollapseTools: typeof persisted.autoCollapseTools === 'boolean' ? persisted.autoCollapseTools : false,
+            chatMode: false
           } as Settings
         }
         return persisted as Settings

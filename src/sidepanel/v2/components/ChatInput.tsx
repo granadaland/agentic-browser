@@ -4,6 +4,7 @@ import { Button } from '@/sidepanel/components/ui/button'
 import { LazyTabSelector } from './LazyTabSelector'
 import { useTabsStore, BrowserTab } from '@/sidepanel/store/tabsStore'
 import { useChatStore } from '../stores/chatStore'
+import { useSettingsStore } from '../stores/settingsStore'
 import { useKeyboardShortcuts, useAutoResize } from '../hooks/useKeyboardShortcuts'
 import { useSidePanelPortMessaging } from '@/sidepanel/hooks'
 import { MessageType } from '@/lib/types/messaging'
@@ -32,6 +33,7 @@ export function ChatInput({ isConnected, isProcessing }: ChatInputProps) {
   
   const { addMessage, setProcessing, selectedTabIds, clearSelectedTabs } = useChatStore()
   const messages = useChatStore(state => state.messages)
+  const { chatMode } = useSettingsStore()
   const { sendMessage, addMessageListener, removeMessageListener, connected: portConnected } = useSidePanelPortMessaging()
   const { getContextTabs, toggleTabSelection } = useTabsStore()
   // Provider health: only consider UI connected if current default provider is usable
@@ -119,7 +121,8 @@ export function ChatInput({ isConnected, isProcessing }: ChatInputProps) {
     sendMessage(MessageType.EXECUTE_QUERY, {
       query: query.trim(),
       tabIds,
-      source: 'sidepanel'
+      source: 'sidepanel',
+      chatMode  // Include chat mode setting
     })
     
     // Clear input and selected tabs

@@ -482,7 +482,7 @@ function createStreamingComponents(): { eventBus: EventBus; eventProcessor: Even
  * @param id - Message ID for response tracking
  */
 async function handleExecuteQueryPort(
-  payload: { query: string; tabIds?: number[]; source?: string },
+  payload: { query: string; tabIds?: number[]; source?: string; chatMode?: boolean },
   port: chrome.runtime.Port,
   id?: string
 ): Promise<void> {
@@ -500,6 +500,11 @@ async function handleExecuteQueryPort(
     // Initialize NxtScape if not already done
     await ensureNxtScapeInitialized()
     
+    // Set chat mode if specified
+    if (payload.chatMode !== undefined) {
+      nxtScape.setChatMode(payload.chatMode)
+      debugLog(`Chat mode ${payload.chatMode ? 'enabled' : 'disabled'} for this query`)
+    }
     
     // Create streaming components
     const { eventBus, eventProcessor, cleanup: cleanupFn } = createStreamingComponents()
