@@ -6,7 +6,7 @@ import { createScrollTool } from '@/lib/tools/navigation/ScrollTool'
 import { createRefreshStateTool } from '@/lib/tools/navigation/RefreshStateTool'
 import { generateChatSystemPrompt } from './ChatAgent.prompt'
 import { AIMessage, AIMessageChunk } from '@langchain/core/messages'
-import { EventProcessor } from '@/lib/events/EventProcessor'
+import { PubSub } from '@/lib/pubsub'
 import { AbortError } from '@/lib/utils/Abortable'
 import { Logging } from '@/lib/utils/Logging'
 
@@ -45,8 +45,8 @@ export class ChatAgent {
     return this.executionContext.messageManager
   }
 
-  private get eventEmitter(): EventProcessor {
-    return this.executionContext.getEventProcessor()
+  private get pubsub(): PubSub {
+    return this.executionContext.getPubSub()
   }
 
   /**
@@ -77,9 +77,7 @@ export class ChatAgent {
     try {
       this._checkAborted()
       
-      // Configure EventProcessor for direct streaming (no thinking UI)
-      this.eventEmitter.setAgentName('ChatAgent')
-      this.eventEmitter.setShowThinking(false)
+      // ChatAgent uses direct streaming without thinking UI
       
       // Extract page context once
       const pageContext = await this._extractPageContext()
@@ -98,11 +96,11 @@ export class ChatAgent {
     } catch (error) {
       if (error instanceof AbortError) {
         Logging.log('ChatAgent', 'Execution aborted by user')
-        this.eventEmitter.info('Execution cancelled')
+        this.pubsub.publishMessage(PubSub.createMessage('Execution cancelled', 'system'))
       } else {
         const errorMessage = error instanceof Error ? error.message : String(error)
         Logging.log('ChatAgent', `Execution failed: ${errorMessage}`, 'error')
-        this.eventEmitter.error(errorMessage)
+        this.pubsub.publishMessage(PubSub.createMessage(`Error: ${errorMessage}`, 'system'))
       }
       throw error
     }
@@ -206,8 +204,8 @@ export class ChatAgent {
     // Get current messages
     const messages = this.messageManager.getMessages()
     
-    // Start streaming (creates message segment for direct streaming)
-    this.eventEmitter.startThinking()
+    // Start streaming message
+    const streamMsgId = PubSub.generateId('chat_stream')
     
     // Stream the response
     const stream = await llmToUse.stream(messages)
@@ -224,15 +222,16 @@ export class ChatAgent {
       // Direct streaming to UI
       if (chunk.content) {
         fullContent += chunk.content
-        this.eventEmitter.streamThoughtDuringThinking(chunk.content as string)
+        // Stream chunk to UI
+        this.pubsub.publishMessage(PubSub.createMessageWithId(streamMsgId, fullContent, 'assistant'))
       }
     }
     
     // Accumulate final message for history
     const finalMessage = this._accumulateMessage(chunks)
     
-    // Finish the streaming message
-    this.eventEmitter.finishThinking(fullContent)
+    // Final message with complete content
+    this.pubsub.publishMessage(PubSub.createMessageWithId(streamMsgId, fullContent, 'assistant'))
     
     // Add to message history
     this.messageManager.addAI(finalMessage.content as string || '')

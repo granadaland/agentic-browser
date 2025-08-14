@@ -156,7 +156,7 @@ export class NxtScape {
     }
 
     const parsedOptions = RunOptionsSchema.parse(options);
-    const { query, tabIds } = parsedOptions;
+    const { query, tabIds, mode } = parsedOptions;
 
     const runStartTime = Date.now();
 
