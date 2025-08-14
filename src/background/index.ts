@@ -9,6 +9,8 @@ import { NxtScape } from '@/lib/core/NxtScape'
 import posthog from 'posthog-js'
 import { isDevelopmentMode } from '@/config'
 import { GlowAnimationService } from '@/lib/services/GlowAnimationService'
+import { KlavisAPIManager } from '@/lib/mcp/KlavisAPIManager'
+import { MCP_SERVERS } from '@/config/mcpServers'
 import { PubSub, PubSubEvent } from '@/lib/pubsub'
 
 /**
@@ -378,6 +380,10 @@ function handlePortMessage(message: PortMessage, port: chrome.runtime.Port): voi
       case MessageType.GLOW_STOP:
         handleGlowStopPort(payload as { tabId: number }, port, id)
         break
+      
+      case MessageType.MCP_INSTALL_SERVER:
+        handleMCPInstallServerPort(payload as { serverId: string }, port, id)
+        break
         
       default:
         // Unknown port message type
@@ -431,7 +437,7 @@ function getStatusFromAction(action: string): 'thinking' | 'executing' | 'comple
  * @param id - Message ID for response tracking
  */
 async function handleExecuteQueryPort(
-  payload: { query: string; tabIds?: number[]; source?: string },
+  payload: { query: string; tabIds?: number[]; source?: string; chatMode?: boolean },
   port: chrome.runtime.Port,
   id?: string
 ): Promise<void> {
@@ -447,6 +453,11 @@ async function handleExecuteQueryPort(
     // Initialize NxtScape if not already done
     await ensureNxtScapeInitialized()
     
+    // Note: We now pass mode explicitly to run(), but keep setChatMode for backward compatibility
+    if (payload.chatMode !== undefined) {
+      nxtScape.setChatMode(payload.chatMode)  // Keep for any ExecutionContext dependencies
+      debugLog(`Mode set to ${payload.chatMode ? 'chat' : 'browse'} for this query`)
+    }
     // Clear previous messages when starting new execution
     pubsub.clearBuffer()
     
@@ -455,7 +466,8 @@ async function handleExecuteQueryPort(
     
     const result = await nxtScape.run({
       query: payload.query,
-      tabIds: payload.tabIds
+      mode: payload.chatMode ? 'chat' : 'browse',  // Convert boolean to explicit mode
+      tabIds: payload.tabIds,
     })
     
     // NxtScape execution completed
@@ -925,6 +937,80 @@ function handleGlowStopPort(
         id
       })
     })
+}
+
+/**
+ * Handle MCP Install Server message
+ */
+async function handleMCPInstallServerPort(
+  payload: { serverId: string },
+  port: chrome.runtime.Port,
+  id?: string
+): Promise<void> {
+  const { serverId } = payload
+  
+  debugLog(`MCP server installation requested: ${serverId}`)
+  
+  try {
+    // Get the server name from config
+    const serverConfig = MCP_SERVERS.find(s => s.id === serverId)
+    if (!serverConfig) {
+      throw new Error(`Unknown server ID: ${serverId}`)
+    }
+    
+    // Install the server using KlavisAPIManager
+    const manager = KlavisAPIManager.getInstance()
+    const result = await manager.installServer(serverConfig.name)
+    
+    // Check if authentication was successful
+    if (result.oauthUrl && !result.authSuccess) {
+      // OAuth was required but failed
+      port.postMessage({
+        type: MessageType.MCP_SERVER_STATUS,
+        payload: {
+          serverId,
+          status: 'auth_failed',
+          serverUrl: result.serverUrl,
+          instanceId: result.instanceId,
+          error: 'Authentication required but not completed. Please try installing again and complete the authentication.'
+        },
+        id
+      })
+      
+      debugLog(`MCP server installed but auth failed: ${serverId} (${result.instanceId})`)
+      return
+    }
+    
+    // Send success message
+    port.postMessage({
+      type: MessageType.MCP_SERVER_STATUS,
+      payload: {
+        serverId,
+        status: 'success',
+        serverUrl: result.serverUrl,
+        instanceId: result.instanceId,
+        authenticated: result.authSuccess !== false
+      },
+      id
+    })
+    
+    debugLog(`MCP server installed successfully: ${serverId} (${result.instanceId}), authenticated: ${result.authSuccess !== false}`)
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Installation failed'
+    
+    // Send error message
+    port.postMessage({
+      type: MessageType.MCP_SERVER_STATUS,
+      payload: {
+        serverId,
+        status: 'error',
+        error: errorMessage
+      },
+      id
+    })
+    
+    debugLog(`MCP server installation failed: ${serverId} - ${errorMessage}`, 'error')
+  }
 }
 
 // Initialize the extension

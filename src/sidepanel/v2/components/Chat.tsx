@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { Header } from './Header'
 import { MessageList } from './MessageList'
 import { ChatInput } from './ChatInput'
@@ -7,6 +7,8 @@ import { useChatStore } from '../stores/chatStore'
 import { ErrorBoundary } from './ErrorBoundary'
 import { useAnalytics } from '../hooks/useAnalytics'
 import { ArrowDownIcon } from './ui/Icons'
+import { useSidePanelPortMessaging } from '@/sidepanel/hooks'
+import { MessageType } from '@/lib/types/messaging'
 
 interface ChatProps {
   isConnected: boolean
@@ -17,11 +19,12 @@ interface ChatProps {
  * Orchestrates the layout and manages the overall chat interface
  */
 export function Chat({ isConnected }: ChatProps) {
-  const { messages, isProcessing, reset } = useChatStore()
+  const { messages, isProcessing, reset, addMessage } = useChatStore()
   const [isUserScrolling, setIsUserScrolling] = useState(false)
   const [showSelectTabsButton, setShowSelectTabsButton] = useState(false)
   const messageListRef = useRef<HTMLDivElement>(null)
   const { trackFeature } = useAnalytics()
+  const { addMessageListener, removeMessageListener } = useSidePanelPortMessaging()
 
   const handleScrollToBottom = () => {
     if (messageListRef.current) {
@@ -36,6 +39,23 @@ export function Chat({ isConnected }: ChatProps) {
   const toggleSelectTabsButton = () => {
     setShowSelectTabsButton(prev => !prev)
   }
+
+  // Listen for MCP server status
+  useEffect(() => {
+    const handleMCPStatus = (payload: any) => {
+      const status = payload.status === 'success' 
+        ? `✓ Connected to ${payload.serverId}`
+        : `Failed to connect to ${payload.serverId}: ${payload.error || 'Unknown error'}`
+      
+      addMessage({
+        role: 'system',
+        content: status
+      })
+    }
+    
+    addMessageListener(MessageType.MCP_SERVER_STATUS, handleMCPStatus)
+    return () => removeMessageListener(MessageType.MCP_SERVER_STATUS, handleMCPStatus)
+  }, [addMessageListener, removeMessageListener, addMessage])
 
   return (
     <div className="flex flex-col h-full bg-background-alt">

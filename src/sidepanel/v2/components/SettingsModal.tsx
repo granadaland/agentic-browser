@@ -20,7 +20,7 @@ const SettingsModalPropsSchema = z.object({
 type SettingsModalProps = z.infer<typeof SettingsModalPropsSchema>
 
 export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
-  const { fontSize, theme, autoScroll, autoCollapseTools, setFontSize, setTheme, setAutoScroll, setAutoCollapseTools } = useSettingsStore()
+  const { fontSize, theme, autoScroll, autoCollapseTools, chatMode, setFontSize, setTheme, setAutoScroll, setAutoCollapseTools, setChatMode } = useSettingsStore()
   const [glowEnabled, setGlowEnabled] = useState<boolean>(true)
   const [agentVersion, setAgentVersion] = useState<string>('1.0.0')
   const { sendMessage } = useSidePanelPortMessaging()
@@ -215,6 +215,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               {autoCollapseTools ? 'On' : 'Off'}
             </Button>
           </div>
+
+          
           </div>
 
           

@@ -4,6 +4,7 @@ import { MessageManager } from '@/lib/runtime/MessageManager'
 import { getLLM as getLLMFromProvider } from '@/lib/llm/LangChainProvider'
 import { BaseChatModel } from '@langchain/core/language_models/chat_models'
 import { TodoStore } from '@/lib/runtime/TodoStore'
+import { KlavisAPIManager } from '@/lib/mcp/KlavisAPIManager'
 import { PubSub } from '@/lib/pubsub'
 
 /**
@@ -32,6 +33,7 @@ export class ExecutionContext {
   private _isExecuting: boolean = false  // Track actual execution state
   private _lockedTabId: number | null = null  // Tab that execution is locked to
   private _currentTask: string | null = null  // Current user task being executed
+  private _chatMode: boolean = false  // Whether ChatAgent mode is enabled
 
   constructor(options: ExecutionContextOptions) {
     // Validate options at runtime
@@ -44,6 +46,20 @@ export class ExecutionContext {
     this.debugMode = validatedOptions.debugMode || false
     this.todoStore = validatedOptions.todoStore || new TodoStore()
     this.userInitiatedCancel = false
+  }
+
+  /**
+   * Enable or disable ChatAgent mode
+   */
+  public setChatMode(enabled: boolean): void {
+    this._chatMode = enabled
+  }
+
+  /**
+   * Check if ChatAgent mode is enabled
+   */
+  public isChatMode(): boolean {
+    return this._chatMode
   }
   
   public setSelectedTabIds(tabIds: number[]): void {
@@ -152,6 +168,14 @@ export class ExecutionContext {
    */
   public getCurrentTask(): string | null {
     return this._currentTask;
+  }
+
+  /**
+   * Get KlavisAPIManager singleton for MCP operations
+   * @returns The KlavisAPIManager instance
+   */
+  public getKlavisAPIManager(): KlavisAPIManager {
+    return KlavisAPIManager.getInstance()
   }
 }
  

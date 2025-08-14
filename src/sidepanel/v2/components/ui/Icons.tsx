@@ -2,6 +2,23 @@
 import React, { useState, useEffect, useRef } from 'react'
 
 
+export const PlusIcon = () => (
+  <svg
+    className="w-4 h-4"
+    fill="none"
+    stroke="currentColor"
+    viewBox="0 0 24 24"
+    aria-hidden="true"
+  >
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={2}
+      d="M12 5v14m7-7H5"
+    />
+  </svg>
+)
+
 export const ArrowDownIcon = () => (
   <svg
     className="w-5 h-5"
