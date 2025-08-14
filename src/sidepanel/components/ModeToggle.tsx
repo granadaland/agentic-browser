@@ -1,5 +1,5 @@
 import React from 'react'
-import { useSettingsStore } from '@/sidepanel/v2/stores/settingsStore'
+import { useSettingsStore } from '@/sidepanel/stores/settingsStore'
 
 /**
  * ModeToggle - Toggle between Chat Mode (Q&A) and Browse Mode (automation)

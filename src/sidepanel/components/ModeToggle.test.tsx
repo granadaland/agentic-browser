@@ -2,10 +2,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import React from 'react'
 import { ModeToggle } from './ModeToggle'
-import { useSettingsStore } from '@/sidepanel/v2/stores/settingsStore'
+import { useSettingsStore } from '@/sidepanel/stores/settingsStore'
 
 // Mock the settings store
-vi.mock('@/sidepanel/v2/stores/settingsStore', () => ({
+vi.mock('@/sidepanel/stores/settingsStore', () => ({
   useSettingsStore: vi.fn()
 }))
 
