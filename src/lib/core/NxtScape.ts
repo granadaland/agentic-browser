@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { EventBus, EventProcessor } from "@/lib/events";
 import { Logging } from "@/lib/utils/Logging";
 import { BrowserContext } from "@/lib/browser/BrowserContext";
 import { ExecutionContext } from "@/lib/runtime/ExecutionContext";
@@ -7,8 +6,6 @@ import { MessageManager } from "@/lib/runtime/MessageManager";
 import { profileStart, profileEnd, profileAsync } from "@/lib/utils/profiler";
 import { BrowserAgent } from "@/lib/agent/BrowserAgent";
 import { ChatAgent } from "@/lib/agent/ChatAgent";
-import { PocAgent } from "@/lib/agent/PocAgent";
-import { isPocMode } from "@/config";
 import { langChainProvider } from "@/lib/llm/LangChainProvider";
 
 /**
@@ -31,8 +28,6 @@ export const RunOptionsSchema = z.object({
   query: z.string(), // Natural language user query
   mode: z.enum(['chat', 'browse']), // Execution mode: 'chat' for Q&A, 'browse' for automation
   tabIds: z.array(z.number()).optional(), // Optional array of tab IDs for context (e.g., which tabs to summarize) - NOT for agent operation
-  eventBus: z.instanceof(EventBus), // EventBus for streaming updates
-  eventProcessor: z.instanceof(EventProcessor), // EventProcessor for high-level event handling
 });
 
 export type RunOptions = z.infer<typeof RunOptionsSchema>;
@@ -59,7 +54,7 @@ export class NxtScape {
   private browserContext: BrowserContext;
   private executionContext!: ExecutionContext; // Will be initialized in initialize()
   private messageManager!: MessageManager; // Will be initialized in initialize()
-  private browserAgent: BrowserAgent | PocAgent | null = null; // The browser agent for task execution
+  private browserAgent: BrowserAgent | null = null; // The browser agent for task execution
   private chatAgent: ChatAgent | null = null; // The chat agent for Q&A mode
 
   private currentQuery: string | null = null; // Track current query for better cancellation messages
@@ -113,18 +108,8 @@ export class NxtScape {
         });
         
         // Initialize the browser agent with execution context
-        // Use PocAgent if in POC mode, otherwise use BrowserAgent
-        if (isPocMode()) {
-          this.browserAgent = new PocAgent(this.executionContext);
-          Logging.log("NxtScape", "Using PocAgent (POC mode enabled)");
-        } else {
-          this.browserAgent = new BrowserAgent(this.executionContext);
-        }
-        
-        // Initialize ChatAgent for Q&A mode
+        this.browserAgent = new BrowserAgent(this.executionContext);
         this.chatAgent = new ChatAgent(this.executionContext);
-        Logging.log("NxtScape", "ChatAgent initialized for Q&A mode");
-
         Logging.log(
           "NxtScape",
           "NxtScape initialization completed successfully",
@@ -171,7 +156,7 @@ export class NxtScape {
     }
 
     const parsedOptions = RunOptionsSchema.parse(options);
-    const { query, mode, tabIds, eventBus, eventProcessor } = parsedOptions;
+    const { query, tabIds } = parsedOptions;
 
     const runStartTime = Date.now();
 
@@ -211,9 +196,6 @@ export class NxtScape {
     // Mark execution as started
     this.executionContext.startExecution(currentTabId);
 
-    // Update the event bus and event processor for this execution
-    this.executionContext.setEventBus(eventBus);
-    this.executionContext.setEventProcessor(eventProcessor);
 
     // Set selected tab IDs for context (e.g., for summarizing multiple tabs)
     // These are NOT the tabs the agent operates on, just context for tools like ExtractTool

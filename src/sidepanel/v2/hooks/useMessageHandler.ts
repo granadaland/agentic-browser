@@ -1,314 +1,64 @@
-import { useEffect, useRef, useCallback } from 'react'
-import { z } from 'zod'
+import { useEffect, useCallback } from 'react'
 import { MessageType } from '@/lib/types/messaging'
 import { useSidePanelPortMessaging } from '@/sidepanel/hooks'
 import { useChatStore } from '../stores/chatStore'
 
 export function useMessageHandler() {
-  const { addMessage, updateMessage, setProcessing, setError, markMessageAsExecuting, markMessageAsCompleting, setExecutingMessageRemoving } = useChatStore()
+  const { addMessage, updateMessage, setProcessing, setError } = useChatStore()
   const { addMessageListener, removeMessageListener } = useSidePanelPortMessaging()
-  
-  // Track streaming messages by ID for updates
-  const streamingMessages = useRef<Map<string, { messageId: string, content: string }>>(new Map())
-  // Suppress assistant streaming while tools are running
-  const suppressStreamingRef = useRef<boolean>(false)
-  
-  // Zod schema to validate incoming UI message details
-  const UIMessageTypeSchema = z.enum([
-    'SystemMessage',
-    'ThinkingMessage',
-    'NewSegment',
-    'StreamingChunk',
-    'FinalizeSegment',
-    'ToolStart',
-    'ToolStream',
-    'ToolEnd',
-    'ToolResult',
-    'ErrorMessage',
-    'CancelMessage',
-    'TaskResult'
-  ])
-
-  const UIMessageSchema = z.object({
-    messageType: UIMessageTypeSchema,
-    messageId: z.string().optional(),
-    segmentId: z.number().optional(),
-    content: z.string().optional(),
-    toolName: z.string().optional(),
-    toolArgs: z.object({
-      description: z.string().optional(),
-      icon: z.string().optional(),
-      args: z.record(z.unknown()).optional()
-    }).optional(),
-    toolResult: z.string().optional(),
-    success: z.boolean().optional(),
-    error: z.string().optional(),
-    data: z.record(z.unknown()).optional()
-  })
 
   // Create stable callback functions
   const handleStreamUpdate = useCallback((payload: any) => {
-    const parsed = UIMessageSchema.safeParse(payload?.details)
-    if (!parsed.success) return
-    const details = parsed.data
-    
-    // Mark any existing executing messages as completing when new messages are added
-    const markExecutingAsCompleting = () => {
-      const state = useChatStore.getState()
-      const executingMessages = state.messages.filter(msg => msg.metadata?.isExecuting && !msg.metadata?.isCompleting)
-      if (executingMessages.length > 0) {
-        setExecutingMessageRemoving(true)
-        executingMessages.forEach(msg => {
-          markMessageAsCompleting(msg.id)
-        })
-        // Reset the flag after animation
-        setTimeout(() => setExecutingMessageRemoving(false), 600)
-      }
-    }
-    
-    switch (details.messageType) {
-      case 'SystemMessage': {
-        const category = typeof details.data?.category === 'string' ? details.data?.category as string : undefined
-        const content = details.content || ''
-
-        // Task Manager (TODO table) detection and per-prompt handling
-        const isTodoTable = content.includes('| # | Status | Task |')
-        if (isTodoTable) {
-          const currentMessages = useChatStore.getState().messages
-          const lastUserIndex = [...currentMessages].map(m => m.role).lastIndexOf('user')
-          const lastTodoIndex = [...currentMessages].map(m => m.content.includes('| # | Status | Task |')).lastIndexOf(true)
-
-          if (lastTodoIndex !== -1 && lastTodoIndex > lastUserIndex) {
-            // Update the existing Task Manager for the current prompt
-            const lastTodoMessage = currentMessages[lastTodoIndex]
-            updateMessage(lastTodoMessage.id, content)
-          } else {
-            // Create a new Task Manager for this prompt
-            addMessage({
-              role: 'system',
-              content,
-              metadata: { kind: 'system' as const }
-            })
-          }
-          break
-        }
-
-        // Regular system message
+    // Check if this is a new PubSub event
+    if (payload?.action === 'PUBSUB_EVENT' && payload?.details?.type === 'message') {
+      const message = payload.details.payload
+      
+      // Handle PubSub message
+      if (message.role === 'system') {
         addMessage({
           role: 'system',
-          content,
-          metadata: { kind: 'system' as const, isStartup: category === 'startup', category }
-        })
-        break
-      }
-
-      case 'ToolStart': {
-        // Mark existing executing messages as completing
-        markExecutingAsCompleting()
-        suppressStreamingRef.current = true
-        
-        // Add executing message for tool start
-        const description = details.toolArgs?.description || details.toolName || 'Executing tool'
-        addMessage({
-          role: 'system',
-          content: description,
-          metadata: { kind: 'execution' as const, isExecuting: true, toolName: details.toolName }
-        })
-        // Mark this message as executing
-        {
-          const lastMessage = useChatStore.getState().messages.slice(-1)[0]
-          if (lastMessage) markMessageAsExecuting(lastMessage.id)
-        }
-        break
-      }
-
-      case 'ToolEnd': {
-        // Mark existing executing messages as completing - they will be removed
-        markExecutingAsCompleting()
-        suppressStreamingRef.current = false
-        break
-      }
-
-      case 'ThinkingMessage': {
-        // Mark existing executing messages as completing
-        markExecutingAsCompleting()
-        
-        // Add thinking message
-        addMessage({
-          role: 'system',
-          content: details.content || 'Working…',
-          metadata: { kind: 'execution' as const, isExecuting: true }
-        })
-        // Mark this message as executing
-        {
-          const lastMessage = useChatStore.getState().messages.slice(-1)[0]
-          if (lastMessage) markMessageAsExecuting(lastMessage.id)
-        }
-        break
-      }
-      
-      case 'NewSegment': {
-        // Optionally suppress assistant stream segments during tool execution
-        if (suppressStreamingRef.current) {
-          break
-        }
-        // Mark existing executing messages as completing
-        markExecutingAsCompleting()
-        
-        // Start a new streaming message
-        const messageId = details.messageId || `stream-${Date.now()}`
-        const message = {
-          role: 'assistant' as const,
-          content: '',  // Start with empty content
-          metadata: { kind: 'stream' as const, streamId: messageId }
-        }
-        
-        addMessage(message)
-        
-        // Track this streaming message
-        const lastMessage = useChatStore.getState().messages.slice(-1)[0]
-        if (lastMessage) {
-          streamingMessages.current.set(messageId, {
-            messageId: lastMessage.id,
-            content: ''
-          })
-        }
-        break
-      }
-      
-      case 'StreamingChunk': {
-        if (suppressStreamingRef.current) {
-          break
-        }
-        // Update streaming message
-        if (details.messageId && details.content) {
-          const streaming = streamingMessages.current.get(details.messageId)
-          if (streaming) {
-            streaming.content += details.content
-            updateMessage(streaming.messageId, streaming.content)
+          content: message.content,
+          metadata: { 
+            kind: 'system' as const,
+            timestamp: message.ts
           }
-        }
-        break
-      }
-      
-      case 'FinalizeSegment': {
-        if (suppressStreamingRef.current) {
-          // Clean up any tracked entry without rendering
-          if (details.messageId) streamingMessages.current.delete(details.messageId)
-          break
-        }
-        // Complete the streaming message
-        if (details.messageId) {
-          const streaming = streamingMessages.current.get(details.messageId)
-          if (streaming) {
-            const finalContent = details.content || streaming.content
-            if (finalContent) {
-              updateMessage(streaming.messageId, finalContent)
-            }
-            streamingMessages.current.delete(details.messageId)
-          }
-        }
-        break
-      }
-      
-      case 'ToolResult': {
-        // Mark existing executing messages as completing
-        markExecutingAsCompleting()
+        })
+      } else if (message.role === 'assistant') {
+        // Check if we need to update existing assistant message or create new one
+        const currentMessages = useChatStore.getState().messages
+        const lastAssistantMsg = [...currentMessages].reverse().find(m => m.role === 'assistant' && m.metadata?.msgId === message.msgId)
         
-        // Filter out TODO-related messages that shouldn't be shown to the user
-        if (details.content && (
-          details.content.includes('Completed TODO:') ||
-          details.content.includes('Skipped TODO:') ||
-          details.content.includes('Went back to TODO:') ||
-          details.content.includes('Added') && details.content.includes('TODOs') ||
-          details.content.includes('Replaced all TODOs')
-        )) {
-          // Don't add these messages - they're internal status updates
-          break
-        }
-        
-        // Add tool result as assistant message
-        if (details.content) {
+        if (lastAssistantMsg) {
+          // Update existing message
+          updateMessage(lastAssistantMsg.id, message.content)
+        } else {
+          // Add new assistant message
           addMessage({
             role: 'assistant',
-            content: details.content,
-            metadata: {
-              kind: 'tool-result' as const,
-              toolName: details.toolName,
-              success: typeof details.success === 'boolean' ? details.success : undefined
+            content: message.content,
+            metadata: { 
+              msgId: message.msgId,
+              timestamp: message.ts
             }
           })
         }
-        break
-      }
-      
-      case 'ErrorMessage': {
-        // Mark existing executing messages as completing
-        markExecutingAsCompleting()
-        
-        // Handle error
-        const errorMessage = details.error || details.content || 'An error occurred'
+      } else if (message.role === 'user') {
         addMessage({
-          role: 'system',
-          content: errorMessage,
-          metadata: { kind: 'error' as const, error: true }
+          role: 'user',
+          content: message.content,
+          metadata: { timestamp: message.ts }
         })
-        setError(errorMessage)
-        setProcessing(false)
-        break
       }
-      
-      case 'TaskResult': {
-        // Mark existing executing messages as completing
-        markExecutingAsCompleting()
-        suppressStreamingRef.current = false
-        
-        // Task completed
-        setProcessing(false)
-        addMessage({
-          role: 'system',
-          content: details.content || '',
-          metadata: { kind: 'task-result' as const, success: typeof details.success === 'boolean' ? details.success : undefined }
-        })
-        break
-      }
-      
-      case 'CancelMessage': {
-        // Mark existing executing messages as completing
-        markExecutingAsCompleting()
-        suppressStreamingRef.current = false
-        
-        // Task cancelled
-        setProcessing(false)
-        addMessage({
-          role: 'system',
-          content: details.content || 'Task cancelled',
-          metadata: { kind: 'cancel' as const }
-        })
-        break
-      }
-      
-      // Skip other message types for now (ThinkingMessage, DebugMessage, etc.)
-      // We can add them later if needed
+      return
     }
-  }, [addMessage, updateMessage, setProcessing, setError, markMessageAsExecuting, markMessageAsCompleting, setExecutingMessageRemoving])
+    
+    // No longer needed - old event format is removed
+  }, [addMessage, updateMessage, setProcessing, setError])
   
-        // Handle workflow status updates
+  // Handle workflow status updates
   const handleWorkflowStatus = useCallback((payload: any) => {
     if (payload.status === 'completed' || payload.status === 'failed' || payload.cancelled) {
       setProcessing(false)
-      
-      // Mark any executing messages as completing
-      const state = useChatStore.getState()
-      const executingMessages = state.messages.filter(msg => msg.metadata?.isExecuting && !msg.metadata?.isCompleting)
-      if (executingMessages.length > 0) {
-        setExecutingMessageRemoving(true)
-        executingMessages.forEach(msg => {
-          markMessageAsCompleting(msg.id)
-        })
-        // Reset the flag after animation
-        setTimeout(() => setExecutingMessageRemoving(false), 600)
-      }
       
       if (payload.error && !payload.cancelled) {
         setError(payload.error)
@@ -319,7 +69,7 @@ export function useMessageHandler() {
         })
       }
     }
-  }, [addMessage, setProcessing, setError, markMessageAsCompleting, setExecutingMessageRemoving])
+  }, [addMessage, setProcessing, setError])
   
   useEffect(() => {
     // Register listeners
@@ -330,7 +80,6 @@ export function useMessageHandler() {
     return () => {
       removeMessageListener(MessageType.AGENT_STREAM_UPDATE, handleStreamUpdate)
       removeMessageListener(MessageType.WORKFLOW_STATUS, handleWorkflowStatus)
-      streamingMessages.current.clear()
     }
   }, [addMessageListener, removeMessageListener, handleStreamUpdate, handleWorkflowStatus])
 }
