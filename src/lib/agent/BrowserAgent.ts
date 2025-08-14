@@ -65,7 +65,6 @@ import { generateSystemPrompt, generateSingleTurnExecutionPrompt } from './Brows
 import { AIMessage, AIMessageChunk } from '@langchain/core/messages';
 import { PLANNING_CONFIG } from '@/lib/tools/planning/PlannerTool.config';
 import { AbortError } from '@/lib/utils/Abortable';
-import { formatToolOutput } from '@/lib/tools/formatToolOutput';
 import { formatTodoList } from '@/lib/tools/utils/formatTodoList';
 import { GlowAnimationService } from '@/lib/services/GlowAnimationService';
 import { PubSub } from '@/lib/pubsub'; // For static helper methods
@@ -158,7 +157,7 @@ export class BrowserAgent {
       }
       
       let message: string;
-      if (classification.is_followup_task) {
+      if (classification.is_followup_task && this.messageManager.getMessages().length > 0) {
         message = 'Following up on the previous task...';
       } else if (classification.is_simple_task) {
         message = 'Executing the task...';
@@ -254,8 +253,6 @@ export class BrowserAgent {
   }
 
   private async _classifyTask(task: string): Promise<ClassificationResult> {
-    this.pubsub.publishMessage(PubSub.createMessage('Analyzing task complexity...', 'system'));
-    
     const classificationTool = this.toolManager.get('classification_tool');
     if (!classificationTool) {
       // Default to complex task if classification tool not found
@@ -271,7 +268,6 @@ export class BrowserAgent {
       
       if (parsedResult.ok) {
         const classification = JSON.parse(parsedResult.output);
-        const classification_formatted_output = formatToolOutput('classification_tool', parsedResult);
         // Tool end notification not needed in new pub-sub system
         return { 
           is_simple_task: classification.is_simple_task,
@@ -279,8 +275,6 @@ export class BrowserAgent {
         };
       }
     } catch (error) {
-      const errorResult = { ok: false, error: 'Classification failed' };
-      const error_formatted_output = formatToolOutput('classification_tool', errorResult);
       // Tool end notification not needed in new pub-sub system
     }
     
@@ -483,9 +477,6 @@ export class BrowserAgent {
       
       const parsedResult = JSON.parse(result);
       
-      // Format the tool output for display
-      const displayMessage = formatToolOutput(toolName, parsedResult);
-      
       // Publish tool result for UI display
       // Skip emitting refresh_browser_state_tool to prevent browser state from appearing in UI
       // Also skip result_tool to avoid duplicating the final summary in the UI
@@ -539,10 +530,11 @@ export class BrowserAgent {
     const result = await plannerTool.func(args);
     const parsedResult = JSON.parse(result);
     
-    // Format the planner output
-    const planner_formatted_output = formatToolOutput('planner_tool', parsedResult);
     // Publish planner result
-    this.pubsub.publishMessage(PubSub.createMessage(planner_formatted_output, 'system'));
+    if (parsedResult.ok && parsedResult.output?.steps) {
+      const message = `Created ${parsedResult.output.steps.length} step execution plan`;
+      this.pubsub.publishMessage(PubSub.createMessage(message, 'system'));
+    }
 
     if (parsedResult.ok && parsedResult.output?.steps) {
       return { steps: parsedResult.output.steps };
@@ -570,10 +562,12 @@ export class BrowserAgent {
       const result = await validatorTool.func(args);
       const parsedResult = JSON.parse(result);
       
-      // Format the validator output
-      const validator_formatted_output = formatToolOutput('validator_tool', parsedResult);
       // Publish validator result
-      this.pubsub.publishMessage(PubSub.createMessage(validator_formatted_output, 'system'));
+      if (parsedResult.ok) {
+        const validationData = JSON.parse(parsedResult.output);
+        const status = validationData.isComplete ? 'Complete' : 'Incomplete';
+        this.pubsub.publishMessage(PubSub.createMessage(`Task validation: ${status}`, 'system'));
+      }
       
       if (parsedResult.ok) {
         // Parse the validation data from output
@@ -585,10 +579,8 @@ export class BrowserAgent {
         };
       }
     } catch (error) {
-      const errorResult = { ok: false, error: 'Validation failed' };
-      const error_formatted_output = formatToolOutput('validator_tool', errorResult);
       // Publish validator error
-      this.pubsub.publishMessage(PubSub.createMessage(error_formatted_output, 'system'));
+      this.pubsub.publishMessage(PubSub.createMessage('Error in validator_tool: Validation failed', 'system'));
     }
     
     return {
