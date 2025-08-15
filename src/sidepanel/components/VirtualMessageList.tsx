@@ -75,7 +75,7 @@ export const VirtualMessageList = memo(function VirtualMessageList({
     return (
       <div className="flex-1 relative">
         <div 
-          className="h-full overflow-y-auto bg-background scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent"
+          className="h-full overflow-y-auto bg-background"
           ref={containerRef}
         >
           <div className="p-4 space-y-4 pb-2">
@@ -104,7 +104,7 @@ export const VirtualMessageList = memo(function VirtualMessageList({
   return (
     <div className="flex-1 relative">
       <div 
-        className="h-full overflow-y-auto bg-background scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent"
+        className="h-full overflow-y-auto bg-background"
         ref={containerRef}
       >
         {/* Total height spacer for proper scrollbar */}

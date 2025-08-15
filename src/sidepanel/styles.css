@@ -116,22 +116,22 @@ p, span, div, h1, h2, h3, h4, h5, h6, li, td, th, label, input, textarea, button
   font-size: inherit; /* Inherit from parent body */
 }
 
-/* Custom scrollbar styling */
+/* Hide all scrollbars globally */
 ::-webkit-scrollbar {
-  width: 6px;
+  width: 0;
+  height: 0;
+  display: none;
 }
 
-::-webkit-scrollbar-track {
-  background: transparent;
+/* Alternative method to ensure scrollbars are hidden */
+* {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
 }
 
-::-webkit-scrollbar-thumb {
-  background: hsl(var(--brand) / 0.3);
-  border-radius: 3px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--brand) / 0.5);
+/* Hide scrollbar for Chrome, Safari and Opera */
+*::-webkit-scrollbar {
+  display: none;
 }
 
 /* Paw print walking animations */

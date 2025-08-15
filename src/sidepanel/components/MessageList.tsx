@@ -361,7 +361,7 @@ export function MessageList({ messages, onScrollStateChange, scrollToBottom: ext
       
       {/* Messages container */}
       <div 
-        className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-thin scrollbar-thumb-brand/30 scrollbar-track-transparent bg-[hsl(var(--background))]"
+        className="flex-1 overflow-y-auto overflow-x-hidden bg-[hsl(var(--background))]"
         ref={containerRef}
         role="log"
         aria-label="Chat messages"
