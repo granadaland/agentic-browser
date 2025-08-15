@@ -2,7 +2,7 @@ import React from 'react'
 import { useSettingsStore } from '@/sidepanel/stores/settingsStore'
 
 /**
- * ModeToggle - Toggle between Chat Mode (Q&A) and Browse Mode (automation)
+ * ModeToggle - Toggle between Chat Mode (Q&A) and Agent Mode (automation)
  * Inspired by the Write/Chat toggle design
  */
 export function ModeToggle() {
@@ -23,10 +23,10 @@ export function ModeToggle() {
         <button
           className={`h-[21px] px-3 rounded-xl text-[12px] font-semibold transition-colors ${!chatMode ? 'bg-[hsl(var(--background-alt))] text-foreground border border-border' : 'text-muted-foreground hover:bg-[hsl(var(--accent))]'}`}
           onClick={() => setChatMode(false)}
-          aria-label='Browse mode for automation'
-          title='Browse mode - Complex web navigation tasks'
+          aria-label='Agent mode for automation'
+          title='Agent mode - Complex web navigation tasks'
         >
-          Browse Mode
+          Agent Mode
         </button>
       </div>
     </div>
