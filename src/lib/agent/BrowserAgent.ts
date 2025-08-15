@@ -67,6 +67,7 @@ import { AIMessage, AIMessageChunk } from '@langchain/core/messages';
 import { PLANNING_CONFIG } from '@/lib/tools/planning/PlannerTool.config';
 import { AbortError } from '@/lib/utils/Abortable';
 import { GlowAnimationService } from '@/lib/services/GlowAnimationService';
+import { NarratorService } from '@/lib/services/NarratorService';
 import { PubSub } from '@/lib/pubsub'; // For static helper methods
 
 // Type Definitions
@@ -115,11 +116,14 @@ export class BrowserAgent {
   private readonly executionContext: ExecutionContext;
   private readonly toolManager: ToolManager;
   private readonly glowService: GlowAnimationService;
+  private narrator?: NarratorService;  // Narrator service for human-friendly messages
 
   constructor(executionContext: ExecutionContext) {
     this.executionContext = executionContext;
     this.toolManager = new ToolManager(executionContext);
     this.glowService = GlowAnimationService.getInstance();
+    this.narrator = new NarratorService(executionContext);
+    
     this._registerTools();
   }
 
@@ -168,7 +172,8 @@ export class BrowserAgent {
       } else {
         message = 'Creating a step-by-step plan to complete the task';
       }
-      this.pubsub.publishMessage(PubSub.createMessage(message, 'thinking'));
+      // Tag startup status messages for UI styling
+      this.pubsub.publishMessage(PubSub.createMessage(message, 'narration'));
 
       // 3. DELEGATE: Route to the correct execution strategy
       if (classification.is_simple_task) {
@@ -182,6 +187,9 @@ export class BrowserAgent {
     } catch (error) {
       this._handleExecutionError(error);
     } finally {
+      // Cleanup narrator service
+      this.narrator?.cleanup();
+      
       // Ensure glow animation is stopped at the end of execution
       try {
         // Get all active glow tabs from the service

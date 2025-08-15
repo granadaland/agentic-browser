@@ -333,10 +333,18 @@ export const MessageItem = memo<MessageItemProps>(function MessageItem({ message
     return lastMessage?.msgId === message.msgId
   }, [message.role, message.msgId, messages])
   
+  // Check if this is the latest narration message (for shimmer effect)
+  const isLatestNarration = useMemo(() => {
+    if (message.role !== 'narration') return false
+    const lastMessage = messages[messages.length - 1]
+    return lastMessage?.msgId === message.msgId
+  }, [message.role, message.msgId, messages])
+  
   // Simple role checks
   const isUser = message.role === 'user'
   const isError = message.role === 'error'
   const isThinking = message.role === 'thinking'
+  const isNarration = message.role === 'narration'
   const isAssistant = message.role === 'assistant'
   
   // Special cases we still need to detect
@@ -433,6 +441,29 @@ export const MessageItem = memo<MessageItemProps>(function MessageItem({ message
           />
         )
 
+      case 'narration':
+        // Narration messages with shimmer effect if latest
+        if (isLatestNarration && !isTodoTable) {
+          return (
+            <div className="shimmer-container">
+              <MarkdownContent
+                content={message.content}
+                className="break-words text-muted-foreground"
+                compact={false}
+              />
+              <div className="absolute inset-0 pointer-events-none bg-gradient-to-r from-transparent via-background/30 to-transparent animate-shimmer bg-[length:200%_100%]" />
+            </div>
+          )
+        }
+        // Regular narration message
+        return (
+          <MarkdownContent
+            content={message.content}
+            className="break-words text-muted-foreground"
+            compact={false}
+          />
+        )
+
       case 'assistant':
         // Final results - rich markdown with emphasis
         return (
@@ -467,7 +498,7 @@ export const MessageItem = memo<MessageItemProps>(function MessageItem({ message
           />
         )
     }
-  }, [message.role, message.content, message.msgId, message.metadata?.toolName, isTodoTable, autoCollapseTools, shouldIndent, isLatestThinking])
+  }, [message.role, message.content, message.msgId, message.metadata?.toolName, isTodoTable, autoCollapseTools, shouldIndent, isLatestThinking, isLatestNarration])
 
   return (
     <div 

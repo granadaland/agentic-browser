@@ -59,6 +59,7 @@ export class ClassificationTool {
         ],
         3
       )
+      this.executionContext.getPubSub().publishMessage(PubSub.createMessage(`Task classified as ${result.is_simple_task ? 'simple' : 'complex'} and ${result.is_followup_task ? 'follow-up' : 'new'}`, 'thinking'))
       
       return JSON.stringify(toolSuccess(JSON.stringify(result)))
     } catch (error) {

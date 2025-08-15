@@ -4,7 +4,7 @@ import { z } from 'zod'
 // Message schema - simplified for direct PubSub mapping
 export const MessageSchema = z.object({
   msgId: z.string(),  // Primary ID for both React keys and PubSub correlation
-  role: z.enum(['user', 'thinking', 'assistant', 'error']),  // Direct from PubSub
+  role: z.enum(['user', 'thinking', 'assistant', 'error', 'narration']), 
   content: z.string(),  // Message content
   timestamp: z.date(),  // When message was created
   metadata: z.object({
@@ -27,7 +27,7 @@ type ChatState = z.infer<typeof ChatStateSchema>
 export interface PubSubMessage {
   msgId: string
   content: string
-  role: 'thinking' | 'user' | 'assistant' | 'error'
+  role: 'thinking' | 'user' | 'assistant' | 'error' | 'narration'
   ts: number
 }
 

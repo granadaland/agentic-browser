@@ -7,13 +7,16 @@ export function useMessageHandler() {
   const { upsertMessage, setProcessing, setError } = useChatStore()
   const { addMessageListener, removeMessageListener } = useSidePanelPortMessaging()
 
-  // Simplified: Direct pass-through of PubSub messages
   const handleStreamUpdate = useCallback((payload: any) => {
     // Check if this is a PubSub event
     if (payload?.action === 'PUBSUB_EVENT' && payload?.details?.type === 'message') {
       const message = payload.details.payload as PubSubMessage
       
-      // Direct upsert - no translation needed
+      // Filter out thinking messages, only show narration messages
+      if (message.role === 'thinking') {
+        return 
+      }
+      
       upsertMessage(message)
     }
   }, [upsertMessage])
