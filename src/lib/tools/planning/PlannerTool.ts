@@ -34,7 +34,7 @@ export function createPlannerTool(executionContext: ExecutionContext): DynamicSt
     schema: PlannerInputSchema,
     func: async (args: PlannerInput): Promise<string> => {
       try {
-        executionContext.getPubSub().publishMessage(PubSub.createMessage(`Creating plan for task: ${args.task} with ${args.max_steps} steps`, 'thinking'))
+        executionContext.getPubSub().publishMessage(PubSub.createMessage(`Creating plan for task...`, 'thinking'))
         // Get LLM instance from execution context
         const llm = await executionContext.getLLM();
         

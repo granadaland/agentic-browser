@@ -29,8 +29,6 @@ Keep todos single-level without nesting.`,
     schema: TodoInputSchema,
     func: async (args: TodoInput): Promise<string> => {
       try {
-        executionContext.getPubSub().publishMessage(PubSub.createMessage(`Updating TODO list`, 'thinking'))
-
         let resultMessage = 'Success'
         
         switch (args.action) {
