@@ -273,7 +273,7 @@ export function ChatInput({ isConnected, isProcessing }: ChatInputProps) {
     if (isProcessing) return 'Task running… Press Esc to cancel'
     return chatMode 
       ? 'Chat mode is for simple Q&A • @ to select tabs • Press Enter to send'
-      : 'Browse mode is for complex web navigation tasks • Press Enter to send'
+      : 'Agent mode is for complex web navigation tasks • Press Enter to send'
   }
 
   
