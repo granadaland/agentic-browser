@@ -165,7 +165,7 @@ export class BrowserAgent {
         message = 'Creating a step-by-step plan to complete the task';
       }
       // Tag startup status messages for UI styling
-      this.pubsub.publishMessage(PubSub.createMessage(message, 'system'));
+      this.pubsub.publishMessage(PubSub.createMessage(message, 'thinking'));
 
       // 3. DELEGATE: Route to the correct execution strategy
       if (classification.is_simple_task) {
@@ -177,17 +177,7 @@ export class BrowserAgent {
       // 4. FINALISE: Generate final result
       await this._generateTaskResult(task);
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      
-      // Check if this is a user cancellation
-      const isUserCancellation = error instanceof AbortError || 
-                                 this.executionContext.isUserCancellation() || 
-                                 (error instanceof Error && error.name === "AbortError");
-      
-      if (!isUserCancellation) {
-        this.pubsub.publishMessage(PubSub.createMessage(`Oops! Got a fatal error when executing task: ${errorMessage}`, 'system'));
-      }
-      
+      this._handleExecutionError(error);
       throw error;
     } finally {
       // Ensure glow animation is stopped at the end of execution
@@ -291,6 +281,14 @@ export class BrowserAgent {
     for (let attempt = 1; attempt <= BrowserAgent.MAX_STEPS_FOR_SIMPLE_TASKS; attempt++) {
       this.checkIfAborted();  // Manual check in loop
 
+      // Check for loop before continuing
+      if (this._detectLoop()) {
+        const loopMessage = 'Detected repetitive behavior. Breaking out of potential infinite loop.';
+        console.warn(loopMessage);
+        this.pubsub.publishMessage(PubSub.createMessage(loopMessage, 'error'));
+        return;
+      }
+
       // Debug: Attempt ${attempt}/${BrowserAgent.MAX_STEPS_FOR_SIMPLE_TASKS}
 
       const instruction = `The user's goal is: "${task}". Please take the next best action to complete this goal and call the 'done_tool' when finished.`;
@@ -326,13 +324,22 @@ export class BrowserAgent {
 
       // Show TODO list after plan creation
       const todoStore = this.executionContext.todoStore;
-      this.pubsub.publishMessage(PubSub.createMessage(formatTodoList(todoStore.getJson()), 'system'));
+      this.pubsub.publishMessage(PubSub.createMessage(formatTodoList(todoStore.getJson()), 'thinking'));
 
       // 3. EXECUTE: Inner loop with one TODO per turn
       let inner_loop_index = 0;
       
       while (inner_loop_index < BrowserAgent.MAX_STEPS_INNER_LOOP && !todoStore.isAllDoneOrSkipped()) {
         this.checkIfAborted();
+        
+        // Check for loop before continuing
+        if (this._detectLoop()) {
+          const loopMessage = 'Detected repetitive behavior. Breaking out of potential infinite loop.';
+          console.warn(loopMessage);
+          
+          // break out of loop
+          throw new Error("Agent unable to proceed further");
+        }
         
         // Use the generateTodoExecutionPrompt for TODO execution
         const instruction = generateSingleTurnExecutionPrompt(task);
@@ -428,7 +435,7 @@ export class BrowserAgent {
         
         // Publish/update the message with accumulated content in real-time
         if (currentMsgId) {
-          this.pubsub.publishMessage(PubSub.createMessageWithId(currentMsgId, accumulatedText, 'assistant'));
+          this.pubsub.publishMessage(PubSub.createMessageWithId(currentMsgId, accumulatedText, 'thinking'));
         }
       }
       accumulatedChunk = !accumulatedChunk ? chunk : accumulatedChunk.concat(chunk);
@@ -437,7 +444,7 @@ export class BrowserAgent {
     // Only finish thinking if we started and have content
     if (hasStartedThinking && accumulatedText.trim() && currentMsgId) {
       // Final publish with complete message (in case last chunk was missed)
-      this.pubsub.publishMessage(PubSub.createMessageWithId(currentMsgId, accumulatedText, 'assistant'));
+      this.pubsub.publishMessage(PubSub.createMessageWithId(currentMsgId, accumulatedText, 'thinking'));
     }
     
     if (!accumulatedChunk) return new AIMessage({ content: '' });
@@ -507,7 +514,7 @@ export class BrowserAgent {
           `TODO list updated. Current state:\n${todoStore.getXml()}`
         );
         // Show updated TODO list to user
-        this.pubsub.publishMessage(PubSub.createMessage(formatTodoList(todoStore.getJson()), 'system'));
+        this.pubsub.publishMessage(PubSub.createMessage(formatTodoList(todoStore.getJson()), 'thinking'));
       }
 
 
@@ -533,7 +540,7 @@ export class BrowserAgent {
     // Publish planner result
     if (parsedResult.ok && parsedResult.output?.steps) {
       const message = `Created ${parsedResult.output.steps.length} step execution plan`;
-      this.pubsub.publishMessage(PubSub.createMessage(message, 'system'));
+      this.pubsub.publishMessage(PubSub.createMessage(message, 'thinking'));
     }
 
     if (parsedResult.ok && parsedResult.output?.steps) {
@@ -566,7 +573,7 @@ export class BrowserAgent {
       if (parsedResult.ok) {
         const validationData = JSON.parse(parsedResult.output);
         const status = validationData.isComplete ? 'Complete' : 'Incomplete';
-        this.pubsub.publishMessage(PubSub.createMessage(`Task validation: ${status}`, 'system'));
+        this.pubsub.publishMessage(PubSub.createMessage(`Task validation: ${status}`, 'thinking'));
       }
       
       if (parsedResult.ok) {
@@ -580,7 +587,7 @@ export class BrowserAgent {
       }
     } catch (error) {
       // Publish validator error
-      this.pubsub.publishMessage(PubSub.createMessage('Error in validator_tool: Validation failed', 'system'));
+      this.pubsub.publishMessage(PubSub.createMessage('Error in validator_tool: Validation failed', 'error'));
     }
     
     return {
@@ -606,14 +613,14 @@ export class BrowserAgent {
       
       if (parsedResult.ok && parsedResult.output) {
         const { success, message } = parsedResult.output;
-        this.pubsub.publishMessage(PubSub.createMessage(message, 'system'));
+        this.pubsub.publishMessage(PubSub.createMessage(message, 'assistant'));
       } else {
         // Fallback on error
-        this.pubsub.publishMessage(PubSub.createMessage('Task completed.', 'system'));
+        this.pubsub.publishMessage(PubSub.createMessage('Task completed.', 'assistant'));
       }
     } catch (error) {
       // Fallback on error
-      this.pubsub.publishMessage(PubSub.createMessage('Task completed.', 'system'));
+      this.pubsub.publishMessage(PubSub.createMessage('Task completed.', 'assistant'));
     }
   }
 
@@ -629,6 +636,104 @@ export class BrowserAgent {
     const todos = plan.steps.map(step => ({ content: step.action }));
     const args = { action: 'replace_all' as const, todos };
     await todoTool.func(args);
+  }
+
+  /**
+   * Handle and categorize execution errors
+   */
+  private _handleExecutionError(error: unknown): void {
+    // Check if this is a user cancellation
+    const isUserCancellation = error instanceof AbortError || 
+                               this.executionContext.isUserCancellation() || 
+                               (error instanceof Error && error.name === "AbortError");
+    
+    if (!isUserCancellation) {
+      const errorMessage = this._categorizeError(error);
+      this.pubsub.publishMessage(PubSub.createMessage(errorMessage, 'error'));
+    }
+  }
+
+  /**
+   * Detect if the agent is stuck in a loop by checking for repeated messages
+   * @param lookback - Number of recent messages to check (default: 6)
+   * @param threshold - Number of times a message must appear to be considered a loop (default: 2)
+   * @returns true if a loop is detected
+   */
+  private _detectLoop(lookback: number = 6, threshold: number = 2): boolean {
+    const messages = this.messageManager.getMessages();
+    
+    // Need at least lookback messages to check
+    if (messages.length < lookback) {
+      return false;
+    }
+    
+    // Get the last N messages, filtering only AI/assistant messages
+    const recentMessages = messages
+      .slice(-lookback)
+      .filter(msg => msg._getType() === 'ai')
+      .map(msg => {
+        // Normalize the content for comparison
+        const content = typeof msg.content === 'string' ? msg.content : '';
+        return content.trim().toLowerCase();
+      });
+    
+    // Count occurrences of each message
+    const messageCount = new Map<string, number>();
+    for (const msg of recentMessages) {
+      if (msg) {  // Skip empty messages
+        const count = messageCount.get(msg) || 0;
+        messageCount.set(msg, count + 1);
+        
+        // If any message appears threshold times or more, we have a loop
+        if (count + 1 >= threshold) {
+          console.warn(`Loop detected: Message "${msg.substring(0, 50)}..." repeated ${count + 1} times`);
+          return true;
+        }
+      }
+    }
+    
+    return false;
+  }
+
+  /**
+   * Categorize error type and return appropriate error message
+   */
+  private _categorizeError(error: unknown): string {
+    if (error instanceof Error) {
+      const message = error.message.toLowerCase();
+      
+      // Check for LLM-specific errors
+      if (message.includes('llm') || 
+          message.includes('api') || 
+          message.includes('rate limit') ||
+          message.includes('model') ||
+          message.includes('authentication') ||
+          message.includes('bindtools') ||
+          message.includes('stream')) {
+        return `LLM Error: ${error.message}`;
+      }
+      
+      // Check for network errors
+      if (message.includes('network') || 
+          message.includes('timeout') ||
+          message.includes('econnrefused') ||
+          message.includes('fetch')) {
+        return `Network Error: ${error.message}`;
+      }
+      
+      // Check for browser/tab errors
+      if (message.includes('tab') || 
+          message.includes('browser') ||
+          message.includes('debugger') ||
+          message.includes('puppeteer')) {
+        return `Browser Error: ${error.message}`;
+      }
+      
+      // Default to general error
+      return `Error: ${error.message}`;
+    }
+    
+    return `Error: ${String(error)}`;
   }
 
   /**

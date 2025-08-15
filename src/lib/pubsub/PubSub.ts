@@ -86,7 +86,7 @@ export class PubSub {
   }
 
   // Helper to create message with auto-generated ID
-  static createMessage(content: string, role: Message['role'] = 'assistant'): Message {
+  static createMessage(content: string, role: Message['role'] = 'thinking'): Message {
     const msgId = PubSub.generateId(`msg_${role}`)
     return {
       msgId,
@@ -97,7 +97,7 @@ export class PubSub {
   }
   
   // Helper to create message with specific ID (for cases where ID matters)
-  static createMessageWithId(msgId: string, content: string, role: Message['role'] = 'assistant'): Message {
+  static createMessageWithId(msgId: string, content: string, role: Message['role'] = 'thinking'): Message {
     return {
       msgId,
       content,

@@ -80,7 +80,7 @@ export const VirtualMessageList = memo(function VirtualMessageList({
         >
           <div className="p-4 space-y-4 pb-2">
             {messages.map(message => (
-              <MessageItem key={message.id} message={message} />
+              <MessageItem key={message.msgId} message={message} />
             ))}
           </div>
         </div>
@@ -122,7 +122,7 @@ export const VirtualMessageList = memo(function VirtualMessageList({
           >
             {visibleMessages.map((message, index) => (
               <MessageItem 
-                key={message.id} 
+                key={message.msgId} 
                 message={message} 
               />
             ))}

@@ -57,7 +57,7 @@ export class NavigationTool {
       ])
       
       // Emit status message
-      this.executionContext.getPubSub().publishMessage(PubSub.createMessage(`🌐 Opened page: ${currentUrl}`, 'system'))
+      this.executionContext.getPubSub().publishMessage(PubSub.createMessage(`Opened page: ${currentUrl}`, 'thinking'))
       
       return toolSuccess(`Navigated to ${currentUrl} - ${title}`)
     } catch (error) {
@@ -88,7 +88,7 @@ export class NavigationTool {
       ])
       
       // Emit status message
-      this.executionContext.getPubSub().publishMessage(PubSub.createMessage(`🌐 Went back to: ${currentUrl}`, 'system'))
+      this.executionContext.getPubSub().publishMessage(PubSub.createMessage(`Went back to: ${currentUrl}`, 'thinking'))
       
       return toolSuccess(`Went back to ${currentUrl} - ${title}`)
     } catch (error) {
@@ -117,7 +117,7 @@ export class NavigationTool {
       ])
       
       // Emit status message
-      this.executionContext.getPubSub().publishMessage(PubSub.createMessage(`🌐 Went forward to: ${currentUrl}`, 'system'))
+      this.executionContext.getPubSub().publishMessage(PubSub.createMessage(`Went forward to: ${currentUrl}`, 'thinking'))
       
       return toolSuccess(`Went forward to ${currentUrl} - ${title}`)
     } catch (error) {
@@ -146,7 +146,7 @@ export class NavigationTool {
       ])
       
       // Emit status message
-      this.executionContext.getPubSub().publishMessage(PubSub.createMessage(`🔄 Refreshed page: ${currentUrl}`, 'system'))
+      this.executionContext.getPubSub().publishMessage(PubSub.createMessage(`Refreshed page: ${currentUrl}`, 'thinking'))
       
       return toolSuccess(`Refreshed ${currentUrl} - ${title}`)
     } catch (error) {

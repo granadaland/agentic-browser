@@ -35,7 +35,7 @@ export function createPlannerTool(executionContext: ExecutionContext): DynamicSt
     func: async (args: PlannerInput): Promise<string> => {
       try {
         const messageId = PubSub.generateId('planner_tool')
-        executionContext.getPubSub().publishMessage(PubSub.createMessageWithId(messageId, `📝 Creating plan...`, 'assistant'))
+        executionContext.getPubSub().publishMessage(PubSub.createMessageWithId(messageId, `Creating plan...`, 'thinking'))
         // Get LLM instance from execution context
         const llm = await executionContext.getLLM();
         
@@ -68,7 +68,7 @@ export function createPlannerTool(executionContext: ExecutionContext): DynamicSt
         );
         
         // Emit status message
-        executionContext.getPubSub().publishMessage(PubSub.createMessageWithId(messageId, `📝 Created plan with ${plan.steps.length} steps`, 'assistant'))
+        executionContext.getPubSub().publishMessage(PubSub.createMessageWithId(messageId, `Created plan with ${plan.steps.length} steps`, 'thinking'))
         
         // Format and return result
         return JSON.stringify({

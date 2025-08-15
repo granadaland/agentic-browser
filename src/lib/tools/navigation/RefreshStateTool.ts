@@ -16,7 +16,7 @@ export class RefreshStateTool {
   async execute(_input: RefreshStateInput): Promise<ToolOutput> {
     try {
       const messageId = PubSub.generateId('refresh_state_tool')
-      this.executionContext.getPubSub().publishMessage(PubSub.createMessageWithId(messageId, `🔄 Refreshing browser state...`, 'assistant'))
+      this.executionContext.getPubSub().publishMessage(PubSub.createMessageWithId(messageId, `Refreshing browser state...`, 'thinking'))
 
       const browserContext = this.executionContext.browserContext
       if (!browserContext) {

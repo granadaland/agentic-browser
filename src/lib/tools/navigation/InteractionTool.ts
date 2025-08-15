@@ -155,7 +155,7 @@ export class InteractionTool {
         await new Promise(resolve => setTimeout(resolve, INTERACTION_WAIT_MS))
         
         // Emit status message
-        this.executionContext.getPubSub().publishMessage(PubSub.createMessage(`👆 Clicked: ${description}`, 'assistant'))
+        this.executionContext.getPubSub().publishMessage(PubSub.createMessage(`Clicked: ${description}`, 'thinking'))
         
         return toolSuccess(`Clicked element: "${description}"`)
         
@@ -190,7 +190,7 @@ export class InteractionTool {
         await new Promise(resolve => setTimeout(resolve, INTERACTION_WAIT_MS))
         
         // Emit status message
-        this.executionContext.getPubSub().publishMessage(PubSub.createMessage(`⌨️ Typed "${text}" into ${description}`, 'assistant'))
+        this.executionContext.getPubSub().publishMessage(PubSub.createMessage(`Typed "${text}" into ${description}`, 'thinking'))
         
         return toolSuccess(`Typed "${text}" into "${description}"`)
         
@@ -224,7 +224,7 @@ export class InteractionTool {
         await new Promise(resolve => setTimeout(resolve, INTERACTION_WAIT_MS))
         
         // Emit status message
-        this.executionContext.getPubSub().publishMessage(PubSub.createMessage(`🗑️ Cleared: ${description}`, 'assistant'))
+        this.executionContext.getPubSub().publishMessage(PubSub.createMessage(`Cleared: ${description}`, 'thinking'))
         
         return toolSuccess(`Cleared element: "${description}"`)
         
@@ -243,7 +243,7 @@ export class InteractionTool {
     await page.sendKeys(keys)
     
     // Emit status message
-    this.executionContext.getPubSub().publishMessage(PubSub.createMessage(`⌨️ Sent keys: ${keys}`, 'assistant'))
+    this.executionContext.getPubSub().publishMessage(PubSub.createMessage(`Sent keys: ${keys}`, 'thinking'))
     
     return toolSuccess(`Sent keys: ${keys}`)
   }

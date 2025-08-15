@@ -18,7 +18,7 @@ export function createScreenshotTool(executionContext: ExecutionContext): Dynami
     func: async (args: ScreenshotToolInput): Promise<string> => {
       try {
         // Emit status message
-        executionContext.getPubSub().publishMessage(PubSub.createMessage(`📷 Capturing screenshot...`, 'assistant'))
+        executionContext.getPubSub().publishMessage(PubSub.createMessage(`Capturing screenshot...`, 'thinking'))
 
         // Get the current page from execution context
         const page = await executionContext.browserContext.getCurrentPage()

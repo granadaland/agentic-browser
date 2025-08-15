@@ -23,7 +23,7 @@ export class GetSelectedTabsTool {
 
   async execute(_input: GetSelectedTabsInput): Promise<ToolOutput> {
     try {
-      this.executionContext.getPubSub().publishMessage(PubSub.createMessage(`🔍 Getting selected tabs...`, 'assistant'))
+      this.executionContext.getPubSub().publishMessage(PubSub.createMessage(`Getting selected tabs...`, 'thinking'))
       
       // Get selected tab IDs from execution context
       const selectedTabIds = this.executionContext.getSelectedTabIds()

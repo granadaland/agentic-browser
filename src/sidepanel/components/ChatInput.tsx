@@ -33,7 +33,7 @@ export function ChatInput({ isConnected, isProcessing }: ChatInputProps) {
   const [historyIndex, setHistoryIndex] = useState<number>(-1)
   const [draftBeforeHistory, setDraftBeforeHistory] = useState<string>('')
   
-  const { addMessage, setProcessing } = useChatStore()
+  const { upsertMessage, setProcessing, selectedTabIds, clearSelectedTabs } = useChatStore()
   const messages = useChatStore(state => state.messages)
   const { chatMode } = useSettingsStore()
   const { sendMessage, addMessageListener, removeMessageListener, connected: portConnected } = useSidePanelPortMessaging()
@@ -105,14 +105,21 @@ export function ChatInput({ isConnected, isProcessing }: ChatInputProps) {
       const msg = !connectionOk
         ? 'Cannot send message: Extension is disconnected'
         : 'Cannot send message: Provider not configured'
-      addMessage({ role: 'system', content: msg, metadata: { error: true } })
+      upsertMessage({ 
+        msgId: `error_${Date.now()}`,
+        role: 'error', 
+        content: msg,
+        ts: Date.now()
+      })
       return
     }
     
-    // Add user message
-    addMessage({
+    // Add user message via upsert
+    upsertMessage({
+      msgId: `user_${Date.now()}`,
       role: 'user',
-      content: query
+      content: query,
+      ts: Date.now()
     })
     
     // Get selected tab IDs from tabsStore

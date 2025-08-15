@@ -712,6 +712,25 @@ p, span, div, h1, h2, h3, h4, h5, h6, li, td, th, label, input, textarea, button
   transform-origin: left;
 }
 
+/* Shimmer animation for thinking messages */
+@keyframes shimmer {
+  0% {
+    background-position: -200% center;
+  }
+  100% {
+    background-position: 200% center;
+  }
+}
+
+.animate-shimmer {
+  animation: shimmer 2s linear infinite;
+}
+
+.shimmer-container {
+  position: relative;
+  overflow: hidden;
+}
+
 /* Glass morphism effect */
 .glass {
   background: rgba(255, 255, 255, 0.1);

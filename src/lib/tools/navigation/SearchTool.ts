@@ -30,7 +30,7 @@ export class SearchTool {
       }
       
       // Emit status message
-      this.executionContext.getPubSub().publishMessage(PubSub.createMessage(`🔍 Searched for "${input.query}" on ${this._getProviderName(input.searchProvider)}`, 'assistant'))
+      this.executionContext.getPubSub().publishMessage(PubSub.createMessage(`Searched for "${input.query}" on ${this._getProviderName(input.searchProvider)}`, 'thinking'))
       
       return toolSuccess(`Searched for "${input.query}" on ${input.searchProvider}`);
     } catch (error) {

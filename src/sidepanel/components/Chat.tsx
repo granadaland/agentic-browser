@@ -19,7 +19,7 @@ interface ChatProps {
  * Orchestrates the layout and manages the overall chat interface
  */
 export function Chat({ isConnected }: ChatProps) {
-  const { messages, isProcessing, reset, addMessage } = useChatStore()
+  const { messages, isProcessing, reset, upsertMessage } = useChatStore()
   const [isUserScrolling, setIsUserScrolling] = useState(false)
   const [showSelectTabsButton, setShowSelectTabsButton] = useState(false)
   const messageListRef = useRef<HTMLDivElement>(null)
@@ -47,15 +47,17 @@ export function Chat({ isConnected }: ChatProps) {
         ? `✓ Connected to ${payload.serverId}`
         : `Failed to connect to ${payload.serverId}: ${payload.error || 'Unknown error'}`
       
-      addMessage({
-        role: 'system',
-        content: status
+      upsertMessage({
+        msgId: `mcp_status_${Date.now()}`,
+        role: 'assistant',
+        content: status,
+        ts: Date.now()
       })
     }
     
     addMessageListener(MessageType.MCP_SERVER_STATUS, handleMCPStatus)
     return () => removeMessageListener(MessageType.MCP_SERVER_STATUS, handleMCPStatus)
-  }, [addMessageListener, removeMessageListener, addMessage])
+  }, [addMessageListener, removeMessageListener, upsertMessage])
 
   return (
     <div className="flex flex-col h-full bg-background-alt">

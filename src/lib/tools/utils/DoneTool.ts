@@ -21,7 +21,7 @@ export function createDoneTool(executionContext: ExecutionContext): DynamicStruc
       const summary = args.summary || 'Task completed successfully';
       
       // Emit status message
-      executionContext.getPubSub().publishMessage(PubSub.createMessage(`✅ ${summary}`, 'assistant'))
+      executionContext.getPubSub().publishMessage(PubSub.createMessage(`${summary}`, 'thinking'))
       
       return JSON.stringify(toolSuccess(summary));
     }

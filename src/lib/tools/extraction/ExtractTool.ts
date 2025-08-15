@@ -32,7 +32,7 @@ export function createExtractTool(executionContext: ExecutionContext): DynamicSt
     func: async (args: ExtractInput): Promise<string> => {
       try {
         const messageId = PubSub.generateId('extract_tool')
-        executionContext.getPubSub().publishMessage(PubSub.createMessageWithId(messageId, `📝 Extracting information from page ${args.tab_id}`, 'assistant'))
+        executionContext.getPubSub().publishMessage(PubSub.createMessageWithId(messageId, `Extracting information from page ${args.tab_id}`, 'thinking'))
         // Get the page for the specified tab
         const pages = await executionContext.browserContext.getPages([args.tab_id])
         if (!pages || pages.length === 0) {
@@ -60,7 +60,7 @@ export function createExtractTool(executionContext: ExecutionContext): DynamicSt
               ).join('\n')
             : 'No links found'
         }
-        executionContext.getPubSub().publishMessage(PubSub.createMessageWithId(messageId, `📝 Extracted ${args.extract_type} from page, generating summary...`, 'assistant'))
+        executionContext.getPubSub().publishMessage(PubSub.createMessageWithId(messageId, `Extracted ${args.extract_type} from page, generating summary...`, 'thinking'))
         
         // Get page metadata
         const url = await page.url()

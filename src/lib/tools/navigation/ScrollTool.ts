@@ -44,7 +44,7 @@ export class ScrollTool {
     await page.scrollDown(DEFAULT_VIEWPORT_COUNT)
     
     // Emit status message
-    this.executionContext.getPubSub().publishMessage(PubSub.createMessage(`🔽 Scrolled down ${DEFAULT_VIEWPORT_COUNT} viewport`, 'assistant'))
+    this.executionContext.getPubSub().publishMessage(PubSub.createMessage(`Scrolled down ${DEFAULT_VIEWPORT_COUNT} viewport`, 'thinking'))
     
     return toolSuccess(`Scrolled down ${DEFAULT_VIEWPORT_COUNT} viewport`)
   }
@@ -53,7 +53,7 @@ export class ScrollTool {
     await page.scrollUp(DEFAULT_VIEWPORT_COUNT)
     
     // Emit status message
-    this.executionContext.getPubSub().publishMessage(PubSub.createMessage(`🔼 Scrolled up ${DEFAULT_VIEWPORT_COUNT} viewport`, 'assistant'))
+    this.executionContext.getPubSub().publishMessage(PubSub.createMessage(`Scrolled up ${DEFAULT_VIEWPORT_COUNT} viewport`, 'thinking'))
     
     return toolSuccess(`Scrolled up ${DEFAULT_VIEWPORT_COUNT} viewport`)
   }
@@ -74,7 +74,7 @@ export class ScrollTool {
     const elementInfo = `${element.tag || "unknown"} "${element.text || ""}"`.trim()
     
     // Emit status message
-    this.executionContext.getPubSub().publishMessage(PubSub.createMessage(`🎯 Scrolled to element: ${elementInfo}`, 'assistant'))
+    this.executionContext.getPubSub().publishMessage(PubSub.createMessage(`Scrolled to element: ${elementInfo}`, 'thinking'))
     
     return toolSuccess(`Scrolled to element ${index} (${elementInfo})`)
   }

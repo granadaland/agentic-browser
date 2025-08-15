@@ -7,42 +7,54 @@ describe('chatStore', () => {
     useChatStore.getState().reset()
   })
 
-  it('tests that messages can be added', () => {
-    const { addMessage } = useChatStore.getState()
+  it('tests that messages can be added via upsert', () => {
+    const { upsertMessage } = useChatStore.getState()
     
-    addMessage({
+    upsertMessage({
+      msgId: 'test_msg_1',
       role: 'user',
-      content: 'Hello world'
+      content: 'Hello world',
+      ts: Date.now()
     })
     
     const state = useChatStore.getState()
     expect(state.messages).toHaveLength(1)
     expect(state.messages[0].content).toBe('Hello world')
     expect(state.messages[0].role).toBe('user')
-    expect(state.messages[0].id).toBeDefined()
+    expect(state.messages[0].msgId).toBe('test_msg_1')
     expect(state.messages[0].timestamp).toBeInstanceOf(Date)
   })
 
-  it('tests that messages can be updated', () => {
-    const { addMessage, updateMessage } = useChatStore.getState()
+  it('tests that messages can be updated via upsert', () => {
+    const { upsertMessage } = useChatStore.getState()
     
-    addMessage({
-      role: 'assistant',
-      content: 'Initial content'
+    // Add initial message
+    upsertMessage({
+      msgId: 'test_msg_2',
+      role: 'thinking',
+      content: 'Initial content',
+      ts: Date.now()
     })
     
-    const messageId = useChatStore.getState().messages[0].id
-    updateMessage(messageId, 'Updated content')
+    // Update via upsert with same msgId
+    upsertMessage({
+      msgId: 'test_msg_2',
+      role: 'thinking',
+      content: 'Updated content',
+      ts: Date.now()
+    })
     
     const state = useChatStore.getState()
+    expect(state.messages).toHaveLength(1) // Should still be 1 message
     expect(state.messages[0].content).toBe('Updated content')
+    expect(state.messages[0].msgId).toBe('test_msg_2')
   })
 
   it('tests that store can be reset', () => {
-    const { addMessage, setProcessing, setError, reset } = useChatStore.getState()
+    const { upsertMessage, setProcessing, setError, reset } = useChatStore.getState()
     
     // Add some state
-    addMessage({ role: 'user', content: 'Test' })
+    upsertMessage({ msgId: 'test_msg_3', role: 'user', content: 'Test', ts: Date.now() })
     setProcessing(true)
     setError('Test error')
     
@@ -56,10 +68,10 @@ describe('chatStore', () => {
   })
 
   it('tests that selectors work correctly', () => {
-    const { addMessage } = useChatStore.getState()
+    const { upsertMessage } = useChatStore.getState()
     
-    addMessage({ role: 'user', content: 'First' })
-    addMessage({ role: 'assistant', content: 'Second' })
+    upsertMessage({ msgId: 'test_1', role: 'user', content: 'First', ts: Date.now() })
+    upsertMessage({ msgId: 'test_2', role: 'thinking', content: 'Second', ts: Date.now() })
     
     const state = useChatStore.getState()
     
@@ -67,6 +79,6 @@ describe('chatStore', () => {
     expect(chatSelectors.getLastMessage(state)?.content).toBe('Second')
     
     const firstMessage = state.messages[0]
-    expect(chatSelectors.getMessageById(state, firstMessage.id)).toBe(firstMessage)
+    expect(chatSelectors.getMessageByMsgId(state, firstMessage.msgId)).toBe(firstMessage)
   })
 })
