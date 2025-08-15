@@ -9,7 +9,7 @@ import { useKeyboardShortcuts, useAutoResize } from '../hooks/useKeyboardShortcu
 import { useSidePanelPortMessaging } from '@/sidepanel/hooks'
 import { MessageType } from '@/lib/types/messaging'
 import { cn } from '@/sidepanel/lib/utils'
-import { LoadingPawTrail } from './ui/Icons'
+import { Loader } from 'lucide-react'
 import { BrowserOSProvidersConfig, BrowserOSProvider } from '@/lib/llm/settings/browserOSTypes'
 import { ModeToggle } from './ModeToggle'
 // Tailwind classes used in ModeToggle; no separate CSS import

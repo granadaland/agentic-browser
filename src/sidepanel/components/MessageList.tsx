@@ -1,10 +1,11 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import { MessageItem } from './MessageItem'
+import { CollapsibleThoughts } from './CollapsibleThoughts'
 import { Button } from '@/sidepanel/components/ui/button'
 import { useAutoScroll } from '../hooks/useAutoScroll'
 import { useAnalytics } from '../hooks/useAnalytics'
+import { cn } from '@/sidepanel/lib/utils'
 import type { Message } from '../stores/chatStore'
-import { AnimatedPawPrints } from './ui/Icons'
 
 interface MessageListProps {
   messages: Message[]
@@ -78,10 +79,10 @@ const DISPLAY_COUNT = 5 // Show 5 examples at a time
 export function MessageList({ messages, onScrollStateChange, scrollToBottom: externalScrollToBottom, containerRef: externalContainerRef }: MessageListProps) {
   const { containerRef: internalContainerRef, isUserScrolling, scrollToBottom } = useAutoScroll<HTMLDivElement>([messages], externalContainerRef)
   const { trackFeature } = useAnalytics()
-  const [isAtBottom, setIsAtBottom] = useState(true)
+  const [, setIsAtBottom] = useState(true)
   const [currentExamples, setCurrentExamples] = useState<string[]>([])
   const [shuffledPool, setShuffledPool] = useState<string[]>([])
-  const [isAnimating, setIsAnimating] = useState(false)
+  const [isAnimating] = useState(false)
   
   // Track previously seen message IDs to determine which are new
   const previousMessageIdsRef = useRef<Set<string>>(new Set())
@@ -107,51 +108,85 @@ export function MessageList({ messages, onScrollStateChange, scrollToBottom: ext
     previousMessageIdsRef.current = currentMessageIds
   }, [messages])
 
-  // Memoize filtered and processed messages to avoid recalculation on every render
-  const processedMessages = useMemo(() => {
-    const todoTableMessages = messages.filter(msg => msg.content.includes('| # | Status | Task |'))
-    const todoTableIds = new Set(todoTableMessages.map(msg => msg.msgId))
-
-    // Create a map of message positions for efficient lookup
-    const messagePositions = new Map<string, {
-      isTodoTable: boolean
-      todoIndex: number
-      isFirst: boolean
-      isLast: boolean
-      shouldIndent: boolean
-    }>()
-
-    messages.forEach((message, index) => {
-      const isTodoTable = todoTableIds.has(message.msgId)
-      const todoIndex = isTodoTable ? todoTableMessages.findIndex(msg => msg.msgId === message.msgId) : -1
-
-      // Simplified: indent all thinking messages except TODO tables
-      const shouldIndent = message.role === 'thinking' && !isTodoTable
-
-      messagePositions.set(message.msgId, {
-        isTodoTable,
-        todoIndex,
-        isFirst: isTodoTable && todoIndex === 0,
-        isLast: isTodoTable && todoIndex === todoTableMessages.length - 1,
-        shouldIndent
-      })
-    })
-
-    return messages
-      .filter(message => {
-        if (message.metadata?.toolName === 'todo_manager') {
-          return message.content.includes('| # | Status | Task |')
+  // Process messages and group narrations
+  const { processedBlocks } = useMemo(() => {
+    const blocks: Array<{ type: 'message' | 'narration-group' | 'collapsed-thoughts', messages: Message[] }> = []
+    const allNarrations: Message[] = []  // All narration messages
+    let hasSeenAssistant = false
+    
+    // Process messages in order
+    messages.forEach((message) => {
+      const isNarration = message.role === 'narration'
+      const isAssistant = message.role === 'assistant'
+      const isThinking = message.role === 'thinking'
+      // const isTodoTable = message.content.includes('| # | Status | Task |')
+      
+      // When we see an assistant message, collapse all previous narrations
+      if (isAssistant) {
+        hasSeenAssistant = true
+        
+        // If we have narrations, put them ALL in collapsed thoughts
+        if (allNarrations.length > 0) {
+          blocks.push({ type: 'collapsed-thoughts', messages: [...allNarrations] })
+          allNarrations.length = 0  // Clear for any future narrations
         }
-        return true
-      })
-      .map((message, index) => {
-        const position = messagePositions.get(message.msgId)!
-        if (position.isTodoTable && !position.isFirst && !position.isLast) return null
-        const isNewMessage = newMessageIdsRef.current.has(message.msgId)
-        const animationDelay = isNewMessage ? index * 0.1 : 0
-        return { message, position: position!, animationDelay, isNewMessage }
-      })
-      .filter(Boolean) as Array<{ message: Message, position: NonNullable<ReturnType<typeof messagePositions.get>>, animationDelay: number, isNewMessage: boolean }>
+        
+        // Add the assistant message
+        blocks.push({ type: 'message', messages: [message] })
+      }
+      // Handle narration messages
+      else if (isNarration) {
+        if (hasSeenAssistant) {
+          // After assistant message, clear old narrations and start fresh
+          allNarrations.length = 0
+          hasSeenAssistant = false
+        }
+        
+        allNarrations.push(message)
+      }
+      // Handle thinking messages (including TODO tables)
+      else if (isThinking) {
+        
+        // Add thinking message
+        blocks.push({ type: 'message', messages: [message] })
+      }
+      // Handle other message types
+      else {
+        blocks.push({ type: 'message', messages: [message] })
+      }
+    })
+    
+    // Process narrations at the end - always use CollapsibleThoughts for consistency
+    if (allNarrations.length > 0 && !hasSeenAssistant) {
+      if (allNarrations.length > 3) {
+        // More than 3: split into collapsed and visible
+        const collapsedCount = allNarrations.length - 3
+        const collapsedMessages = allNarrations.slice(0, collapsedCount)
+        const visibleMessages = allNarrations.slice(collapsedCount)
+        
+        blocks.push({ type: 'collapsed-thoughts', messages: collapsedMessages })
+        blocks.push({ type: 'narration-group', messages: visibleMessages })
+      } else {
+        // 3 or fewer: show empty CollapsibleThoughts header + all messages visible
+        blocks.push({ type: 'collapsed-thoughts', messages: [] })
+        blocks.push({ type: 'narration-group', messages: allNarrations })
+      }
+    }
+    
+    return { processedBlocks: blocks }
+  }, [messages])
+  
+  // Track the currently executing narration message
+  const currentlyExecutingNarration = useMemo(() => {
+    // Find the last narration message that doesn't have a following assistant message
+    const lastNarrationIndex = messages.findLastIndex(m => m.role === 'narration')
+    if (lastNarrationIndex === -1) return null
+    
+    // Check if there's an assistant message after this narration
+    const hasAssistantAfter = messages.slice(lastNarrationIndex + 1).some(m => m.role === 'assistant')
+    if (hasAssistantAfter) return null
+    
+    return messages[lastNarrationIndex]?.msgId
   }, [messages])
 
   // Initialize shuffled pool and current examples
@@ -170,7 +205,7 @@ export function MessageList({ messages, onScrollStateChange, scrollToBottom: ext
   }, [])
 
   // Function to get random examples from pool
-  const getRandomExample = useCallback((count: number = 1): string[] => {
+  const _getRandomExample = useCallback((count: number = 1): string[] => {
     const result: string[] = []
     let pool = [...shuffledPool]
 
@@ -233,7 +268,7 @@ export function MessageList({ messages, onScrollStateChange, scrollToBottom: ext
   }, [containerRef, onScrollStateChange, messages.length, isUserScrolling]) // Added isUserScrolling dependency
 
   // Use external scroll function if provided, otherwise use internal one
-  const handleScrollToBottom = () => {
+  const _handleScrollToBottom = () => {
     trackFeature('scroll_to_bottom')
     if (externalScrollToBottom) {
       externalScrollToBottom()
@@ -336,50 +371,163 @@ export function MessageList({ messages, onScrollStateChange, scrollToBottom: ext
         {/* Messages List */}
         <div className="p-6 space-y-3 pb-4">
           {(() => {
-            const blocks: React.ReactNode[] = []
-            let inGroup = false
-            let groupChildren: React.ReactNode[] = []
-
-            const pushGroup = () => {
-              if (groupChildren.length > 0) {
-                blocks.push(
-                  <div key={`group-${blocks.length}`} className="relative before:content-[''] before:absolute before:left-[8px] before:top-0 before:bottom-0 before:w-px before:bg-gradient-to-b before:from-brand/40 before:via-brand/30 before:to-brand/20">
-                    {groupChildren}
+            // Group consecutive collapsed-thoughts and narration-group blocks
+            const renderedBlocks: React.ReactNode[] = []
+            let i = 0
+            
+            while (i < processedBlocks.length) {
+              const block = processedBlocks[i]
+              const nextBlock = processedBlocks[i + 1]
+              
+              // Check if we have a collapsed-thoughts followed by narration-group
+              if (block.type === 'collapsed-thoughts' && nextBlock?.type === 'narration-group') {
+                // Render them together
+                renderedBlocks.push(
+                  <div key={`thoughts-narrations-${i}`}>
+                    {/* Thoughts header */}
+                    <CollapsibleThoughts
+                      messages={block.messages}
+                    />
+                    
+                    {/* Visible narrations with thread line */}
+                    <div className="relative">
+                      {/* Thread line aligned with messages */}
+                      <div className="absolute left-[16px] top-0 bottom-0 w-px bg-gradient-to-b from-brand/40 via-brand/30 to-brand/20" />
+                      
+                      {nextBlock.messages.map((message, index) => {
+                        const isCurrentlyExecuting = message.msgId === currentlyExecutingNarration
+                        const isNewMessage = newMessageIdsRef.current.has(message.msgId)
+                        
+                        return (
+                          <div
+                            key={message.msgId}
+                            className={cn(
+                              "relative pl-8",
+                              isNewMessage ? 'animate-fade-in' : ''
+                            )}
+                            style={{ animationDelay: isNewMessage ? `${index * 0.1}s` : undefined }}
+                          >
+                            {/* Active indicator dot */}
+                            {isCurrentlyExecuting && (
+                              <div 
+                                className="absolute left-[12px] top-[8px] w-2 h-2 rounded-full animate-pulse"
+                                style={{ backgroundColor: '#FB661F' }}
+                                aria-label="Currently executing"
+                              />
+                            )}
+                            
+                            <MessageItem 
+                              message={message} 
+                              shouldIndent={false}
+                              showLocalIndentLine={false}
+                              applyIndentMargin={false}
+                            />
+                          </div>
+                        )
+                      })}
+                    </div>
                   </div>
                 )
-                groupChildren = []
+                i += 2  // Skip both blocks
+              }
+              // Standalone collapsed-thoughts (when assistant message collapsed all)
+              else if (block.type === 'collapsed-thoughts') {
+                renderedBlocks.push(
+                  <div key={`collapsed-${i}`}>
+                    <CollapsibleThoughts
+                      messages={block.messages}
+                    />
+                  </div>
+                )
+                i++
+              }
+              // Standalone narration-group (when <= 3 narrations)
+              else if (block.type === 'narration-group') {
+                renderedBlocks.push(
+                  <div 
+                    key={`narration-group-${i}`}
+                    className="relative"
+                  >
+                    {/* Thread line connecting all narrations */}
+                    <div className="absolute left-[16px] top-0 bottom-0 w-px bg-gradient-to-b from-brand/40 via-brand/30 to-brand/20" />
+                    
+                    {block.messages.map((message, index) => {
+                      const isCurrentlyExecuting = message.msgId === currentlyExecutingNarration
+                      const isNewMessage = newMessageIdsRef.current.has(message.msgId)
+                      
+                      return (
+                        <div
+                          key={message.msgId}
+                          className={cn(
+                            "relative pl-8",
+                            isNewMessage ? 'animate-fade-in' : ''
+                          )}
+                          style={{ animationDelay: isNewMessage ? `${index * 0.1}s` : undefined }}
+                        >
+                          {/* Active indicator dot */}
+                          {isCurrentlyExecuting && (
+                            <div 
+                              className="absolute left-[12px] top-[8px] w-2 h-2 rounded-full animate-pulse"
+                              style={{ backgroundColor: '#FB661F' }}
+                              aria-label="Currently executing"
+                            />
+                          )}
+                          
+                          <MessageItem 
+                            message={message} 
+                            shouldIndent={false}
+                            showLocalIndentLine={false}
+                            applyIndentMargin={false}
+                          />
+                        </div>
+                      )
+                    })}
+                  </div>
+                )
+                i++
+              }
+              else {
+                // Handle other block types (messages, thinking, etc.)
+                const message = block.messages[0]
+                if (!message) {
+                  i++
+                  continue
+                }
+                
+                const isNewMessage = newMessageIdsRef.current.has(message.msgId)
+                const isTodoTable = message.content.includes('| # | Status | Task |')
+                const isThinking = message.role === 'thinking'
+                const shouldIndent = isThinking && !isTodoTable
+                
+                renderedBlocks.push(
+                  <div
+                    key={message.msgId}
+                    className={isNewMessage ? 'animate-fade-in' : ''}
+                    style={{ animationDelay: isNewMessage ? '0.1s' : undefined }}
+                  >
+                    {shouldIndent ? (
+                      <div className="relative before:content-[''] before:absolute before:left-[8px] before:top-0 before:bottom-0 before:w-px before:bg-gradient-to-b before:from-brand/40 before:via-brand/30 before:to-brand/20">
+                        <MessageItem 
+                          message={message} 
+                          shouldIndent={true}
+                          showLocalIndentLine={false}
+                          applyIndentMargin={false}
+                        />
+                      </div>
+                    ) : (
+                      <MessageItem 
+                        message={message} 
+                        shouldIndent={false}
+                        showLocalIndentLine={false}
+                      />
+                    )}
+                  </div>
+                )
+                i++
               }
             }
-
-            processedMessages.forEach(({ message, position, animationDelay, isNewMessage }) => {
-              const commonAttrs = {
-                key: message.msgId,
-                className: isNewMessage ? 'animate-fade-in' : '',
-                style: { animationDelay: isNewMessage ? `${animationDelay}s` : undefined },
-                'data-todo-position': position.isFirst ? 'first' : position.isLast ? 'last' : null,
-                'data-todo-index': position.todoIndex
-              } as any
-
-              if (position.shouldIndent) {
-                if (!inGroup) inGroup = true
-                groupChildren.push(
-                  <div {...commonAttrs}>
-                    <MessageItem message={message} shouldIndent={true} showLocalIndentLine={false} applyIndentMargin={false} />
-                  </div>
-                )
-              } else {
-                if (inGroup) { pushGroup(); inGroup = false }
-                blocks.push(
-                  <div {...commonAttrs}>
-                    <MessageItem message={message} shouldIndent={false} showLocalIndentLine={false} />
-                  </div>
-                )
-              }
-            })
-
-            if (inGroup) pushGroup()
-
-            return <>{blocks}</>
+            
+            return renderedBlocks
           })()}
         </div>
       </div>

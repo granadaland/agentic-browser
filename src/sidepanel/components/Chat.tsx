@@ -6,7 +6,7 @@ import { SelectTabsButton } from './SelectTabsButton'
 import { useChatStore } from '../stores/chatStore'
 import { ErrorBoundary } from './ErrorBoundary'
 import { useAnalytics } from '../hooks/useAnalytics'
-import { ArrowDownIcon } from './ui/Icons'
+import { ArrowDown } from 'lucide-react'
 import { useSidePanelPortMessaging } from '@/sidepanel/hooks'
 import { MessageType } from '@/lib/types/messaging'
 
@@ -111,7 +111,7 @@ export function Chat({ isConnected }: ChatProps) {
             aria-label="Scroll to bottom of messages"
             type="button"
           >
-            <ArrowDownIcon />
+            <ArrowDown className="w-4 h-4" />
           </button>
         </div>
       )}

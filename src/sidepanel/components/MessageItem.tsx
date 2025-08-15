@@ -4,7 +4,7 @@ import { ExpandableSection } from './shared/ExpandableSection'
 import { cn } from '@/sidepanel/lib/utils'
 import type { Message } from '../stores/chatStore'
 import { useChatStore } from '../stores/chatStore'
-import { ChevronDownIcon, ChevronUpIcon } from './ui/Icons'
+import { ChevronDown, ChevronUp } from 'lucide-react'
 import { TaskManagerDropdown } from './TaskManagerDropdown'
 import { useSettingsStore } from '@/sidepanel/stores/settingsStore'
 
@@ -304,7 +304,7 @@ const ToolResultInline = ({ name, content, autoCollapseAfterMs }: ToolResultInli
       >
         <span>{name}</span>
         <span className="shrink-0 text-muted-foreground/70">
-          {expanded ? <ChevronUpIcon className="w-3 h-3" /> : <ChevronDownIcon className="w-3 h-3" />}
+          {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
         </span>
       </button>
 

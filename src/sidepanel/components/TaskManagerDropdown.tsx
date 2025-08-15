@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react'
 import { cn } from '@/sidepanel/lib/utils'
-import { ChevronDownIcon, ChevronUpIcon } from './ui/Icons'
+import { ChevronDown, ChevronUp } from 'lucide-react'
 import { z } from 'zod'
 
 // Define the task schema with Zod
@@ -105,7 +105,7 @@ export function TaskManagerDropdown({ content, className }: TaskManagerDropdownP
           aria-label={isExpanded ? 'Collapse task list' : 'Expand task list'}
         >
           <span>{completedCount}/{tasks.length} completed</span>
-          {isExpanded ? <ChevronUpIcon className="w-3 h-3" /> : <ChevronDownIcon className="w-3 h-3" />}
+          {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
         </button>
       </div>
 

@@ -3,7 +3,7 @@ import { Button } from '@/sidepanel/components/ui/button'
 import { Slider } from './ui/slider'
 import { cn } from '@/sidepanel/lib/utils'
 import { z } from 'zod'
-import { XIcon, SunIcon, MoonIcon } from './ui/Icons'
+import { X } from 'lucide-react'
 import { useSettingsStore } from '@/sidepanel/stores/settingsStore'
 import { useSidePanelPortMessaging } from '@/sidepanel/hooks/useSidePanelPortMessaging'
 import { MessageType } from '@/lib/types/messaging'
@@ -126,7 +126,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             className="h-8 w-8 p-0 hover:bg-muted"
             aria-label="Close settings"
           >
-            <XIcon />
+            <X className="w-4 h-4" />
           </Button>
         </div>
 

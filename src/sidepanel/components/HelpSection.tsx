@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { z } from 'zod'
-import { MonitorIcon, CloseIcon, PauseIconFilled, RefreshIcon, HelpIcon, ExternalLinkIcon } from './ui/Icons'
+import { Monitor, X, Pause, RefreshCw, HelpCircle, ExternalLink } from 'lucide-react'
 
 // Props schema
 const HelpSectionPropsSchema = z.object({
@@ -87,7 +87,7 @@ export function HelpSection ({
          <div className="flex items-center justify-between p-5 border-b border-border/30">
            <div className="flex items-center gap-1">
              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-brand/20 to-brand/10 flex items-center justify-center">
-               <MonitorIcon />
+               <Monitor className="w-4 h-4" />
              </div>
              <div className="flex items-center gap-2">
                <h2 className="text-lg font-semibold text-foreground">BrowserOS Agent</h2>
@@ -99,7 +99,7 @@ export function HelpSection ({
              className="p-2 hover:bg-muted/50 rounded-xl transition-all duration-200"
              title="Close help"
            >
-             <CloseIcon />
+             <X className="w-4 h-4" />
            </button>
          </div>
 
@@ -120,7 +120,7 @@ export function HelpSection ({
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-1">
                  <div className="flex items-center gap-2 p-3 bg-muted/60 dark:bg-muted/30 rounded-xl border border-border/60 dark:border-border/30 shadow-sm">
                    <div className="w-7 h-7 bg-gradient-to-br from-brand/20 to-brand/10 rounded-xl flex items-center justify-center">
-                     <PauseIconFilled />
+                     <Pause className="w-3 h-3" fill="currentColor" />
                    </div>
                    <div>
                      <div className="font-medium text-sm text-foreground">Pause</div>
@@ -130,7 +130,7 @@ export function HelpSection ({
 
                  <div className="flex items-center gap-2 p-3 bg-muted/60 dark:bg-muted/30 rounded-xl border border-border/60 dark:border-border/30 shadow-sm">
                    <div className="w-7 h-7 bg-gradient-to-br from-brand/20 to-brand/10 rounded-xl flex items-center justify-center">
-                     <RefreshIcon />
+                     <RefreshCw className="w-3 h-3" />
                    </div>
                    <div>
                      <div className="font-medium text-sm text-foreground">Reset</div>
@@ -142,7 +142,7 @@ export function HelpSection ({
               <div className="p-4 bg-gradient-to-r from-brand/5 to-brand/10 border border-brand/20 rounded-xl">
                <div className="flex items-start gap-2">
                  <div className="w-5 h-5 bg-brand/20 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
-                   <HelpIcon />
+                   <HelpCircle className="w-3 h-3" />
                  </div>
                  <div>
                    <div className="font-medium text-sm text-foreground">Pro tip</div>
@@ -208,7 +208,7 @@ export function HelpSection ({
                className="inline-flex items-center gap-2.5 text-brand hover:text-brand/80 transition-all duration-200 group"
              >
                <div className="w-6 h-6 bg-brand/10 rounded-lg flex items-center justify-center group-hover:bg-brand/20 transition-colors">
-                 <ExternalLinkIcon />
+                 <ExternalLink className="w-3 h-3" />
                </div>
                <span className="text-xs font-medium">View detailed usage guide</span>
              </a>

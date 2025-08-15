@@ -5,7 +5,7 @@ import { MessageType } from '@/lib/types/messaging'
 import { useAnalytics } from '../hooks/useAnalytics'
 import { SettingsModal } from './SettingsModal'
 import { HelpSection } from './HelpSection'
-import { HelpIcon, SettingsIcon, PauseIcon, ResetIcon, ChevronDownIcon, PlusIcon } from './ui/Icons'
+import { HelpCircle, Settings, Pause, RotateCcw, ChevronDown, Plus } from 'lucide-react'
 import { useSettingsStore } from '@/sidepanel/stores/settingsStore'
 import { useEffect } from 'react'
 import { z } from 'zod'
@@ -174,7 +174,7 @@ export const Header = memo(function Header({ onReset, showReset, isProcessing }:
                   <option key={p.id} value={p.id}>{p.name}</option>
                 ))}
               </select>
-              <ChevronDownIcon className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-foreground opacity-80" />
+              <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-foreground opacity-80" />
             </div>
           )}
         </div>
@@ -190,7 +190,7 @@ export const Header = memo(function Header({ onReset, showReset, isProcessing }:
             className="h-9 w-9 p-0 rounded-xl hover:bg-brand/10 hover:text-brand transition-all duration-300"
             aria-label="Open help"
           >
-            <HelpIcon />
+            <HelpCircle className="w-4 h-4" />
           </Button>
 
           {/* Settings button */}
@@ -201,7 +201,7 @@ export const Header = memo(function Header({ onReset, showReset, isProcessing }:
             className="h-9 w-9 p-0 rounded-xl hover:bg-brand/10 hover:text-brand transition-all duration-300"
             aria-label="Open settings"
           >
-            <SettingsIcon />
+            <Settings className="w-4 h-4" />
           </Button>
 
           {/* MCP Integrations dropdown - Hidden until feature is enabled */}
@@ -214,7 +214,7 @@ export const Header = memo(function Header({ onReset, showReset, isProcessing }:
                 className="h-9 w-9 p-0 rounded-xl hover:bg-brand/10 hover:text-brand transition-all duration-300"
                 aria-label="Connect integrations"
               >
-                <PlusIcon />
+                <Plus className="w-4 h-4" />
               </Button>
               
               {showMCPDropdown && (
@@ -248,7 +248,7 @@ export const Header = memo(function Header({ onReset, showReset, isProcessing }:
               className="text-xs hover:bg-brand/5 hover:text-brand transition-all duration-300"
               aria-label="Pause current task"
             >
-              <PauseIcon />
+              <Pause className="w-4 h-4" />
               Pause
             </Button>
           )}
@@ -261,7 +261,7 @@ export const Header = memo(function Header({ onReset, showReset, isProcessing }:
               className="text-xs hover:bg-brand/5 hover:text-brand transition-all duration-300"
               aria-label="Reset conversation"
             >
-              <ResetIcon />
+              <RotateCcw className="w-4 h-4" />
               Reset
             </Button>
           )}
