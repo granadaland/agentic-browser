@@ -527,52 +527,30 @@ export class BrowserAgent {
     };
     
     for (const toolCall of toolCalls) {
-      // Check abort before processing each tool
       this.checkIfAborted();
 
       const { name: toolName, args, id: toolCallId } = toolCall;
       const tool = this.toolManager.get(toolName);
-      
       if (!tool) {
-        // Handle tool not found
         continue;
       }
 
-      // Handle glow animation for applicable tools
-      // This enables glow only for certain interactive tools.
-      // we'll disable at the end of agent execution
       await this._maybeStartGlowAnimation(toolName);
 
-      // Tool start - not needed in new pub-sub system
-      const result = await tool.func(args);
+      const toolResult = await tool.func(args);
+      const parsedResult = JSON.parse(toolResult);
       
-      // Check abort after tool execution completes
-      this.checkIfAborted();
-      
-      const parsedResult = JSON.parse(result);
-      
-      // Publish tool result for UI display
-      // Skip refresh_browser_state_tool to prevent flooding UI with complex state
-      // Also skip result_tool to avoid duplicating the final summary in the UI
-      if (toolName !== 'refresh_browser_state_tool' && toolName !== 'result_tool') {
-        //TODO: nikhil -- see if how to merge formatToolOutput to tools itself
-        // const formattedContent = formatToolOutput(toolName, parsedResult);
-        // this.pubsub.publishMessage(PubSub.createMessage(formattedContent, 'system'));
-      }
 
       // Add the result back to the message history for context
-      // Special handling for refresh_browser_state_tool to avoid flooding message history
       if (toolName === 'refresh_browser_state_tool' && parsedResult.ok) {
-        // Add simplified result to message history
         const simplifiedResult = JSON.stringify({ 
           ok: true, 
           output: "Emergency browser state refresh completed - full DOM analysis available" 
         });
         this.messageManager.addTool(simplifiedResult, toolCallId);
-        // Update browser state context for the agent
         this.messageManager.addBrowserState(parsedResult.output);
       } else {
-        this.messageManager.addTool(result, toolCallId);
+        this.messageManager.addTool(toolResult, toolCallId);
       }
 
       // Special handling for todo_manager_tool, add system reminder for mutations
@@ -581,7 +559,6 @@ export class BrowserAgent {
         this.messageManager.addSystemReminder(
           `TODO list updated:\n${markdown}`
         );
-        // Show updated TODO list to user
         this.pubsub.publishMessage(PubSub.createMessage(markdown, 'thinking'));
       }
 
