@@ -126,11 +126,11 @@ export class ChatAgent {
     } catch (error) {
       if (error instanceof AbortError) {
         Logging.log('ChatAgent', 'Execution aborted by user')
-        this.pubsub.publishMessage(PubSub.createMessage('Execution cancelled', 'thinking'))
+        this.pubsub.publishMessage(PubSub.createMessage('Execution cancelled', 'error'))
       } else {
         const errorMessage = error instanceof Error ? error.message : String(error)
         Logging.log('ChatAgent', `Execution failed: ${errorMessage}`, 'error')
-        this.pubsub.publishMessage(PubSub.createMessage(`Error: ${errorMessage}`, 'thinking'))
+        this.pubsub.publishMessage(PubSub.createMessage(`Error: ${errorMessage}`, 'error'))
       }
       throw error
     }
@@ -289,7 +289,7 @@ export class ChatAgent {
       if (chunk.content) {
         fullContent += chunk.content
         // Stream chunk to UI
-        this.pubsub.publishMessage(PubSub.createMessageWithId(streamMsgId, fullContent, 'thinking'))
+        this.pubsub.publishMessage(PubSub.createMessageWithId(streamMsgId, fullContent, 'assistant'))
       }
     }
     
@@ -297,7 +297,7 @@ export class ChatAgent {
     const finalMessage = this._accumulateMessage(chunks)
     
     // Final message with complete content
-    this.pubsub.publishMessage(PubSub.createMessageWithId(streamMsgId, fullContent, 'thinking'))
+    this.pubsub.publishMessage(PubSub.createMessageWithId(streamMsgId, fullContent, 'assistant'))
     
     // Add to message history
     this.messageManager.addAI(finalMessage.content as string || '')
