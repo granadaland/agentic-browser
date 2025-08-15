@@ -166,13 +166,12 @@ export class BrowserAgent {
       
       let message: string;
       if (classification.is_followup_task && this.messageManager.getMessages().length > 0) {
-        message = 'Following up on the previous task...';
+        message = 'Following up on previous task...';
       } else if (classification.is_simple_task) {
-        message = 'Executing the task...';
+        message = 'Executing your task...';
       } else {
-        message = 'Creating a step-by-step plan to complete the task';
+        message = 'Creating a plan to complete the task...';
       }
-      // Tag startup status messages for UI styling
       this.pubsub.publishMessage(PubSub.createMessage(message, 'narration'));
 
       // 3. DELEGATE: Route to the correct execution strategy
