@@ -33,7 +33,7 @@ export function ChatInput({ isConnected, isProcessing }: ChatInputProps) {
   const [historyIndex, setHistoryIndex] = useState<number>(-1)
   const [draftBeforeHistory, setDraftBeforeHistory] = useState<string>('')
   
-  const { upsertMessage, setProcessing, selectedTabIds, clearSelectedTabs } = useChatStore()
+  const { upsertMessage, setProcessing } = useChatStore()
   const messages = useChatStore(state => state.messages)
   const { chatMode } = useSettingsStore()
   const { sendMessage, addMessageListener, removeMessageListener, connected: portConnected } = useSidePanelPortMessaging()

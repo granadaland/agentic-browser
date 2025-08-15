@@ -51,7 +51,6 @@ interface ChatActions {
 const initialState: ChatState = {
   messages: [],
   isProcessing: false,
-  selectedTabIds: [],
   error: null
 }
 
@@ -109,8 +108,5 @@ export const chatSelectors = {
     state.messages.length > 0,
     
   getMessageByMsgId: (state: ChatState, msgId: string): Message | undefined =>
-    state.messages.find(msg => msg.msgId === msgId),
-    
-  getSelectedTabCount: (state: ChatState): number => 
-    state.selectedTabIds.length
+    state.messages.find(msg => msg.msgId === msgId)
 }
