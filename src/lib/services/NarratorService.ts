@@ -96,18 +96,18 @@ export class NarratorService {
     const readOnlyMessageManager = new MessageManagerReadOnly(this.executionContext.messageManager)
     
     // Filter out browser state messages and only include AI and tool messages
-    const conversationHistory = readOnlyMessageManager
-      .getAll()
-      .filter(m => {
-        // Exclude browser state messages
-        if (m.additional_kwargs?.messageType === MessageType.BROWSER_STATE) return false
-        const msgType = m._getType()
-        return msgType === 'ai' || msgType === 'tool'
-      })
-      .slice(-5)  // Get last 5 relevant messages for context
-      .map(m => `${m._getType()}: ${m.content}`)
-      .join('\n')
-    
+    // const conversationHistory = readOnlyMessageManager
+    //   .getAll()
+    //   .filter(m => {
+    //     // Exclude browser state messages
+    //     if (m.additional_kwargs?.messageType === MessageType.BROWSER_STATE) return false
+    //     const msgType = m._getType()
+    //     return msgType === 'ai' || msgType === 'tool'
+    //   })
+    //   .slice(-5)  // Get last 5 relevant messages for context
+    //   .map(m => `${m._getType()}: ${m.content}`)
+    //   .join('\n')
+    //
     try {
       // Get or cache LLM instance
       if (!this.llmPromise) {
@@ -121,7 +121,8 @@ export class NarratorService {
         new HumanMessage(generateNarrationPrompt(
           message.content,
           currentTask,
-          conversationHistory,
+          null,
+          // conversationHistory,
           todos
         ))
       ]
