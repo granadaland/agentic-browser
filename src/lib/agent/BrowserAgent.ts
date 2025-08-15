@@ -696,7 +696,10 @@ export class BrowserAgent {
                                this.executionContext.isUserCancellation() || 
                                (error instanceof Error && error.name === "AbortError");
     
-    if (!isUserCancellation) {
+    if (isUserCancellation) {
+      // Publish a cancellation message so UI knows to stop processing
+      this.pubsub.publishMessage(PubSub.createMessage('✋ Task paused. To continue this task, just type your next request OR use 🔄 to start a new task!', 'assistant'));
+    } else {
       console.error('Execution error (already reported by tool):', error);
       throw error;
     }

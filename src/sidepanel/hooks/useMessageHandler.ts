@@ -4,7 +4,7 @@ import { useSidePanelPortMessaging } from '@/sidepanel/hooks'
 import { useChatStore, type PubSubMessage } from '../stores/chatStore'
 
 export function useMessageHandler() {
-  const { upsertMessage, setProcessing, setError } = useChatStore()
+  const { upsertMessage, setProcessing } = useChatStore()
   const { addMessageListener, removeMessageListener } = useSidePanelPortMessaging()
 
   const handleStreamUpdate = useCallback((payload: any) => {
@@ -18,36 +18,21 @@ export function useMessageHandler() {
       }
       
       upsertMessage(message)
-    }
-  }, [upsertMessage])
-  
-  // Handle workflow status updates
-  const handleWorkflowStatus = useCallback((payload: any) => {
-    if (payload.status === 'completed' || payload.status === 'failed' || payload.cancelled) {
-      setProcessing(false)
       
-      if (payload.error && !payload.cancelled) {
-        setError(payload.error)
-        // Create error message via PubSub format
-        upsertMessage({
-          msgId: `error_${Date.now()}`,
-          content: payload.error,
-          role: 'error',
-          ts: Date.now()
-        })
+      // Check for completion or error messages from agents
+      if (message.role === 'assistant' || message.role === 'error') {
+        setProcessing(false)
       }
     }
-  }, [upsertMessage, setProcessing, setError])
+  }, [upsertMessage, setProcessing])
   
   useEffect(() => {
-    // Register listeners
+    // Register listener for PubSub events only
     addMessageListener(MessageType.AGENT_STREAM_UPDATE, handleStreamUpdate)
-    addMessageListener(MessageType.WORKFLOW_STATUS, handleWorkflowStatus)
     
     // Cleanup
     return () => {
       removeMessageListener(MessageType.AGENT_STREAM_UPDATE, handleStreamUpdate)
-      removeMessageListener(MessageType.WORKFLOW_STATUS, handleWorkflowStatus)
     }
-  }, [addMessageListener, removeMessageListener, handleStreamUpdate, handleWorkflowStatus])
+  }, [addMessageListener, removeMessageListener, handleStreamUpdate])
 }

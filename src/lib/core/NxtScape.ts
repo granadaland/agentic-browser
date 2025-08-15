@@ -33,19 +33,6 @@ export const RunOptionsSchema = z.object({
 export type RunOptions = z.infer<typeof RunOptionsSchema>;
 
 /**
- * Result schema for NxtScape execution
- */
-export const NxtScapeResultSchema = z.object({
-  success: z.boolean(), // Whether the operation succeeded
-  error: z.string().optional(), // Error message if failed
-});
-
-/**
- * Result type for NxtScape execution
- */
-export type NxtScapeResult = z.infer<typeof NxtScapeResultSchema>;
-
-/**
  * Main orchestration class for the NxtScape framework.
  * Manages execution context and delegates task execution to BrowserAgent.
  */
@@ -143,10 +130,9 @@ export class NxtScape {
    * Processes a user query with streaming support.
    * Always uses streaming execution for real-time progress updates.
    *
-   * @param options - Run options including query, optional tabIds, and eventBus
-   * @returns Result of the processed query with success/error status
+   * @param options - Run options including query, optional tabIds, and mode
    */
-  public async run(options: RunOptions): Promise<NxtScapeResult> {
+  public async run(options: RunOptions): Promise<void> {
     profileStart("NxtScape.run");
     // Ensure the agent is initialized before running
     if (!this.isInitialized()) {
@@ -208,10 +194,6 @@ export class NxtScape {
       } else {
         await this.browserAgent.execute(query);
       }
-      
-      // Return success result
-      return { success: true };
-      
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       const wasCancelled = error instanceof Error && error.name === "AbortError";
@@ -222,11 +204,8 @@ export class NxtScape {
         Logging.log("NxtScape", `Execution error: ${errorMessage}`, "error");
       }
       
-      // Return error result
-      return { 
-        success: false, 
-        error: errorMessage 
-      };
+      // Re-throw error so background script can handle if needed
+      throw error;
     } finally {
       // Always mark execution as ended
       this.executionContext.endExecution();

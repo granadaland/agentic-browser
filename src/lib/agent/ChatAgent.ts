@@ -126,7 +126,7 @@ export class ChatAgent {
     } catch (error) {
       if (error instanceof AbortError) {
         Logging.log('ChatAgent', 'Execution aborted by user')
-        this.pubsub.publishMessage(PubSub.createMessage('Execution cancelled', 'error'))
+        this.pubsub.publishMessage(PubSub.createMessage('✋ Task paused. To continue this task, just type your next request OR use 🔄 to start a new task!', 'assistant'))
       } else {
         const errorMessage = error instanceof Error ? error.message : String(error)
         Logging.log('ChatAgent', `Execution failed: ${errorMessage}`, 'error')

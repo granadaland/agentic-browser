@@ -464,78 +464,22 @@ async function handleExecuteQueryPort(
     // Execute the query using NxtScape
     // Starting NxtScape execution
     
-    const result = await nxtScape.run({
+    await nxtScape.run({
       query: payload.query,
       mode: payload.chatMode ? 'chat' : 'browse',  // Convert boolean to explicit mode
       tabIds: payload.tabIds,
     })
     
-    // NxtScape execution completed
-    
-    // Send workflow status based on result
-    const statusPayload: any = {
-      status: result.success ? 'completed' : 'failed',
-      message: result.success ? 'Task completed successfully' : result.error || 'Task failed',
-    }
-    
-    if (result.error) {
-      statusPayload.error = result.error
-    }
-    
-    
-    // Check if it was cancelled
-    if (result.error && (result.error.includes('cancelled') || result.error.includes('stopped'))) {
-      statusPayload.cancelled = true
-      statusPayload.cancelledQuery = payload.query
-      // Override the error message to be more user-friendly
-      statusPayload.error = undefined  // Don't show error for cancellations
-    }
-    
-    port.postMessage({
-      type: MessageType.WORKFLOW_STATUS,
-      payload: statusPayload,
-      id
-    })
+    // NxtScape execution completed - all messaging handled via PubSub
     
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
     debugLog(`[Background] Error executing query: ${errorMessage}`, 'error')
     
-    // Check if it's a cancellation error
-    const isCancelled = error instanceof Error && (error.name === 'AbortError' || errorMessage.includes('cancelled') || errorMessage.includes('stopped'))
-    
-    port.postMessage({
-      type: MessageType.WORKFLOW_STATUS,
-      payload: {
-        status: isCancelled ? 'cancelled' : 'failed',
-        message: undefined, // Message will be shown by agents only for user-initiated cancellation
-        error: isCancelled ? undefined : errorMessage, // Don't send error for cancellations
-        cancelled: isCancelled,
-        cancelledQuery: isCancelled ? payload.query : undefined,
-        userInitiatedCancel: false  // This is not user-initiated (error path)
-      },
-      id
-    })
+    // Errors are already handled by agents via PubSub, just log here for debugging
   }
 }
 
-/**
- * Broadcast streaming update to all connected UIs
- */
-function broadcastStreamUpdate(update: AgentStreamUpdateMessage['payload']): void {
-  for (const [name, port] of connectedPorts) {
-    if (name === PortName.SIDEPANEL_TO_BACKGROUND) {
-      try {
-        port.postMessage({
-          type: MessageType.AGENT_STREAM_UPDATE,
-          payload: update
-        })
-      } catch (error) {
-        debugLog(`Failed to broadcast stream update to ${name}: ${error}`, 'warning')
-      }
-    }
-  }
-}
 
 // Broadcast latest providers config to all connected UIs
 function broadcastProvidersConfig(config: unknown): void {
@@ -589,28 +533,9 @@ function handleResetConversationPort(
     // Capture conversation reset event
     captureEvent('conversation_reset')
     
-    // Send success response
-    port.postMessage({
-      type: MessageType.WORKFLOW_STATUS,
-      payload: {
-        status: 'reset',
-        message: 'Conversation history cleared'
-      },
-      id
-    })
-    
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
     debugLog(`Error handling conversation reset: ${errorMessage}`, 'error')
-    
-    port.postMessage({
-      type: MessageType.WORKFLOW_STATUS,
-      payload: { 
-        status: 'error',
-        error: `Failed to reset conversation: ${errorMessage}`
-      },
-      id
-    })
   }
 }
 
@@ -797,67 +722,18 @@ function handleCancelTaskPort(
       // Create a user-friendly cancellation message
       const cancellationMessage = `Task cancelled: "${cancelledQuery}"`;
       
-      // Send success response
-      port.postMessage({
-        type: MessageType.WORKFLOW_STATUS,
-        payload: {
-          status: 'cancelled',
-          message: cancellationMessage
-        },
-        id
-      })
-      
-      // Broadcast cancellation to all connected UIs with better messaging
-      broadcastWorkflowStatus({
-        success: false,
-        cancelled: true,
-        message: '✋ Task paused. To continue this task, just type your next request OR use 🔄 to start a new task!',
-        cancelledQuery,
-        reason: reason || 'User requested cancellation',
-        userInitiatedCancel: true  // Mark this as user-initiated cancellation
-      })
+      // Cancellation is already handled via PubSub from agents, no need for additional messaging
       
     } else {
-      // No running task to cancel
-      
-      // Send response indicating no task was running
-      port.postMessage({
-        type: MessageType.WORKFLOW_STATUS,
-        payload: {
-          status: 'idle',
-          message: 'No running task to cancel'
-        },
-        id
-      })
+      // No running task to cancel - agents will handle this
     }
     
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
     debugLog(`Error handling task cancellation: ${errorMessage}`, 'error')
-    
-    port.postMessage({
-      type: MessageType.WORKFLOW_STATUS,
-      payload: { 
-        status: 'error',
-        error: `Failed to cancel task: ${errorMessage}`
-      },
-      id
-    })
   }
 }
 
-// Broadcast workflow status to all connected UIs
-function broadcastWorkflowStatus(payload: Record<string, unknown> | unknown): void {
-  // Send to all connected UIs (side panels)
-  for (const [name, port] of connectedPorts) {
-    if (name === PortName.SIDEPANEL_TO_BACKGROUND) {
-      port.postMessage({
-        type: MessageType.WORKFLOW_STATUS,
-        payload
-      })
-    }
-  }
-}
 
 
 

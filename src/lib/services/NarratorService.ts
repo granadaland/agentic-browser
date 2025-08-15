@@ -4,6 +4,7 @@ import { Message, PubSubEvent, Subscription } from '@/lib/pubsub/types'
 import { generateNarratorSystemPrompt, generateNarrationPrompt } from './Narrator.prompt'
 import { HumanMessage, SystemMessage } from '@langchain/core/messages'
 import { AbortError } from '@/lib/utils/Abortable'
+import { MessageManagerReadOnly, MessageType } from '@/lib/runtime/MessageManager'
 
 /**
  * NarratorService - Runs alongside BrowserAgent to provide human-friendly narrations
@@ -90,7 +91,22 @@ export class NarratorService {
     // Access available context
     const currentTask = this.executionContext.getCurrentTask()
     const todos = this.executionContext.todoStore?.getXml()
-    const conversationHistory = this.executionContext.messageManager.getMessages().slice(-3).map(m => `${m._getType()}: ${m.content}`).join('\n')
+    
+    // Use MessageManagerReadOnly to get filtered message history
+    const readOnlyMessageManager = new MessageManagerReadOnly(this.executionContext.messageManager)
+    
+    // Filter out browser state messages and only include AI and tool messages
+    const conversationHistory = readOnlyMessageManager
+      .getAll()
+      .filter(m => {
+        // Exclude browser state messages
+        if (m.additional_kwargs?.messageType === MessageType.BROWSER_STATE) return false
+        const msgType = m._getType()
+        return msgType === 'ai' || msgType === 'tool'
+      })
+      .slice(-5)  // Get last 5 relevant messages for context
+      .map(m => `${m._getType()}: ${m.content}`)
+      .join('\n')
     
     try {
       // Get or cache LLM instance
