@@ -1,4 +1,4 @@
-import { Message, PubSubEvent, SubscriptionCallback, Subscription } from './types'
+import { Message, PubSubEvent, SubscriptionCallback, Subscription, ExecutionStatus } from './types'
 
 /**
  * Core pub-sub implementation for message passing
@@ -26,6 +26,15 @@ export class PubSub {
     const event: PubSubEvent = {
       type: 'message',
       payload: message
+    }
+    this._publish(event)
+  }
+
+  // Publish execution status
+  publishExecutionStatus(status: ExecutionStatus): void {
+    const event: PubSubEvent = {
+      type: 'execution-status',
+      payload: status
     }
     this._publish(event)
   }

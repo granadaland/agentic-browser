@@ -8,6 +8,7 @@ import { AIMessage, AIMessageChunk } from '@langchain/core/messages'
 import { PubSub } from '@/lib/pubsub'
 import { AbortError } from '@/lib/utils/Abortable'
 import { Logging } from '@/lib/utils/Logging'
+import { Subscription } from '@/lib/pubsub/types'
 
 // Type definitions
 interface ExtractedPageContext {
@@ -32,6 +33,7 @@ export class ChatAgent {
   
   private readonly executionContext: ExecutionContext
   private readonly toolManager: ToolManager
+  private statusSubscription?: Subscription  // Subscription to execution status events
   
   // State tracking for tab context caching
   private lastExtractedTabIds: Set<number> | null = null
@@ -40,6 +42,7 @@ export class ChatAgent {
     this.executionContext = executionContext
     this.toolManager = new ToolManager(executionContext)
     this._registerTools()
+    this._subscribeToExecutionStatus()
   }
 
   // Getters for context components
@@ -69,6 +72,27 @@ export class ChatAgent {
     if (this.executionContext.abortController.signal.aborted) {
       throw new AbortError()
     }
+  }
+
+  /**
+   * Subscribe to execution status events and handle cancellation
+   */
+  private _subscribeToExecutionStatus(): void {
+    this.statusSubscription = this.pubsub.subscribe((event) => {
+      if (event.type === 'execution-status') {
+        const { executionId, status } = event.payload
+        
+        // Check if this status is for the current execution
+        if (executionId === this.executionContext.getExecutionId()) {
+          // If status is cancelled, trigger abort
+          if (status === 'cancelled') {
+            // Publish pause message when cancelled
+            this.pubsub.publishMessage(PubSub.createMessageWithId('pause_message_id','✋ Task paused. To continue this task, just type your next request OR use 🔄 to start a new task!', 'assistant'))
+            this.executionContext.cancelExecution(true)
+          }
+        }
+      }
+    })
   }
 
   /**
@@ -126,13 +150,19 @@ export class ChatAgent {
     } catch (error) {
       if (error instanceof AbortError) {
         Logging.log('ChatAgent', 'Execution aborted by user')
-        this.pubsub.publishMessage(PubSub.createMessage('✋ Task paused. To continue this task, just type your next request OR use 🔄 to start a new task!', 'assistant'))
+        // Don't publish message here - already handled in _subscribeToExecutionStatus
       } else {
         const errorMessage = error instanceof Error ? error.message : String(error)
         Logging.log('ChatAgent', `Execution failed: ${errorMessage}`, 'error')
         this.pubsub.publishMessage(PubSub.createMessage(`Error: ${errorMessage}`, 'error'))
       }
       throw error
+    } finally {
+      // Cleanup status subscription
+      if (this.statusSubscription) {
+        this.statusSubscription.unsubscribe()
+        this.statusSubscription = undefined
+      }
     }
   }
 

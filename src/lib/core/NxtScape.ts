@@ -7,6 +7,7 @@ import { profileStart, profileEnd, profileAsync } from "@/lib/utils/profiler";
 import { BrowserAgent } from "@/lib/agent/BrowserAgent";
 import { ChatAgent } from "@/lib/agent/ChatAgent";
 import { langChainProvider } from "@/lib/llm/LangChainProvider";
+import { PubSub } from "@/lib/pubsub/PubSub";
 
 /**
  * Configuration schema for NxtScape agent
@@ -41,8 +42,9 @@ export class NxtScape {
   private browserContext: BrowserContext;
   private executionContext!: ExecutionContext; // Will be initialized in initialize()
   private messageManager!: MessageManager; // Will be initialized in initialize()
-  private browserAgent!: BrowserAgent; // Will be initialized in initialize()
-  private chatAgent!: ChatAgent; // Will be initialized in initialize()
+  private browserAgent: BrowserAgent | null = null; // The browser agent for task execution
+  private chatAgent: ChatAgent | null = null; // The chat agent for Q&A mode
+  private currentExecutionId: string | null = null; // Track current execution session
 
   /**
    * Creates a new NxtScape orchestration agent
@@ -178,6 +180,15 @@ export class NxtScape {
     // Mark execution as started
     this.executionContext.startExecution(currentTabId);
 
+    // Generate execution ID and publish running status
+    this.currentExecutionId = PubSub.generateId('exec');
+    this.executionContext.setExecutionId(this.currentExecutionId);
+    PubSub.getInstance().publishExecutionStatus({
+      executionId: this.currentExecutionId,
+      status: 'running',
+      ts: Date.now()
+    });
+
 
     // Set selected tab IDs for context (e.g., for summarizing multiple tabs)
     // These are NOT the tabs the agent operates on, just context for tools like ExtractTool
@@ -187,9 +198,21 @@ export class NxtScape {
     try {
       // Use explicit mode parameter for agent selection
       if (mode === 'chat') {
-        await this.chatAgent.execute(query);
+        await this.chatAgent!.execute(query);
       } else {
-        await this.browserAgent.execute(query);
+        await this.browserAgent!.execute(query);
+      }
+      
+      // BrowserAgent handles all logging and result management internally
+      Logging.log("NxtScape", "Agent execution completed");
+      
+      // Publish done status
+      if (this.currentExecutionId) {
+        PubSub.getInstance().publishExecutionStatus({
+          executionId: this.currentExecutionId,
+          status: 'done',
+          ts: Date.now()
+        });
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -197,8 +220,24 @@ export class NxtScape {
 
       if (wasCancelled) {
         Logging.log("NxtScape", `Execution cancelled: ${errorMessage}`);
+        // Publish cancelled status
+        if (this.currentExecutionId) {
+          PubSub.getInstance().publishExecutionStatus({
+            executionId: this.currentExecutionId,
+            status: 'cancelled',
+            ts: Date.now()
+          });
+        }
       } else {
         Logging.log("NxtScape", `Execution error: ${errorMessage}`, "error");
+        // Publish error status
+        if (this.currentExecutionId) {
+          PubSub.getInstance().publishExecutionStatus({
+            executionId: this.currentExecutionId,
+            status: 'error',
+            ts: Date.now()
+          });
+        }
       }
       
       // Re-throw error so background script can handle if needed
@@ -206,6 +245,9 @@ export class NxtScape {
     } finally {
       // Always mark execution as ended
       this.executionContext.endExecution();
+      
+      // Clear execution ID
+      this.currentExecutionId = null;
 
       // Unlock browser context and update to active tab
       profileStart("NxtScape.cleanup");
@@ -232,6 +274,15 @@ export class NxtScape {
     if (this.executionContext) {
       Logging.log("NxtScape", "User cancelling current task execution");
       this.executionContext.cancelExecution(/*isUserInitiatedsCancellation=*/ true);
+      
+      // Publish cancelled status
+      if (this.currentExecutionId) {
+        PubSub.getInstance().publishExecutionStatus({
+          executionId: this.currentExecutionId,
+          status: 'cancelled',
+          ts: Date.now()
+        });
+      }
     }
   }
 
@@ -289,6 +340,15 @@ export class NxtScape {
     // stop the current task if it is running
     if (this.isRunning()) {
       this.cancel();
+    }
+    
+    // Publish cancelled status for reset
+    if (this.currentExecutionId) {
+      PubSub.getInstance().publishExecutionStatus({
+        executionId: this.currentExecutionId,
+        status: 'cancelled',
+        ts: Date.now()
+      });
     }
 
     // Recreate MessageManager to clear history

@@ -10,11 +10,24 @@ export const MessageSchema = z.object({
 
 export type Message = z.infer<typeof MessageSchema>
 
+// Execution status
+export const ExecutionStatusSchema = z.object({
+  executionId: z.string(),  // Unique ID for this execution session
+  status: z.enum(['running', 'done', 'cancelled', 'error']),  // Current execution state
+  ts: z.number(),  // Timestamp when status changed
+})
+
+export type ExecutionStatus = z.infer<typeof ExecutionStatusSchema>
+
 // Pub-sub event types
 export const PubSubEventSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('message'),
     payload: MessageSchema
+  }),
+  z.object({
+    type: z.literal('execution-status'),
+    payload: ExecutionStatusSchema
   }),
 ])
 

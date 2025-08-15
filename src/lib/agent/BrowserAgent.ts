@@ -69,6 +69,7 @@ import { AbortError } from '@/lib/utils/Abortable';
 import { GlowAnimationService } from '@/lib/services/GlowAnimationService';
 import { NarratorService } from '@/lib/services/NarratorService';
 import { PubSub } from '@/lib/pubsub'; // For static helper methods
+import { Subscription } from '@/lib/pubsub/types';
 
 // Type Definitions
 interface Plan {
@@ -117,6 +118,7 @@ export class BrowserAgent {
   private readonly toolManager: ToolManager;
   private readonly glowService: GlowAnimationService;
   private narrator?: NarratorService;  // Narrator service for human-friendly messages
+  private statusSubscription?: Subscription;  // Subscription to execution status events
 
   constructor(executionContext: ExecutionContext) {
     this.executionContext = executionContext;
@@ -125,6 +127,7 @@ export class BrowserAgent {
     this.narrator = new NarratorService(executionContext);
     
     this._registerTools();
+    this._subscribeToExecutionStatus();
   }
 
   // Getters to access context components
@@ -144,6 +147,27 @@ export class BrowserAgent {
     if (this.executionContext.abortController.signal.aborted) {
       throw new AbortError();
     }
+  }
+
+  /**
+   * Subscribe to execution status events and handle cancellation
+   */
+  private _subscribeToExecutionStatus(): void {
+    this.statusSubscription = this.pubsub.subscribe((event) => {
+      if (event.type === 'execution-status') {
+        const { executionId, status } = event.payload;
+        
+        // Check if this status is for the current execution
+        if (executionId === this.executionContext.getExecutionId()) {
+          // If status is cancelled, trigger abort
+          if (status === 'cancelled') {
+            // Publish pause message when cancelled
+            this.pubsub.publishMessage(PubSub.createMessageWithId('pause_message_id','✋ Task paused. To continue this task, just type your next request OR use 🔄 to start a new task!', 'assistant'));
+            this.executionContext.cancelExecution(true);
+          }
+        }
+      }
+    });
   }
 
   /**
@@ -188,6 +212,12 @@ export class BrowserAgent {
     } finally {
       // Cleanup narrator service
       this.narrator?.cleanup();
+      
+      // Cleanup status subscription
+      if (this.statusSubscription) {
+        this.statusSubscription.unsubscribe();
+        this.statusSubscription = undefined;
+      }
       
       // Ensure glow animation is stopped at the end of execution
       try {
@@ -697,8 +727,8 @@ export class BrowserAgent {
                                (error instanceof Error && error.name === "AbortError");
     
     if (isUserCancellation) {
-      // Publish a cancellation message so UI knows to stop processing
-      this.pubsub.publishMessage(PubSub.createMessage('✋ Task paused. To continue this task, just type your next request OR use 🔄 to start a new task!', 'assistant'));
+      // Don't publish message here - already handled in _subscribeToExecutionStatus
+      // when the cancelled status event is received
     } else {
       console.error('Execution error (already reported by tool):', error);
       throw error;
