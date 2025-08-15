@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { z } from 'zod'
 import { LazyTabSelector } from './LazyTabSelector'
-import { useTabsStore } from '@/sidepanel/store/tabsStore'
+import { useTabsStore } from '@/sidepanel/stores/tabsStore'
 
 // SelectTabsButton component props schema
 export const SelectTabsButtonPropsSchema = z.object({

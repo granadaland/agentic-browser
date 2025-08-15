@@ -61,7 +61,7 @@ describe("MessageManager", () => {
         msg.additional_kwargs?.messageType === MessageType.BROWSER_STATE
       );
       expect(browserStateMessages).toHaveLength(1);
-      expect(browserStateMessages[0].content).toBe("<system-context>Second browser state</system-context>");
+      expect(browserStateMessages[0].content).toBe("<BrowserState>Second browser state</BrowserState>");
     });
 
     it("tests that messages can be removed by type", () => {

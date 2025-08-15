@@ -4,7 +4,7 @@ import { ToolManager } from '@/lib/tools/ToolManager'
 import { createScreenshotTool } from '@/lib/tools/utils/ScreenshotTool'
 import { createScrollTool } from '@/lib/tools/navigation/ScrollTool'
 import { createRefreshStateTool } from '@/lib/tools/navigation/RefreshStateTool'
-import { generateChatSystemPrompt } from './ChatAgent.prompt'
+import { generateSystemPrompt, generatePageContextMessage, generateTaskPrompt } from './ChatAgent.prompt'
 import { AIMessage, AIMessageChunk } from '@langchain/core/messages'
 import { PubSub } from '@/lib/pubsub'
 import { AbortError } from '@/lib/utils/Abortable'
@@ -33,6 +33,9 @@ export class ChatAgent {
   
   private readonly executionContext: ExecutionContext
   private readonly toolManager: ToolManager
+  
+  // State tracking for tab context caching
+  private lastExtractedTabIds: Set<number> | null = null
 
   constructor(executionContext: ExecutionContext) {
     this.executionContext = executionContext
@@ -77,18 +80,47 @@ export class ChatAgent {
     try {
       this._checkAborted()
       
-      // ChatAgent uses direct streaming without thinking UI
+      // Check if this is a fresh conversation (chat mode just started and message manager is empty)
+      const isFreshConversation = this._isFreshConversation()
       
-      // Extract page context once
-      const pageContext = await this._extractPageContext()
+      // Get current tab IDs
+      const currentTabIds = await this._getCurrentTabIds()
       
-      // Generate minimal system prompt
-      const systemPrompt = generateChatSystemPrompt(pageContext)
+      // Check if we need to extract content
+      const needsExtraction = isFreshConversation || this._hasTabsChanged(currentTabIds)
       
-      // Initialize chat with system prompt and query
-      this._initializeChat(systemPrompt, query)
+      // Need to re-extract web page
+      if (needsExtraction) {
+        // Extract page context
+        const pageContext = await this._extractPageContext()
+        
+        // If also is a fresh conversation, add system prompt
+        if (isFreshConversation) {
+          // Fresh conversation: Clear and add simple system prompt once
+          this.messageManager.clear()
+          
+          // Simple system prompt - just sets the role
+          const systemPrompt = generateSystemPrompt()
+          this.messageManager.addSystem(systemPrompt)
+          
+          // Add page context as browser state message
+          const contextMessage = generatePageContextMessage(pageContext, false)
+          this.messageManager.addBrowserState(contextMessage)
+        } else {
+          // Tabs changed: replace browser state to remove old page content
+          const contextMessage = generatePageContextMessage(pageContext, true)
+          this.messageManager.addBrowserState(contextMessage)
+        }
+        
+        // Update tracked tab IDs
+        this.lastExtractedTabIds = currentTabIds
+      }
       
-      // Stream direct answer without tools
+      // Add user query with instruction to refer to context
+      const queryWithInstruction = generateTaskPrompt(query, needsExtraction)
+      this.messageManager.addHuman(queryWithInstruction)
+      
+      // Stream LLM response
       await this._streamLLM({ tools: false })
       
       Logging.log('ChatAgent', 'Q&A response completed')
@@ -104,6 +136,58 @@ export class ChatAgent {
       }
       throw error
     }
+  }
+
+  /**
+   * Check if this is a fresh conversation (chat mode just started)
+   */
+  private _isFreshConversation(): boolean {
+    const messages = this.messageManager.getMessages()
+    return messages.length === 0
+  }
+  
+  /**
+   * Get current active/selected tab IDs as a Set
+   */
+  private async _getCurrentTabIds(): Promise<Set<number>> {
+    const selectedTabIds = this.executionContext.getSelectedTabIds()
+    
+    // Check if user has explicitly selected multiple tabs (using "@" selector)
+    // If only 1 tab or null, it's likely just the default current tab from NxtScape
+    const hasExplicitSelection = selectedTabIds && selectedTabIds.length > 1
+    
+    if (hasExplicitSelection) {
+      // User explicitly selected multiple tabs - use those
+      return new Set(selectedTabIds)
+    }
+    
+    // No explicit multi-tab selection - get the ACTUAL current active tab
+    // This ensures we detect tab changes even when user switches tabs between queries
+    try {
+      const currentPage = await this.executionContext.browserContext.getCurrentPage()
+      return new Set([currentPage.tabId])
+    } catch (error) {
+      // Fallback to ExecutionContext if getCurrentPage fails
+      Logging.log('ChatAgent', `Failed to get current page, using ExecutionContext: ${error}`, 'warning')
+      return new Set(selectedTabIds || [])
+    }
+  }
+  
+  /**
+   * Check if tabs have changed since last extraction
+   */
+  private _hasTabsChanged(currentTabIds: Set<number>): boolean {
+    if (!this.lastExtractedTabIds) return true
+    
+    // Compare Set sizes
+    if (this.lastExtractedTabIds.size !== currentTabIds.size) return true
+    
+    // Check if all current tabs were in the last extraction
+    for (const tabId of currentTabIds) {
+      if (!this.lastExtractedTabIds.has(tabId)) return true
+    }
+    
+    return false
   }
 
   /**
@@ -173,22 +257,6 @@ export class ChatAgent {
     }
   }
 
-
-  /**
-   * Initialize chat session with system prompt and user query
-   */
-  private _initializeChat(systemPrompt: string, query: string): void {
-    // Clear any previous messages
-    this.messageManager.clear()
-    
-    // Add system prompt
-    this.messageManager.addSystem(systemPrompt)
-    
-    // Add user query
-    this.messageManager.addHuman(query)
-    
-    Logging.log('ChatAgent', 'Chat session initialized')
-  }
 
   /**
    * Stream LLM response with or without tools

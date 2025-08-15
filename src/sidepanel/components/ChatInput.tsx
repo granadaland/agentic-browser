@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react'
 import { Textarea } from '@/sidepanel/components/ui/textarea'
 import { Button } from '@/sidepanel/components/ui/button'
 import { LazyTabSelector } from './LazyTabSelector'
-import { useTabsStore, BrowserTab } from '@/sidepanel/store/tabsStore'
+import { useTabsStore, BrowserTab } from '@/sidepanel/stores/tabsStore'
 import { useChatStore } from '../stores/chatStore'
 import { useSettingsStore } from '../stores/settingsStore'
 import { useKeyboardShortcuts, useAutoResize } from '../hooks/useKeyboardShortcuts'
@@ -33,11 +33,11 @@ export function ChatInput({ isConnected, isProcessing }: ChatInputProps) {
   const [historyIndex, setHistoryIndex] = useState<number>(-1)
   const [draftBeforeHistory, setDraftBeforeHistory] = useState<string>('')
   
-  const { addMessage, setProcessing, selectedTabIds, clearSelectedTabs } = useChatStore()
+  const { addMessage, setProcessing } = useChatStore()
   const messages = useChatStore(state => state.messages)
   const { chatMode } = useSettingsStore()
   const { sendMessage, addMessageListener, removeMessageListener, connected: portConnected } = useSidePanelPortMessaging()
-  const { getContextTabs, toggleTabSelection } = useTabsStore()
+  const { getContextTabs, toggleTabSelection, clearSelectedTabs } = useTabsStore()
   // Provider health: only consider UI connected if current default provider is usable
   useEffect(() => {
     const computeOk = (cfg: BrowserOSProvidersConfig) => {
@@ -115,8 +115,9 @@ export function ChatInput({ isConnected, isProcessing }: ChatInputProps) {
       content: query
     })
     
-    // Get selected tab IDs from store
-    const tabIds = selectedTabIds.length > 0 ? selectedTabIds : undefined
+    // Get selected tab IDs from tabsStore
+    const contextTabs = getContextTabs()
+    const tabIds = contextTabs.length > 0 ? contextTabs.map(tab => tab.id) : undefined
     
     // Send to background
     setProcessing(true)
@@ -256,8 +257,8 @@ export function ChatInput({ isConnected, isProcessing }: ChatInputProps) {
     if (!providerOk) return 'Provider not configured'
     if (isProcessing) return 'Task running… Press Esc to cancel'
     return chatMode 
-      ? 'Chat mode: Quick Q&A • @ to select tabs • Press Enter to send'
-      : 'Browse mode: Automation • Press Enter to send'
+      ? 'Chat mode is for simple Q&A • @ to select tabs • Press Enter to send'
+      : 'Browse mode is for complex web navigation tasks • Press Enter to send'
   }
 
   

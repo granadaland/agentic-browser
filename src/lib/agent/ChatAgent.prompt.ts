@@ -13,60 +13,93 @@ interface ExtractedPageContext {
 }
 
 /**
- * Generate minimal system prompt for chat mode
+ * Generate simple system prompt that defines the assistant's role
+ * This is added ONCE at the beginning of a fresh conversation
  */
-export function generateChatSystemPrompt(pageContext: ExtractedPageContext): string {
+export function generateSystemPrompt(): string {
+  return `You are a helpful AI assistant that can answer questions about web pages.
+
+## Your Capabilities
+- You can analyze and understand web page content
+- You can answer questions based on the information provided
+- You have access to screenshot_tool for visual information
+- You have access to scroll_tool to navigate content
+- You have access to refresh_browser_state_tool to update page state
+
+## Important: Browser State
+- The current web page content is provided in <BrowserState> tags
+- Always refer to the content within <BrowserState> tags when answering questions about the page
+- This browser state is automatically updated when tabs change
+
+## Instructions
+1. Be concise and direct in your responses
+2. Answer based on the page content within <BrowserState> tags
+3. Use tools only when necessary for answering the question
+4. Focus on providing accurate, helpful answers
+
+You're in Q&A mode. Provide direct answers without planning or task management.`
+}
+
+/**
+ * Generate page context message to be added as assistant message
+ * This contains the actual page content extracted from tabs
+ */
+export function generatePageContextMessage(pageContext: ExtractedPageContext, isUpdate: boolean = false): string {
+  const prefix = isUpdate 
+    ? "I've detected that the tabs have changed. Here's the updated page content:"
+    : "I've extracted the content from the current page(s). Here's what I found:"
+
   if (pageContext.isSingleTab) {
-    return generateSingleTabPrompt(pageContext.tabs[0])
+    return generateSingleTabContext(pageContext.tabs[0], prefix)
   } else {
-    return generateMultiTabPrompt(pageContext.tabs)
+    return generateMultiTabContext(pageContext.tabs, prefix)
   }
 }
 
 /**
- * Generate prompt for single tab Q&A
+ * Generate context message for single tab
  */
-function generateSingleTabPrompt(tab: ExtractedPageContext['tabs'][0]): string {
-  return `You are a helpful assistant that answers questions about the current webpage.
+function generateSingleTabContext(tab: ExtractedPageContext['tabs'][0], prefix: string): string {
+  return `${prefix}
 
-## Current Page
+**Page: ${tab.title}**
 URL: ${tab.url}
-Title: ${tab.title}
 
-## Page Content
-${tab.text}
-
-## Instructions
-1. Answer the user's question directly based on the page content
-2. Be concise and accurate
-3. Use screenshot_tool for visual information
-4. Use scroll_tool if content is below the fold
-5. Just answer - no planning or task management
-
-You're in Q&A mode. Provide direct answers.`
+## Content:
+${tab.text}`
 }
 
 /**
- * Generate prompt for multi-tab Q&A
+ * Generate context message for multiple tabs
  */
-function generateMultiTabPrompt(tabs: ExtractedPageContext['tabs']): string {
+function generateMultiTabContext(tabs: ExtractedPageContext['tabs'], prefix: string): string {
   const tabSections = tabs.map((tab, index) => `
-### Tab ${index + 1} - ${tab.title}
+**Tab ${index + 1}: ${tab.title}**
 URL: ${tab.url}
-Content Preview:
-${tab.text}`).join('\n')
 
-  return `You are a helpful assistant that answers questions about multiple webpages.
+${tab.text}`).join('\n\n---\n')
 
-## Open Tabs (${tabs.length} tabs)
-${tabSections}
+  return `${prefix}
 
-## Instructions
-1. Answer questions by analyzing content from all tabs
-2. Specify which tab information comes from when relevant
-3. Compare/contrast information across tabs when appropriate
-4. Be concise and accurate
-5. Just answer - no planning or task management
+I'm analyzing ${tabs.length} tabs:
 
-You're in Q&A mode for multiple tabs. Provide direct answers.`
+${tabSections}`
+}
+
+/**
+ * Generate task prompt that wraps the user's query
+ * This tells the LLM to refer to the BrowserState content
+ */
+export function generateTaskPrompt(query: string, contextJustExtracted: boolean): string {
+  if (contextJustExtracted) {
+    // Context was just extracted and added above
+    return `Based on the page content in the <BrowserState> tags above, please answer the following question:
+
+"${query}"`
+  } else {
+    // Context already exists from previous extraction
+    return `Using the page content from the <BrowserState> tags, please answer:
+
+"${query}"`
+  }
 }

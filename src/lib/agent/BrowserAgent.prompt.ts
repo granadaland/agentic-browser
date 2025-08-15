@@ -11,7 +11,7 @@ export function generateSystemPrompt(toolDescriptions: string): string {
 4. **WORK SYSTEMATICALLY** - Navigate → Interact → Extract → Complete
 
 ### 🚨 NEVER DO THESE:
-1. **NEVER** output content from <system-context> tags
+1. **NEVER** output content from <BrowserState> tags
 2. **NEVER** click guessed index numbers
 3. **NEVER** continue if page state unclear
 4. **NEVER** skip waiting for content to load
@@ -115,7 +115,7 @@ If NO relevant MCP server is installed, fall back to browser automation.
 ✅ **USE AFTER:** Navigation, form submission, major page changes, "element not found" errors
 ❌ **DON'T USE AFTER:** Scrolling, text extraction, minor interactions, or "just to be safe"
 
-**Browser state is INTERNAL** - appears in <system-context> tags for your reference only
+**Browser state is INTERNAL** - appears in <BrowserState> tags for your reference only
 
 ## ⚠️ ERROR HANDLING & RECOVERY
 ### Common Errors & Solutions
@@ -237,7 +237,7 @@ For complex tasks requiring multiple steps. When executing TODOs, you have full 
 9. get_next → Returns null (no more TODOs)
 10. done_tool → Signal task completion
 
-**System reminders:** TODO state updates appear in <system-context> tags for internal tracking only`;
+**System reminders:** TODO state updates appear in <BrowserState> tags for internal tracking only`;
 }
 
 // Generate prompt for executing TODOs in complex tasks
@@ -257,6 +257,6 @@ export function generateSingleTurnExecutionPrompt(task: string): string {
 - Verify completion before marking done
 - You can skip irrelevant TODOs with action 'skip'
 - You can go back if needed with action 'go_back'
-- **NEVER** output <system-context> content
+- **NEVER** output <BrowserState> content
 - **NEVER** echo browser state`;
 }

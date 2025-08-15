@@ -28,7 +28,6 @@ export type Message = z.infer<typeof MessageSchema>
 const ChatStateSchema = z.object({
   messages: z.array(MessageSchema),  // All chat messages
   isProcessing: z.boolean(),  // Is agent currently processing
-  selectedTabIds: z.array(z.number()),  // Selected browser tab IDs
   error: z.string().nullable(),  // Current error message if any
   executingMessageRemoving: z.boolean()  // Flag when executing message is being removed
 })
@@ -51,10 +50,6 @@ interface ChatActions {
   // Processing state
   setProcessing: (processing: boolean) => void
   
-  // Tab selection
-  setSelectedTabs: (tabIds: number[]) => void
-  clearSelectedTabs: () => void
-  
   // Error handling
   setError: (error: string | null) => void
   
@@ -66,7 +61,6 @@ interface ChatActions {
 const initialState: ChatState = {
   messages: [],
   isProcessing: false,
-  selectedTabIds: [],
   error: null,
   executingMessageRemoving: false
 }
@@ -141,10 +135,6 @@ export const useChatStore = create<ChatState & ChatActions>((set) => ({
   
   setProcessing: (processing) => set({ isProcessing: processing }),
   
-  setSelectedTabs: (tabIds) => set({ selectedTabIds: tabIds }),
-  
-  clearSelectedTabs: () => set({ selectedTabIds: [] }),
-  
   setError: (error) => set({ error }),
   
   reset: () => set(initialState)
@@ -159,8 +149,5 @@ export const chatSelectors = {
     state.messages.length > 0,
     
   getMessageById: (state: ChatState, id: string): Message | undefined =>
-    state.messages.find(msg => msg.id === id),
-    
-  getSelectedTabCount: (state: ChatState): number => 
-    state.selectedTabIds.length
+    state.messages.find(msg => msg.id === id)
 }

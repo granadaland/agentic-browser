@@ -13,20 +13,20 @@ export function ModeToggle() {
       {/* Use design tokens via CSS variables to auto-adapt across light, gray and dark */}
       <div className='inline-flex h-[25px] items-center gap-[2px] rounded-2xl border border-border bg-[hsl(var(--secondary))] p-[2px]'>
         <button
-          className={`h-[21px] px-3 rounded-xl text-[12px] font-semibold transition-colors ${!chatMode ? 'bg-[hsl(var(--background-alt))] text-foreground border border-border' : 'text-muted-foreground hover:bg-[hsl(var(--accent))]'}`}
-          onClick={() => setChatMode(false)}
-          aria-label='Browse mode for automation'
-          title='Browse mode - For complex automation tasks'
-        >
-          Browse Mode
-        </button>
-        <button
           className={`h-[21px] px-3 rounded-xl text-[12px] font-semibold transition-colors ${chatMode ? 'bg-[hsl(var(--background-alt))] text-foreground border border-border' : 'text-muted-foreground hover:bg-[hsl(var(--accent))]'}`}
           onClick={() => setChatMode(true)}
           aria-label='Chat mode for Q&A'
-          title='Chat mode - Quick Q&A about pages'
+          title='Chat mode - Simple Q&A about pages'
         >
           Chat Mode
+        </button>
+        <button
+          className={`h-[21px] px-3 rounded-xl text-[12px] font-semibold transition-colors ${!chatMode ? 'bg-[hsl(var(--background-alt))] text-foreground border border-border' : 'text-muted-foreground hover:bg-[hsl(var(--accent))]'}`}
+          onClick={() => setChatMode(false)}
+          aria-label='Browse mode for automation'
+          title='Browse mode - Complex web navigation tasks'
+        >
+          Browse Mode
         </button>
       </div>
     </div>

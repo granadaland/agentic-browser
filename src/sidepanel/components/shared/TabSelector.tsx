@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { cn } from '@/sidepanel/lib/utils';
 import { z } from 'zod';
-import { useTabsStore, BrowserTab } from '@/sidepanel/store/tabsStore';
+import { useTabsStore, BrowserTab } from '@/sidepanel/stores/tabsStore';
 
 // TabSelector component props schema
 export const TabSelectorPropsSchema = z.object({
