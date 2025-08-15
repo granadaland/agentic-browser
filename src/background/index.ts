@@ -523,16 +523,8 @@ function handleResetConversationPort(
   id?: string
 ): void {
   try {
-    const { source } = payload
-    
-    debugLog(`Conversation reset requested from ${source || 'unknown'}`)
-    
-    // Clear conversation history in NxtScape
     nxtScape.reset()
-    
-    // Capture conversation reset event
     captureEvent('conversation_reset')
-    
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
     debugLog(`Error handling conversation reset: ${errorMessage}`, 'error')
@@ -705,29 +697,8 @@ function handleCancelTaskPort(
   id?: string
 ): void {
   try {
-    const { reason, source } = payload
-    
-    debugLog(`Task cancellation requested from ${source || 'unknown'}: ${reason || 'No reason provided'}`)
-    
-    // Attempt to cancel the current task
-    const cancellationResult = nxtScape.cancel()
-    
-    if (cancellationResult.wasCancelled) {
-      const cancelledQuery = cancellationResult.query || 'Unknown query';
-      // Task successfully cancelled
-      
-      // Capture task cancelled event
-      captureEvent('task_cancelled')
-      
-      // Create a user-friendly cancellation message
-      const cancellationMessage = `Task cancelled: "${cancelledQuery}"`;
-      
-      // Cancellation is already handled via PubSub from agents, no need for additional messaging
-      
-    } else {
-      // No running task to cancel - agents will handle this
-    }
-    
+    nxtScape.cancel()
+    captureEvent('task_cancelled')
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
     debugLog(`Error handling task cancellation: ${errorMessage}`, 'error')

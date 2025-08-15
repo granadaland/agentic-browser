@@ -44,8 +44,6 @@ export class NxtScape {
   private browserAgent!: BrowserAgent; // Will be initialized in initialize()
   private chatAgent!: ChatAgent; // Will be initialized in initialize()
 
-  private currentQuery: string | null = null; // Track current query for better cancellation messages
-
   /**
    * Creates a new NxtScape orchestration agent
    * @param config - Configuration for the NxtScape agent
@@ -184,7 +182,6 @@ export class NxtScape {
     // Set selected tab IDs for context (e.g., for summarizing multiple tabs)
     // These are NOT the tabs the agent operates on, just context for tools like ExtractTool
     this.executionContext.setSelectedTabIds(tabIds || [currentTabId]);
-    this.currentQuery = query;
 
 
     try {
@@ -209,7 +206,6 @@ export class NxtScape {
     } finally {
       // Always mark execution as ended
       this.executionContext.endExecution();
-      this.currentQuery = null;
 
       // Unlock browser context and update to active tab
       profileStart("NxtScape.cleanup");
@@ -231,22 +227,12 @@ export class NxtScape {
 
   /**
    * Cancel the currently running task
-   * @returns Object with cancellation info including the query that was cancelled
    */
-  public cancel(): { wasCancelled: boolean; query?: string } {
-    if (this.executionContext && !this.executionContext.abortController.signal.aborted) {
-      const cancelledQuery = this.currentQuery;
-      Logging.log(
-        "NxtScape",
-        `User cancelling current task execution: "${cancelledQuery}"`,
-      );
-      this.executionContext.cancelExecution(
-        /*isUserInitiatedsCancellation=*/ true,
-      );
-      return { wasCancelled: true, query: cancelledQuery || undefined };
+  public cancel(): void {
+    if (this.executionContext) {
+      Logging.log("NxtScape", "User cancelling current task execution");
+      this.executionContext.cancelExecution(/*isUserInitiatedsCancellation=*/ true);
     }
-
-    return { wasCancelled: false };
   }
 
   /**
@@ -256,11 +242,8 @@ export class NxtScape {
    * @private
    */
   private _internalCancel(): void {
-    if (this.executionContext && !this.executionContext.abortController.signal.aborted) {
-      Logging.log(
-        "NxtScape",
-        "Internal cleanup: cancelling previous execution",
-      );
+    if (this.executionContext) {
+      Logging.log("NxtScape", "Internal cleanup: cancelling previous execution");
       // false = not user-initiated, this is internal cleanup
       this.executionContext.cancelExecution(false);
     }
@@ -292,12 +275,10 @@ export class NxtScape {
   public getExecutionStatus(): {
     isRunning: boolean;
     lockedTabId: number | null;
-    query: string | null;
   } {
     return {
       isRunning: this.isRunning(),
       lockedTabId: this.executionContext.getLockedTabId(),
-      query: this.currentQuery,
     };
   }
 
@@ -309,9 +290,6 @@ export class NxtScape {
     if (this.isRunning()) {
       this.cancel();
     }
-
-    // Clear current query to ensure clean state
-    this.currentQuery = null;
 
     // Recreate MessageManager to clear history
     this.messageManager.clear();
