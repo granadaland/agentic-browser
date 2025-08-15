@@ -78,7 +78,10 @@ export function createPlannerTool(executionContext: ExecutionContext): DynamicSt
       } catch (error) {
         // Handle error
         const errorMessage = error instanceof Error ? error.message : String(error);
-        return JSON.stringify(toolError(`Planning failed: ${errorMessage}`));
+        executionContext.getPubSub().publishMessage(
+          PubSub.createMessageWithId(PubSub.generateId('ToolError'), `Planning failed: ${errorMessage}`, 'error')
+        );
+        return JSON.stringify(toolError(errorMessage));  // Return raw error
       }
     }
   });

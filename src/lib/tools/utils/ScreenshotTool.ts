@@ -47,7 +47,10 @@ export function createScreenshotTool(executionContext: ExecutionContext): Dynami
         const errorMessage = error instanceof Error ? error.message : String(error)
         Logging.log('ScreenshotTool', `Error capturing screenshot: ${errorMessage}`, 'error')
         
-        return JSON.stringify(toolError(`Failed to capture screenshot: ${errorMessage}`))
+        executionContext.getPubSub().publishMessage(
+          PubSub.createMessageWithId(PubSub.generateId('ToolError'), `Screenshot failed: ${errorMessage}`, 'error')
+        )
+        return JSON.stringify(toolError(errorMessage))  // Return raw error
       }
     }
   })

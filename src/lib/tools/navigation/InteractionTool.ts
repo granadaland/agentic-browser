@@ -161,7 +161,7 @@ export class InteractionTool {
         
       } catch (error) {
         if (attempt === NUM_RETRIES) {
-          return toolError(`Failed to click "${description}": ${error instanceof Error ? error.message : String(error)}`)
+          return toolError(error instanceof Error ? error.message : String(error))  // Return raw error
         }
         await new Promise(resolve => setTimeout(resolve, RETRY_WAIT_MS))
       }
@@ -196,7 +196,7 @@ export class InteractionTool {
         
       } catch (error) {
         if (attempt === NUM_RETRIES) {
-          return toolError(`Failed to input text into "${description}": ${error instanceof Error ? error.message : String(error)}`)
+          return toolError(error instanceof Error ? error.message : String(error))  // Return raw error
         }
         await new Promise(resolve => setTimeout(resolve, RETRY_WAIT_MS))
       }
@@ -230,7 +230,7 @@ export class InteractionTool {
         
       } catch (error) {
         if (attempt === NUM_RETRIES) {
-          return toolError(`Failed to clear "${description}": ${error instanceof Error ? error.message : String(error)}`)
+          return toolError(error instanceof Error ? error.message : String(error))  // Return raw error
         }
         await new Promise(resolve => setTimeout(resolve, RETRY_WAIT_MS))
       }

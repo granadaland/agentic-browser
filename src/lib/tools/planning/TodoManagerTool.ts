@@ -109,7 +109,10 @@ export function createTodoManagerTool(executionContext: ExecutionContext): Dynam
         })
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error)
-        return JSON.stringify(toolError(errorMessage))
+        executionContext.getPubSub().publishMessage(
+          PubSub.createMessageWithId(PubSub.generateId('ToolError'), `Todo management failed: ${errorMessage}`, 'error')
+        )
+        return JSON.stringify(toolError(errorMessage))  // Return raw error
       }
     }
   })

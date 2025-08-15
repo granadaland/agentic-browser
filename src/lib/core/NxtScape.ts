@@ -54,8 +54,8 @@ export class NxtScape {
   private browserContext: BrowserContext;
   private executionContext!: ExecutionContext; // Will be initialized in initialize()
   private messageManager!: MessageManager; // Will be initialized in initialize()
-  private browserAgent: BrowserAgent | null = null; // The browser agent for task execution
-  private chatAgent: ChatAgent | null = null; // The chat agent for Q&A mode
+  private browserAgent!: BrowserAgent; // Will be initialized in initialize()
+  private chatAgent!: ChatAgent; // Will be initialized in initialize()
 
   private currentQuery: string | null = null; // Track current query for better cancellation messages
 
@@ -125,8 +125,6 @@ export class NxtScape {
 
         // Clean up partial initialization
         this.browserContext = null as any;
-        this.browserAgent = null;
-        this.chatAgent = null;
 
         throw new Error(`NxtScape initialization failed: ${errorMessage}`);
       }
@@ -138,7 +136,7 @@ export class NxtScape {
    * @returns True if initialized, false otherwise
    */
   public isInitialized(): boolean {
-    return this.browserContext !== null && this.browserAgent !== null && this.chatAgent !== null;
+    return this.browserContext !== null && !!this.browserAgent && !!this.chatAgent;
   }
 
   /**
@@ -206,23 +204,10 @@ export class NxtScape {
     try {
       // Use explicit mode parameter for agent selection
       if (mode === 'chat') {
-        // Use ChatAgent for Q&A mode
-        if (!this.chatAgent) {
-          throw new Error("ChatAgent not initialized");
-        }
-        Logging.log("NxtScape", "Executing in Chat Mode (Q&A)");
         await this.chatAgent.execute(query);
       } else {
-        // Use BrowserAgent for automation tasks
-        if (!this.browserAgent) {
-          throw new Error("BrowserAgent not initialized");
-        }
-        Logging.log("NxtScape", "Executing in Browse Mode (Automation)");
         await this.browserAgent.execute(query);
       }
-      
-      // BrowserAgent handles all logging and result management internally
-      Logging.log("NxtScape", "Agent execution completed");
       
       // Return success result
       return { success: true };
@@ -354,10 +339,6 @@ export class NxtScape {
 
     // reset the execution context
     this.executionContext.reset();
-
-    // forces initalize of nextscape again
-    // this would pick-up new mew message mangaer context length, etc
-    this.browserAgent = null;
 
     Logging.log(
       "NxtScape",

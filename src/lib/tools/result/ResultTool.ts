@@ -73,7 +73,10 @@ export function createResultTool(executionContext: ExecutionContext): DynamicStr
       } catch (error) {
         // Handle error
         const errorMessage = error instanceof Error ? error.message : String(error);
-        return JSON.stringify(toolError(`Result generation failed: ${errorMessage}`));
+        executionContext.getPubSub().publishMessage(
+          PubSub.createMessageWithId(PubSub.generateId('ToolError'), `Result generation failed: ${errorMessage}`, 'error')
+        );
+        return JSON.stringify(toolError(errorMessage));  // Return raw error
       }
     }
   });

@@ -3,7 +3,6 @@ import { MessageManager } from '@/lib/runtime/MessageManager'
 import { ToolManager } from '@/lib/tools/ToolManager'
 import { createScreenshotTool } from '@/lib/tools/utils/ScreenshotTool'
 import { createScrollTool } from '@/lib/tools/navigation/ScrollTool'
-import { createRefreshStateTool } from '@/lib/tools/navigation/RefreshStateTool'
 import { generateSystemPrompt, generatePageContextMessage, generateTaskPrompt } from './ChatAgent.prompt'
 import { AIMessage, AIMessageChunk } from '@langchain/core/messages'
 import { PubSub } from '@/lib/pubsub'
@@ -28,7 +27,7 @@ interface ExtractedPageContext {
 export class ChatAgent {
   // Constants
   private static readonly MAX_TURNS = 20
-  private static readonly TOOLS = ['screenshot_tool', 'scroll_tool', 'refresh_browser_state_tool']
+  private static readonly TOOLS = ['screenshot_tool', 'scroll_tool']
   private static readonly INCLUDE_LINKS = true
   
   private readonly executionContext: ExecutionContext
@@ -56,10 +55,9 @@ export class ChatAgent {
    * Register only the minimal tools needed for Q&A
    */
   private _registerTools(): void {
-    // Only register the 3 essential tools for Q&A
+    // Only register the 2 essential tools for Q&A
     this.toolManager.register(createScreenshotTool(this.executionContext))
     this.toolManager.register(createScrollTool(this.executionContext))
-    this.toolManager.register(createRefreshStateTool(this.executionContext))
     
     Logging.log('ChatAgent', `Registered ${this.toolManager.getAll().length} tools for Q&A mode`)
   }

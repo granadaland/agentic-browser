@@ -152,7 +152,6 @@ export class BrowserAgent {
       // Clear message history if this is not a follow-up task
       if (!classification.is_followup_task) {
         this.messageManager.clear();
-        // Re-add system prompt and user task after clearing
         this._initializeExecution(task);
       }
       
@@ -164,7 +163,6 @@ export class BrowserAgent {
       } else {
         message = 'Creating a step-by-step plan to complete the task';
       }
-      // Tag startup status messages for UI styling
       this.pubsub.publishMessage(PubSub.createMessage(message, 'thinking'));
 
       // 3. DELEGATE: Route to the correct execution strategy
@@ -178,7 +176,6 @@ export class BrowserAgent {
       await this._generateTaskResult(task);
     } catch (error) {
       this._handleExecutionError(error);
-      throw error;
     } finally {
       // Ensure glow animation is stopped at the end of execution
       try {
@@ -314,10 +311,6 @@ export class BrowserAgent {
 
       // 1. PLAN: Create a new plan
       const plan = await this._createMultiStepPlan(task);
-      if (plan.steps.length === 0) {
-        throw new Error('Planning failed. Could not generate next steps.');
-      }
-      // Debug: Plan created
 
       // 2. Convert plan to TODOs
       await this._updateTodosFromPlan(plan);
@@ -334,11 +327,10 @@ export class BrowserAgent {
         
         // Check for loop before continuing
         if (this._detectLoop()) {
-          const loopMessage = 'Detected repetitive behavior. Breaking out of potential infinite loop.';
-          console.warn(loopMessage);
+          console.warn('Detected repetitive behavior. Breaking out of potential infinite loop.');
           
           // break out of loop
-          throw new Error("Agent unable to proceed further");
+          throw new Error("Agent is stuck, please restart your task.");
         }
         
         // Use the generateTodoExecutionPrompt for TODO execution
@@ -485,7 +477,7 @@ export class BrowserAgent {
       const parsedResult = JSON.parse(result);
       
       // Publish tool result for UI display
-      // Skip emitting refresh_browser_state_tool to prevent browser state from appearing in UI
+      // Skip refresh_browser_state_tool to prevent flooding UI with complex state
       // Also skip result_tool to avoid duplicating the final summary in the UI
       if (toolName !== 'refresh_browser_state_tool' && toolName !== 'result_tool') {
         //TODO: nikhil -- see if how to merge formatToolOutput to tools itself
@@ -494,14 +486,15 @@ export class BrowserAgent {
       }
 
       // Add the result back to the message history for context
-      // Special handling for refresh_browser_state_tool vs other tools:
-      // - refresh_browser_state_tool: Add simplified tool message AND browser state context
-      // - All other tools: Add as regular tool message for proper conversation flow
+      // Special handling for refresh_browser_state_tool to avoid flooding message history
       if (toolName === 'refresh_browser_state_tool' && parsedResult.ok) {
-        // Add proper tool result message with toolCallId for message history continuity
-        const simplifiedResult = JSON.stringify({ ok: true, output: "Browser state refreshed successfully" });
+        // Add simplified result to message history
+        const simplifiedResult = JSON.stringify({ 
+          ok: true, 
+          output: "Emergency browser state refresh completed - full DOM analysis available" 
+        });
         this.messageManager.addTool(simplifiedResult, toolCallId);
-        // Also update the browser state context for the agent to use
+        // Update browser state context for the agent
         this.messageManager.addBrowserState(parsedResult.output);
       } else {
         this.messageManager.addTool(result, toolCallId);
@@ -537,16 +530,20 @@ export class BrowserAgent {
     const result = await plannerTool.func(args);
     const parsedResult = JSON.parse(result);
     
+    // Check for errors first
+    if (!parsedResult.ok) {
+      // Throw with actual error from tool
+      throw new Error(parsedResult.output || 'Planning failed');
+    }
+    
     // Publish planner result
-    if (parsedResult.ok && parsedResult.output?.steps) {
+    if (parsedResult.output?.steps) {
       const message = `Created ${parsedResult.output.steps.length} step execution plan`;
       this.pubsub.publishMessage(PubSub.createMessage(message, 'thinking'));
-    }
-
-    if (parsedResult.ok && parsedResult.output?.steps) {
       return { steps: parsedResult.output.steps };
     }
-    return { steps: [] };  // Return an empty plan on failure
+    
+    throw new Error('Invalid plan format - no steps returned');
   }
 
   private async _validateTaskCompletion(task: string): Promise<{
@@ -639,17 +636,17 @@ export class BrowserAgent {
   }
 
   /**
-   * Handle and categorize execution errors
+   * Handle execution errors - tools have already published specific errors
    */
   private _handleExecutionError(error: unknown): void {
-    // Check if this is a user cancellation
+    // Check if this is a user cancellation - handle silently
     const isUserCancellation = error instanceof AbortError || 
                                this.executionContext.isUserCancellation() || 
                                (error instanceof Error && error.name === "AbortError");
     
     if (!isUserCancellation) {
-      const errorMessage = this._categorizeError(error);
-      this.pubsub.publishMessage(PubSub.createMessage(errorMessage, 'error'));
+      console.error('Execution error (already reported by tool):', error);
+      throw error;
     }
   }
 
@@ -659,7 +656,7 @@ export class BrowserAgent {
    * @param threshold - Number of times a message must appear to be considered a loop (default: 2)
    * @returns true if a loop is detected
    */
-  private _detectLoop(lookback: number = 6, threshold: number = 2): boolean {
+  private _detectLoop(lookback: number = 8, threshold: number = 4): boolean {
     const messages = this.messageManager.getMessages();
     
     // Need at least lookback messages to check
@@ -695,46 +692,6 @@ export class BrowserAgent {
     return false;
   }
 
-  /**
-   * Categorize error type and return appropriate error message
-   */
-  private _categorizeError(error: unknown): string {
-    if (error instanceof Error) {
-      const message = error.message.toLowerCase();
-      
-      // Check for LLM-specific errors
-      if (message.includes('llm') || 
-          message.includes('api') || 
-          message.includes('rate limit') ||
-          message.includes('model') ||
-          message.includes('authentication') ||
-          message.includes('bindtools') ||
-          message.includes('stream')) {
-        return `LLM Error: ${error.message}`;
-      }
-      
-      // Check for network errors
-      if (message.includes('network') || 
-          message.includes('timeout') ||
-          message.includes('econnrefused') ||
-          message.includes('fetch')) {
-        return `Network Error: ${error.message}`;
-      }
-      
-      // Check for browser/tab errors
-      if (message.includes('tab') || 
-          message.includes('browser') ||
-          message.includes('debugger') ||
-          message.includes('puppeteer')) {
-        return `Browser Error: ${error.message}`;
-      }
-      
-      // Default to general error
-      return `Error: ${error.message}`;
-    }
-    
-    return `Error: ${String(error)}`;
-  }
 
   /**
    * Handle glow animation for tools that interact with the browser

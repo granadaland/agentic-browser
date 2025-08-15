@@ -8,8 +8,8 @@ import {
   buildClassificationSystemPrompt,
   buildClassificationTaskPrompt
 } from '@/lib/tools/classification/classification.tool.prompt'
-import { invokeWithRetry } from '@/lib/utils/retryable'
 import { PubSub } from '@/lib/pubsub'
+import { invokeWithRetry } from '@/lib/utils/retryable'
 
 // Constants
 const MAX_RECENT_MESSAGES = 10  // Number of recent messages to analyze
@@ -62,7 +62,11 @@ export class ClassificationTool {
       
       return JSON.stringify(toolSuccess(JSON.stringify(result)))
     } catch (error) {
-      return JSON.stringify(toolError(`Classification failed: ${error instanceof Error ? error.message : String(error)}`))
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      this.executionContext.getPubSub().publishMessage(
+        PubSub.createMessageWithId(PubSub.generateId('ToolError'), `Classification failed: ${errorMessage}`, 'error')
+      )
+      return JSON.stringify(toolError(errorMessage))  // Return raw error
     }
   }
 

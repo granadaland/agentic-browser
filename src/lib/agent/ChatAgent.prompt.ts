@@ -24,7 +24,6 @@ export function generateSystemPrompt(): string {
 - You can answer questions based on the information provided
 - You have access to screenshot_tool for visual information
 - You have access to scroll_tool to navigate content
-- You have access to refresh_browser_state_tool to update page state
 
 ## Important: Browser State
 - The current web page content is provided in <BrowserState> tags

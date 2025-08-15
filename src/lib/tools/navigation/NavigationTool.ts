@@ -68,7 +68,7 @@ export class NavigationTool {
         return toolError(`URL not allowed: ${url}. This URL is restricted by security policy.`)
       }
       
-      return toolError(`Navigation failed: ${errorMessage}`)
+      return toolError(errorMessage)  // Return raw error
     }
   }
 

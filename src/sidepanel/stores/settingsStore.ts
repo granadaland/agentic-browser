@@ -4,7 +4,7 @@ import { z } from 'zod'
 
 // Settings schema
 const SettingsSchema = z.object({
-  fontSize: z.number().min(13).max(21).default(14),  // Font size in pixels
+  fontSize: z.number().min(13).max(21).default(16),  // Font size in pixels
   theme: z.enum(['light', 'dark', 'gray']).default('light'),  // App theme
   autoScroll: z.boolean().default(true),  // Auto-scroll chat to bottom
   autoCollapseTools: z.boolean().default(false),  // Auto-collapse tool results
@@ -25,7 +25,7 @@ interface SettingsActions {
 
 // Initial state
 const initialState: Settings = {
-  fontSize: 14,
+  fontSize: 16,
   theme: 'light',
   autoScroll: true,
   autoCollapseTools: false,
@@ -84,7 +84,7 @@ export const useSettingsStore = create<Settings & SettingsActions>()(
         if (version === 1 && persisted) {
           const isDarkMode: boolean = persisted.isDarkMode === true
           const next = {
-            fontSize: typeof persisted.fontSize === 'number' ? persisted.fontSize : 14,
+            fontSize: typeof persisted.fontSize === 'number' ? persisted.fontSize : 16,
             theme: isDarkMode ? 'dark' : 'light'
           }
           return next
@@ -92,7 +92,7 @@ export const useSettingsStore = create<Settings & SettingsActions>()(
         // Migrate to v3 add autoScroll default true
         if (version === 2 && persisted) {
           return {
-            fontSize: typeof persisted.fontSize === 'number' ? persisted.fontSize : 14,
+            fontSize: typeof persisted.fontSize === 'number' ? persisted.fontSize : 16,
             theme: persisted.theme === 'dark' || persisted.theme === 'gray' ? persisted.theme : 'light',
             autoScroll: true
           } as Settings
@@ -100,7 +100,7 @@ export const useSettingsStore = create<Settings & SettingsActions>()(
         // Migrate to v4 add autoCollapseTools default false
         if (version === 3 && persisted) {
           return {
-            fontSize: typeof persisted.fontSize === 'number' ? persisted.fontSize : 14,
+            fontSize: typeof persisted.fontSize === 'number' ? persisted.fontSize : 16,
             theme: persisted.theme === 'dark' || persisted.theme === 'gray' ? persisted.theme : 'light',
             autoScroll: typeof persisted.autoScroll === 'boolean' ? persisted.autoScroll : true,
             autoCollapseTools: false,
@@ -110,7 +110,7 @@ export const useSettingsStore = create<Settings & SettingsActions>()(
         // Migrate to v5 add chatMode default false
         if (version === 4 && persisted) {
           return {
-            fontSize: typeof persisted.fontSize === 'number' ? persisted.fontSize : 14,
+            fontSize: typeof persisted.fontSize === 'number' ? persisted.fontSize : 16,
             theme: persisted.theme === 'dark' || persisted.theme === 'gray' ? persisted.theme : 'light',
             autoScroll: typeof persisted.autoScroll === 'boolean' ? persisted.autoScroll : true,
             autoCollapseTools: typeof persisted.autoCollapseTools === 'boolean' ? persisted.autoCollapseTools : false,
