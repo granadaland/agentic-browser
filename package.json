@@ -17,7 +17,9 @@
     "test:run": "vitest run",
     "test:watch": "vitest --watch",
     "test:coverage": "vitest run --coverage",
-    "test:ui": "vitest --ui"
+    "test:ui": "vitest --ui",
+    "eval:planner": "tsx src/evals/planner-llm.eval.ts",
+    "extract:prompts": "tsx src/evals/push-prompts.ts"
   },
   "author": "",
   "license": "MIT",
@@ -34,7 +36,9 @@
     "@radix-ui/react-icons": "^1.3.2",
     "@radix-ui/themes": "^3.2.1",
     "@types/uuid": "^10.0.0",
+    "autoevals": "^0.0.130",
     "axios": "^1.9.0",
+    "braintrust": "^0.2.4",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "dotenv": "^16.3.1",
@@ -89,6 +93,7 @@
     "terser-webpack-plugin": "^5.3.14",
     "ts-loader": "^9.5.1",
     "ts-node": "^10.9.2",
+    "tsx": "^4.20.4",
     "typescript": "^5.3.3",
     "util": "^0.12.5",
     "vitest": "^1.6.0",
