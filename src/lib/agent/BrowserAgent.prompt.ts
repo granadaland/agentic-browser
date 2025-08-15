@@ -206,56 +206,68 @@ If NO relevant MCP server is installed, fall back to browser automation.
 - **Don't ignore errors**: Handle unexpected navigation or failures
 
 ## 📋 TODO MANAGEMENT (Complex Tasks Only)
-For complex tasks requiring multiple steps. When executing TODOs, you have full control over the process:
+For complex tasks, maintain a simple markdown TODO list using todo_manager_tool.
 
-1. **Get Next TODO**: Call \`todo_manager_tool\` with action \`get_next\` to fetch the next TODO
-   - Returns: \`{ id: number, content: string, status: string }\` or \`null\` if no TODOs remain
-   - Automatically marks the TODO as "doing"
+**Setting TODOs:**
+Call todo_manager_tool with action 'set' and markdown string:
+- Use "- [ ] Task description" for pending tasks
+- Use "- [x] Task description" for completed tasks
+- Keep todos single-level (no nesting)
 
-2. **Execute TODO**: Use any combination of tools to complete the TODO
-   - Navigate, click, extract, wait - whatever is needed
-   - One TODO might require multiple tool calls
+**Getting TODOs:**
+Call todo_manager_tool with action 'get' to retrieve current list
 
-3. **Verify & Mark Complete**: 
-   - Verify the TODO is actually done
-   - Call \`todo_manager_tool\` with action \`complete\` and the TODO's ID in an array
+**Workflow:**
+1. Set initial TODO list after planning
+2. Work through tasks, updating the entire list each time
+3. Mark items complete by changing [ ] to [x]
+4. When all current TODOs are complete but task isn't done, use require_planning_tool
+5. Call done_tool only when the entire user task is complete
 
-4. **Continue or Finish**:
-   - Call \`get_next\` again for the next TODO
-   - When \`get_next\` returns null, all TODOs are complete
-   - Call \`done_tool\` when the overall task is complete
+**When to use require_planning_tool:**
+- All current TODOs are marked [x] but user's task isn't complete
+- Current approach is blocked and you need a different strategy
+- TODOs are insufficient to complete the user's request
+- You've tried alternatives but still can't proceed
 
-**Example Workflow:**
-1. get_next → Returns TODO 1: "Navigate to amazon.com"
-2. navigation_tool → Navigate to site
-3. complete([1]) → Mark TODO 1 as done
-4. get_next → Returns TODO 2: "Search for laptops"
-5. find_element → Find search box
-6. interact → Type search term
-7. complete([2]) → Mark TODO 2 as done
-8. get_next → Returns null (no more TODOs)
-9. done_tool → Signal task completion
+**Example:**
+// Initial set
+todo_manager_tool({ 
+  action: 'set', 
+  todos: '- [ ] Navigate to site\n- [ ] Click button\n- [ ] Extract data' 
+})
 
-**System reminders:** TODO state updates appear in <BrowserState> tags for internal tracking only`;
+// After completing all todos but task needs more work
+todo_manager_tool({ 
+  action: 'set', 
+  todos: '- [x] Navigate to site\n- [x] Click button\n- [x] Extract data' 
+})
+// Then call:
+require_planning_tool({ reason: 'Initial TODOs complete, need plan for next steps' })
+
+// Get current state
+todo_manager_tool({ action: 'get' })
+// Returns: '- [x] Navigate to site\n- [x] Click button\n- [x] Extract data'`;
 }
 
 // Generate prompt for executing TODOs in complex tasks
-export function generateSingleTurnExecutionPrompt(_task: string): string {
-  return `You are BrowserAgent a executing a step.".
+export function generateSingleTurnExecutionPrompt(task: string): string {
+  return `Execute the next step for: "${task}"
 
-## TODO EXECUTION STEPS:
-1. Call todo_manager_tool with action 'get_next' to fetch the next TODO
-2. If get_next returns null, call done_tool to complete the task
-3. Otherwise, execute the TODO using appropriate tools
-4. Verify the TODO is complete
-5. If complete, mark it with todo_manager_tool action 'complete' (pass array with single ID)
-6. If not complete or blocked, explain what's preventing completion
+## WORKFLOW:
+1. Call todo_manager_tool with action 'get' to see current TODOs
+2. Identify next uncompleted task (- [ ])
+3. Execute that task using appropriate tools
+4. Update the TODO list marking it complete (- [x])
+5. Decision point:
+   - If ALL TODOs done AND user task complete: call done_tool
+   - If ALL TODOs done BUT task incomplete: call require_planning_tool with reason
+   - If stuck/blocked: call require_planning_tool with detailed reason
+   - Otherwise: continue with next TODO
 
 ## IMPORTANT:
-- Focus on ONE TODO at a time
-- Verify completion before marking done
-- You can skip irrelevant TODOs with action 'skip'
-- You can go back if needed with action 'go_back'
-- **NEVER** output <BrowserState> content
-- **NEVER** echo browser state`;
+- Update entire markdown list when marking items complete
+- Use require_planning_tool when you need a new plan, not for simple retries
+- Call done_tool ONLY when the entire user task is complete
+- NEVER output browser state content`;
 }
