@@ -278,7 +278,7 @@ export function ChatInput({ isConnected, isProcessing }: ChatInputProps) {
 
   
   return (
-    <div className="relative bg-[hsl(var(--header))] border-t border-border/50 px-2 py-1 flex-shrink-0 overflow-hidden">
+    <div className="relative bg-[hsl(var(--header))] border-t border-border/50 px-2 py-1 flex-shrink-0 overflow-hidden z-20">
       
       {/* Mode Toggle - top left, above input */}
       <div className="px-2 mb-2">

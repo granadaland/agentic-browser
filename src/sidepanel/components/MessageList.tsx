@@ -69,8 +69,8 @@ const ALL_EXAMPLES = [
   // "Detect bias or opinionated language in this page",
 ]
 
-// Animation constants
-const DISPLAY_COUNT = 5 // Show 5 examples at a time
+// Animation constants  
+const DEFAULT_DISPLAY_COUNT = 5 // Default number of examples to show
 
 /**
  * MessageList component
@@ -83,6 +83,7 @@ export function MessageList({ messages, onScrollStateChange, scrollToBottom: ext
   const [currentExamples, setCurrentExamples] = useState<string[]>([])
   const [shuffledPool, setShuffledPool] = useState<string[]>([])
   const [isAnimating] = useState(false)
+  const [displayCount, setDisplayCount] = useState(DEFAULT_DISPLAY_COUNT)
   
   // Track previously seen message IDs to determine which are new
   const previousMessageIdsRef = useRef<Set<string>>(new Set())
@@ -90,6 +91,18 @@ export function MessageList({ messages, onScrollStateChange, scrollToBottom: ext
 
   // Use external container ref if provided, otherwise use internal one
   const containerRef = externalContainerRef || internalContainerRef
+  
+  // Adjust display count based on viewport height
+  useEffect(() => {
+    const updateDisplayCount = () => {
+      const height = window.innerHeight
+      setDisplayCount(height < 700 ? 3 : DEFAULT_DISPLAY_COUNT)
+    }
+    
+    updateDisplayCount()
+    window.addEventListener('resize', updateDisplayCount)
+    return () => window.removeEventListener('resize', updateDisplayCount)
+  }, [])
 
   // Track new messages for animation
   useEffect(() => {
@@ -194,15 +207,15 @@ export function MessageList({ messages, onScrollStateChange, scrollToBottom: ext
     const shuffled = [...ALL_EXAMPLES].sort(() => 0.5 - Math.random())
     setShuffledPool(shuffled)
     
-    // Get initial 5 examples
+    // Get initial examples based on display count
     const initialExamples: string[] = []
-    for (let i = 0; i < DISPLAY_COUNT; i++) {
+    for (let i = 0; i < displayCount; i++) {
       if (shuffled.length > 0) {
         initialExamples.push(shuffled.pop()!)
       }
     }
     setCurrentExamples(initialExamples)
-  }, [])
+  }, [displayCount])
 
   // Function to get random examples from pool
   const _getRandomExample = useCallback((count: number = 1): string[] => {
@@ -231,13 +244,13 @@ export function MessageList({ messages, onScrollStateChange, scrollToBottom: ext
       const shuffled = [...ALL_EXAMPLES].sort(() => 0.5 - Math.random())
       setShuffledPool(shuffled)
       const initialExamples: string[] = []
-      for (let i = 0; i < DISPLAY_COUNT; i++) {
+      for (let i = 0; i < displayCount; i++) {
         if (shuffled.length > 0) initialExamples.push(shuffled.pop()!)
       }
       setCurrentExamples(initialExamples)
     }
     wasEmptyRef.current = isEmpty
-  }, [messages.length])
+  }, [messages.length, displayCount])
 
   // Check if we're at the bottom of the scroll container
   useEffect(() => {
@@ -288,8 +301,8 @@ export function MessageList({ messages, onScrollStateChange, scrollToBottom: ext
   if (messages.length === 0) {
     return (
       <div 
-        className="flex-1 flex flex-col items-center justify-center p-8 text-center relative overflow-hidden mt-20"
-        style={{ paddingBottom: '120px' }}
+        className="flex-1 flex flex-col items-center justify-start p-8 text-center relative overflow-hidden pt-16"
+        style={{ paddingBottom: '180px' }}
         role="region"
         aria-label="Welcome screen with example prompts"
       >
@@ -299,7 +312,7 @@ export function MessageList({ messages, onScrollStateChange, scrollToBottom: ext
       {/* Orange glow spotlights removed */}
 
         {/* Main content */}
-        <div className="relative z-10">
+        <div className="relative z-0">
           <div className="mb-8">
             <h2 className="text-3xl font-bold text-foreground animate-fade-in-up">
               Welcome to BrowserOS
