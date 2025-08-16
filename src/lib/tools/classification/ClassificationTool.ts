@@ -1,7 +1,7 @@
 import { DynamicStructuredTool } from '@langchain/core/tools'
 import { z } from 'zod'
 import { ExecutionContext } from '@/lib/runtime/ExecutionContext'
-import { MessageManagerReadOnly } from '@/lib/runtime/MessageManager'
+import { MessageManagerReadOnly, MessageType } from '@/lib/runtime/MessageManager'
 import { toolSuccess, toolError } from '@/lib/tools/Tool.interface'
 import { HumanMessage, SystemMessage } from '@langchain/core/messages'
 import { 
@@ -41,9 +41,11 @@ export class ClassificationTool {
       // Get LLM instance
       const llm = await this.executionContext.getLLM()
       
-      // Get recent message history
+      // Get recent message history, excluding system prompts and browser state messages
+      // to focus on actual conversation context
       const reader = new MessageManagerReadOnly(this.executionContext.messageManager)
-      const recentMessages = reader.getAll().slice(-MAX_RECENT_MESSAGES)
+      const filteredMessages = reader.getFiltered([MessageType.SYSTEM, MessageType.BROWSER_STATE])
+      const recentMessages = filteredMessages.slice(-MAX_RECENT_MESSAGES)
       
       // Build prompt
       const systemPrompt = this._buildSystemPrompt()

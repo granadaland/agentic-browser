@@ -38,6 +38,29 @@ export class MessageManagerReadOnly {
     return this.messageManager.getMessages();
   }
 
+  // Get messages filtered by excluding specific types
+  getFiltered(excludeTypes: MessageType[] = []): BaseMessage[] {
+    if (excludeTypes.length === 0) {
+      return this.getAll();
+    }
+    
+    return this.getAll().filter(message => {
+      const messageType = this.messageManager._getMessageType(message);
+      return !excludeTypes.includes(messageType);
+    });
+  }
+
+  // Get filtered messages as formatted string (useful for history)
+  getFilteredAsString(
+    excludeTypes: MessageType[] = [],
+    separator: string = '\n'
+  ): string {
+    const messages = this.getFiltered(excludeTypes);
+    return messages
+      .map(m => `${m._getType()}: ${m.content}`)
+      .join(separator);
+  }
+
   getRecentBrowserState(): string | null {
     const messages = this.messageManager.getMessages();
     for (let i = messages.length - 1; i >= 0; i--) {
@@ -217,8 +240,8 @@ export class MessageManager {
     this.totalTokens = 0;
   }
 
-  // Get message type
-  private _getMessageType(message: BaseMessage): MessageType {
+  // Get message type (public for MessageManagerReadOnly access)
+  _getMessageType(message: BaseMessage): MessageType {
     if (message.additional_kwargs?.messageType === MessageType.BROWSER_STATE) {
       return MessageType.BROWSER_STATE;
     }

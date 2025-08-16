@@ -37,11 +37,11 @@ export function createPlannerTool(executionContext: ExecutionContext): DynamicSt
         executionContext.getPubSub().publishMessage(PubSub.createMessage(`Creating plan for task...`, 'thinking'))
         // Get LLM instance from execution context
         const llm = await executionContext.getLLM();
-        
-        // Create message reader inline
+
+        // Get message history excluding initial System Message saying ("Your are a web agent") as that is not required for planning
+        // and excluding browser state messages as we will add that separately.
         const read_only_message_manager = new MessageManagerReadOnly(executionContext.messageManager);
-        // Filter out browser state messages as they take up too much context
-        const message_history = read_only_message_manager.getAll().filter(m => m.additional_kwargs?.messageType !== MessageType.BROWSER_STATE).map(m => `${m._getType()}: ${m.content}`).join('\n');
+        const message_history = read_only_message_manager.getFilteredAsString([MessageType.SYSTEM, MessageType.BROWSER_STATE]);
        
         // Get browser state using BrowserContext's method
         const browserState = await executionContext.browserContext.getBrowserStateString();
@@ -54,6 +54,11 @@ export function createPlannerTool(executionContext: ExecutionContext): DynamicSt
           message_history,
           browserState
         );
+        
+        // Log combined prompts
+        // const combinedPrompt = systemPrompt + '\n\n' + taskPrompt;
+        // console.log(combinedPrompt);
+        // console.log(`\n🔢 Token count: ~${Math.ceil(combinedPrompt.length / 4)} tokens`);
         
         // Get structured response from LLM with retry logic
         const structuredLLM = llm.withStructuredOutput(PlanSchema);

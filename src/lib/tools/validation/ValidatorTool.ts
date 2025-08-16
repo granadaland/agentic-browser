@@ -1,7 +1,7 @@
 import { DynamicStructuredTool } from '@langchain/core/tools'
 import { z } from 'zod'
 import { ExecutionContext } from '@/lib/runtime/ExecutionContext'
-import { MessageManagerReadOnly } from '@/lib/runtime/MessageManager'
+import { MessageManagerReadOnly, MessageType } from '@/lib/runtime/MessageManager'
 import { generateValidatorSystemPrompt, generateValidatorTaskPrompt } from './ValidatorTool.prompt'
 import { toolError } from '@/lib/tools/Tool.interface'
 import { HumanMessage, SystemMessage } from '@langchain/core/messages'
@@ -56,11 +56,10 @@ export function createValidatorTool(executionContext: ExecutionContext): Dynamic
           }
         }
         
-        // Get message history for context
+        // Get message history excluding initial system prompt and browser state messages  
+        // to avoid token limit issues and provide only relevant context
         const readOnlyMessageManager = new MessageManagerReadOnly(executionContext.messageManager)
-        const messageHistory = readOnlyMessageManager.getAll()
-          .map(m => `${m._getType()}: ${m.content}`)
-          .join('\n')
+        const messageHistory = readOnlyMessageManager.getFilteredAsString([MessageType.SYSTEM, MessageType.BROWSER_STATE])
         
         // Generate prompts
         const systemPrompt = generateValidatorSystemPrompt()
