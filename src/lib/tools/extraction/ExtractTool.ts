@@ -6,6 +6,8 @@ import { HumanMessage, SystemMessage } from '@langchain/core/messages'
 import { generateExtractorSystemPrompt, generateExtractorTaskPrompt } from './ExtractTool.prompt'
 import { invokeWithRetry } from '@/lib/utils/retryable'
 import { PubSub } from '@/lib/pubsub'
+import { TokenCounter } from '@/lib/utils/TokenCounter'
+import { Logging } from '@/lib/utils/Logging'
 
 // Input schema for extraction
 const ExtractInputSchema = z.object({
@@ -76,14 +78,21 @@ export function createExtractTool(executionContext: ExecutionContext): DynamicSt
           { url, title }
         )
         
+        // Prepare messages for LLM
+        const messages = [
+          new SystemMessage(systemPrompt),
+          new HumanMessage(taskPrompt)
+        ]
+        
+        // Log token count
+        const tokenCount = TokenCounter.countMessages(messages)
+        Logging.log('ExtractTool', `Invoking LLM with ${TokenCounter.format(tokenCount)}`, 'info')
+        
         // Get structured response from LLM with retry logic
         const structuredLLM = llm.withStructuredOutput(ExtractedDataSchema)
         const extractedData = await invokeWithRetry<ExtractedData>(
           structuredLLM,
-          [
-            new SystemMessage(systemPrompt),
-            new HumanMessage(taskPrompt)
-          ],
+          messages,
           3
         )
 

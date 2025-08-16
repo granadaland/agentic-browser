@@ -6,6 +6,8 @@ import { HumanMessage, SystemMessage } from "@langchain/core/messages"
 import { findElementPrompt } from "./FindElementTool.prompt"
 import { invokeWithRetry } from "@/lib/utils/retryable"
 import { PubSub } from "@/lib/pubsub"
+import { TokenCounter } from "@/lib/utils/TokenCounter"
+import { Logging } from "@/lib/utils/Logging"
 
 // Input schema for find element operations
 export const FindElementInputSchema = z.object({
@@ -86,13 +88,20 @@ export class FindElementTool {
     
     userMessage += `\n\nInteractive elements on the page:\n${domContent}`
 
+    // Prepare messages for LLM
+    const messages = [
+      new SystemMessage(findElementPrompt),
+      new HumanMessage(userMessage)
+    ]
+    
+    // Log token count
+    const tokenCount = TokenCounter.countMessages(messages)
+    Logging.log('FindElementTool', `Invoking LLM with ${TokenCounter.format(tokenCount)}`, 'info')
+    
     // Invoke LLM with retry logic
     const result = await invokeWithRetry<z.infer<typeof FindElementLLMSchema>>(
       structuredLLM,
-      [
-        new SystemMessage(findElementPrompt),
-        new HumanMessage(userMessage)
-      ],
+      messages,
       3
     )
 

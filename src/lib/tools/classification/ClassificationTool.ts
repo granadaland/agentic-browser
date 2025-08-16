@@ -10,6 +10,8 @@ import {
 } from '@/lib/tools/classification/classification.tool.prompt'
 import { PubSub } from '@/lib/pubsub'
 import { invokeWithRetry } from '@/lib/utils/retryable'
+import { TokenCounter } from '@/lib/utils/TokenCounter'
+import { Logging } from '@/lib/utils/Logging'
 
 // Constants
 const MAX_RECENT_MESSAGES = 10  // Number of recent messages to analyze
@@ -51,14 +53,19 @@ export class ClassificationTool {
       const systemPrompt = this._buildSystemPrompt()
       const taskPrompt = this._buildTaskPrompt(input.task, recentMessages)
       
+      // Log token count
+      const messages = [
+        new SystemMessage(systemPrompt),
+        new HumanMessage(taskPrompt)
+      ]
+      const tokenCount = TokenCounter.countMessages(messages)
+      Logging.log('ClassificationTool', `Invoking LLM with ${TokenCounter.format(tokenCount)}`, 'info')
+      
       // Call LLM with structured output and retry logic
       const structuredLLM = llm.withStructuredOutput(ClassificationResultSchema)
       const result = await invokeWithRetry<ClassificationResult>(
         structuredLLM,
-        [
-          new SystemMessage(systemPrompt),
-          new HumanMessage(taskPrompt)
-        ],
+        messages,
         3
       )
       this.executionContext.getPubSub().publishMessage(PubSub.createMessage(`Task classified as ${result.is_simple_task ? 'simple' : 'complex'} and ${result.is_followup_task ? 'follow-up' : 'new'}`, 'thinking'))

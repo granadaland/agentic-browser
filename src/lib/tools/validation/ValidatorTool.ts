@@ -7,6 +7,8 @@ import { toolError } from '@/lib/tools/Tool.interface'
 import { HumanMessage, SystemMessage } from '@langchain/core/messages'
 import { invokeWithRetry } from '@/lib/utils/retryable'
 import { PubSub } from '@/lib/pubsub'
+import { TokenCounter } from '@/lib/utils/TokenCounter'
+import { Logging } from '@/lib/utils/Logging'
 
 // Input schema
 const ValidatorInputSchema = z.object({
@@ -70,14 +72,21 @@ export function createValidatorTool(executionContext: ExecutionContext): Dynamic
           screenshot
         )
         
+        // Prepare messages for LLM
+        const messages = [
+          new SystemMessage(systemPrompt),
+          new HumanMessage(taskPrompt)
+        ]
+        
+        // Log token count
+        const tokenCount = TokenCounter.countMessages(messages)
+        Logging.log('ValidatorTool', `Invoking LLM with ${TokenCounter.format(tokenCount)}`, 'info')
+        
         // Get structured response from LLM with retry logic
         const structuredLLM = llm.withStructuredOutput(ValidationResultSchema)
         const validation = await invokeWithRetry<z.infer<typeof ValidationResultSchema>>(
           structuredLLM,
-          [
-            new SystemMessage(systemPrompt),
-            new HumanMessage(taskPrompt)
-          ],
+          messages,
           3
         )
         

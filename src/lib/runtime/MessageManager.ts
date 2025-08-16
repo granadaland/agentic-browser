@@ -6,6 +6,8 @@ import {
   SystemMessage,
   ToolMessage,
 } from "@langchain/core/messages";
+import { TokenCounter } from "@/lib/utils/TokenCounter";
+import { Logging } from "@/lib/utils/Logging";
 
 // Message type enum
 export enum MessageType {
@@ -15,10 +17,6 @@ export enum MessageType {
   TOOL = 'tool',
   BROWSER_STATE = 'browser_state'
 }
-
-// Constants for token approximation
-const CHARS_PER_TOKEN = 4;
-const TOKENS_PER_MESSAGE = 3;
 
 // Create a new custom message type for browser state by extending LangChain's AIMessage.
 // The langchain messages have messageType which can be set set to a custom value.
@@ -109,8 +107,8 @@ export class MessageManager {
         break;
     }
     
-    // Calculate tokens once
-    const tokens = this._getTokensForMessage(message);
+    // Calculate tokens once using TokenCounter utility
+    const tokens = TokenCounter.countMessage(message);
     
     this._ensureSpace(tokens);
     
@@ -125,6 +123,8 @@ export class MessageManager {
     
     // Update total
     this.totalTokens += tokens;
+
+    Logging.log('MessageManager', `Total tokens in message manager: ${TokenCounter.format(this.totalTokens)}`, 'info');
   }
 
   addHuman(content: string): void {
@@ -254,34 +254,8 @@ export class MessageManager {
 
   // Calculate tokens for a single message
   private _getTokensForMessage(message: BaseMessage): number {
-    // 1. Use exact count from usage_metadata if available
-    if (message instanceof AIMessage && message.usage_metadata?.total_tokens) {
-      return message.usage_metadata.total_tokens;
-    }
-    
-    // 2. Fallback to approximation
-    let content = '';
-    if (typeof message.content === 'string') {
-      content = message.content;
-    } else if (message.content) {
-      content = JSON.stringify(message.content);
-    }
-    
-    // Base token count: 4 chars = 1 token + overhead
-    let tokens = Math.ceil(content.length / CHARS_PER_TOKEN) + TOKENS_PER_MESSAGE;
-    
-    // Add extra tokens for tool calls in AI messages
-    if (message instanceof AIMessage && message.tool_calls) {
-      const toolCallsStr = JSON.stringify(message.tool_calls);
-      tokens += Math.ceil(toolCallsStr.length / CHARS_PER_TOKEN);
-    }
-    
-    // Add tokens for tool message IDs
-    if (message instanceof ToolMessage && message.tool_call_id) {
-      tokens += Math.ceil(message.tool_call_id.length / CHARS_PER_TOKEN);
-    }
-    
-    return tokens;
+    // Delegate to TokenCounter utility
+    return TokenCounter.countMessage(message);
   }
 
   // Ensure we have space for new tokens

@@ -9,6 +9,8 @@ import { PLANNING_CONFIG } from './PlannerTool.config';
 import { MessageType } from '@/lib/runtime/MessageManager';
 import { invokeWithRetry } from '@/lib/utils/retryable';
 import { PubSub } from '@/lib/pubsub';
+import { TokenCounter } from '@/lib/utils/TokenCounter';
+import { Logging } from '@/lib/utils/Logging';
 
 // Input schema - simple so LLM can generate and pass it
 const PlannerInputSchema = z.object({
@@ -55,19 +57,21 @@ export function createPlannerTool(executionContext: ExecutionContext): DynamicSt
           browserState
         );
         
-        // Log combined prompts
-        // const combinedPrompt = systemPrompt + '\n\n' + taskPrompt;
-        // console.log(combinedPrompt);
-        // console.log(`\n🔢 Token count: ~${Math.ceil(combinedPrompt.length / 4)} tokens`);
+        // Prepare messages for LLM
+        const messages = [
+          new SystemMessage(systemPrompt),
+          new HumanMessage(taskPrompt)
+        ];
+        
+        // Log token count
+        const tokenCount = TokenCounter.countMessages(messages);
+        Logging.log('PlannerTool', `Invoking LLM with ${TokenCounter.format(tokenCount)}`, 'info');
         
         // Get structured response from LLM with retry logic
         const structuredLLM = llm.withStructuredOutput(PlanSchema);
         const plan = await invokeWithRetry<z.infer<typeof PlanSchema>>(
           structuredLLM,
-          [
-            new SystemMessage(systemPrompt),
-            new HumanMessage(taskPrompt)
-          ],
+          messages,
           3
         );
         
