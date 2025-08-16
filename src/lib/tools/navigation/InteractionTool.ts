@@ -8,6 +8,7 @@ import { HumanMessage, SystemMessage } from "@langchain/core/messages"
 import { PubSub } from "@/lib/pubsub"
 import { TokenCounter } from "@/lib/utils/TokenCounter"
 import { Logging } from "@/lib/utils/Logging"
+import { BrowserStateChunker } from "@/lib/utils/BrowserStateChunker"
 
 // Constants
 const INTERACTION_WAIT_MS = 1000
@@ -72,14 +73,13 @@ export class InteractionTool {
 
   // Find element using LLM (adapted from FindElementTool)
   private async _findElementWithLLM(description: string): Promise<z.infer<typeof _FindElementSchema>> {
-    // Get current task from execution context
+    // Get max tokens from MessageManager (which gets it from model capabilities)
+    const _MAX_TOKENS_PER_CHUNK = this.executionContext.messageManager.getMaxTokens();
     const currentTask = this.executionContext.getCurrentTask()
 
-    // Build user message with task context if available
-    let userMessage = `Find the element matching this description: "${description}"`
-    
+    let baseUserMessage = `Find the element matching this description: "${description}"`
     if (currentTask) {
-      userMessage = `User's goal: ${currentTask}\n\n${userMessage}`
+      baseUserMessage = `User's goal: ${currentTask}\n\n${baseUserMessage}`
     }
     
     // Get browser state
@@ -88,28 +88,73 @@ export class InteractionTool {
       throw new Error("No interactive elements found on the current page")
     }
     
-    userMessage += `\n\nInteractive elements on the page:\n${browserState.clickableElementsString}\n${browserState.typeableElementsString}`
-
-    // Prepare messages for LLM
-    const messages = [
-      new SystemMessage(findElementPrompt),
-      new HumanMessage(userMessage)
-    ]
+    // Get full browser state string and chunk it
+    const browserStateString = await this.executionContext.browserContext.getBrowserStateString(true); // simplified=true
+    const chunker = new BrowserStateChunker(browserStateString, _MAX_TOKENS_PER_CHUNK);
+    const totalChunks = chunker.getTotalChunks();
     
-    // Log token count
-    const tokenCount = TokenCounter.countMessages(messages)
-    Logging.log('InteractionTool', `Invoking LLM with ${TokenCounter.format(tokenCount)}`, 'info')
+    // If single chunk, simple case
+    if (totalChunks === 1) {
+      const userMessage = baseUserMessage + `\n\nInteractive elements on the page:\n${chunker.getChunk(0)}`;
+      
+      const messages = [
+        new SystemMessage(findElementPrompt),
+        new HumanMessage(userMessage)
+      ];
+      
+      const tokenCount = TokenCounter.countMessages(messages);
+      Logging.log('InteractionTool', `Invoking LLM with ${TokenCounter.format(tokenCount)}`, 'info');
+      
+      const llm = await this.executionContext.getLLM();
+      const structuredLLM = llm.withStructuredOutput(_FindElementSchema);
+      return await invokeWithRetry<z.infer<typeof _FindElementSchema>>(
+        structuredLLM,
+        messages,
+        3
+      );
+    }
     
-    // Get LLM instance from execution context
-    const llm = await this.executionContext.getLLM();
-    const structuredLLM = llm.withStructuredOutput(_FindElementSchema)
-    const result = await invokeWithRetry<z.infer<typeof _FindElementSchema>>(
-      structuredLLM,
-      messages,
-      3
-    )
-
-    return result
+    // Multiple chunks - search through each
+    Logging.log('InteractionTool', `Searching through ${totalChunks} chunks for element`, 'info');
+    for (let i = 0; i < totalChunks; i++) {
+      const chunk = chunker.getChunk(i);
+      if (!chunk) continue;
+      
+      const userMessage = baseUserMessage + 
+        `\n\nNOTE: This is chunk ${i + 1} of ${totalChunks}. ` +
+        `The element may not be in this chunk - if not found, return found=false.\n\n` +
+        `Interactive elements:\n${chunk}`;
+      
+      const messages = [
+        new SystemMessage(findElementPrompt),
+        new HumanMessage(userMessage)
+      ];
+      
+      const tokenCount = TokenCounter.countMessages(messages);
+      Logging.log('InteractionTool', `Searching chunk ${i + 1}/${totalChunks} with ${TokenCounter.format(tokenCount)}`, 'info');
+      
+      const llm = await this.executionContext.getLLM();
+      const structuredLLM = llm.withStructuredOutput(_FindElementSchema);
+      const result = await invokeWithRetry<z.infer<typeof _FindElementSchema>>(
+        structuredLLM,
+        messages,
+        3
+      );
+      
+      // If found, return immediately
+      if (result.found && result.index !== null) {
+        Logging.log('InteractionTool', `Element found in chunk ${i + 1}/${totalChunks}`, 'info');
+        return result;
+      }
+    }
+    
+    // Not found in any chunk
+    return {
+      found: false,
+      index: null,
+      confidence: null,
+      reasoning: `Element "${description}" not found after searching all ${totalChunks} chunks`
+    };
   }
 
   // Updated find element with type checking
