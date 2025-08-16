@@ -141,6 +141,14 @@ export class NxtScape {
       await this.initialize();
     }
 
+    // Refresh token limit in case provider settings changed
+    const modelCapabilities = await langChainProvider.getModelCapabilities();
+    if (modelCapabilities.maxTokens !== this.messageManager.getMaxTokens()) {
+      Logging.log("NxtScape", 
+        `Updating MessageManager token limit from ${this.messageManager.getMaxTokens()} to ${modelCapabilities.maxTokens}`);
+      this.messageManager.setMaxTokens(modelCapabilities.maxTokens);
+    }
+
     const parsedOptions = RunOptionsSchema.parse(options);
     const { query, tabIds, mode } = parsedOptions;
     const startTime = Date.now();
