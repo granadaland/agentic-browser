@@ -296,10 +296,10 @@ export class MessageManager {
     // Priority tiers (lower number = remove first)
     // BROWSER_STATE < AI < TOOL < HUMAN < TODO_LIST < SYSTEM
     const priorities: Record<MessageType, number> = {
-      [MessageType.BROWSER_STATE]: 0,
-      [MessageType.AI]: 1, 
-      [MessageType.TOOL]: 2,
-      [MessageType.HUMAN]: 3,
+      [MessageType.AI]: 0, 
+      [MessageType.TOOL]: 1,
+      [MessageType.HUMAN]: 2,
+      [MessageType.BROWSER_STATE]: 3,
       [MessageType.TODO_LIST]: 4,  // High priority - keep unless necessary
       [MessageType.SYSTEM]: 5
     };
