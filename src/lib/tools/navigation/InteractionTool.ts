@@ -181,9 +181,10 @@ export class InteractionTool {
 
   // Click element with retry logic
   private async _clickElement(description: string): Promise<ToolOutput> {
+    this.executionContext.getPubSub().publishMessage(PubSub.createMessage(`Finding element to click with description: ${description}`, 'thinking'))
+
     for (let attempt = 1; attempt <= NUM_RETRIES; attempt++) {
       try {
-        this.executionContext.getPubSub().publishMessage(PubSub.createMessage(`Finding element to click with description: ${description}`, 'thinking'))
         // Find element (returns nodeId)
         const nodeId = await this._findElement(description, 'click')
         
@@ -206,7 +207,6 @@ export class InteractionTool {
         
         // Emit status message
         this.executionContext.getPubSub().publishMessage(PubSub.createMessage(`Clicked element: ${description}`, 'thinking'))
-        
         return toolSuccess(`Clicked element: "${description}"`)
         
       } catch (error) {
@@ -221,9 +221,10 @@ export class InteractionTool {
 
   // Input text with retry logic
   private async _inputTextElement(description: string, text: string): Promise<ToolOutput> {
+    this.executionContext.getPubSub().publishMessage(PubSub.createMessage(`Finding element to type into with description: ${description}`, 'thinking'))
+
     for (let attempt = 1; attempt <= NUM_RETRIES; attempt++) {
       try {
-        this.executionContext.getPubSub().publishMessage(PubSub.createMessage(`Finding element to type into with description: ${description}`, 'thinking'))
         // Find element (returns nodeId)
         const nodeId = await this._findElement(description, 'type')
         
