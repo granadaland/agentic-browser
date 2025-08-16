@@ -7,3 +7,4 @@
 **/__pycache__/**
 nxtscape-cli-access.json
 gclient.json
+.env

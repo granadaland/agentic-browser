@@ -10,6 +10,22 @@ import click
 from pathlib import Path
 from typing import Optional
 
+# Load .env file if it exists
+def load_env_file():
+    env_file = Path(__file__).parent.parent / '.env'
+    if env_file.exists():
+        with open(env_file, 'r') as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith('#'):
+                    if '=' in line:
+                        key, value = line.split('=', 1)
+                        os.environ[key.strip()] = value.strip()
+        print(f"✓ Loaded environment from .env file")
+
+# Load .env file on import
+load_env_file()
+
 # Import shared components
 from context import BuildContext
 from utils import load_config, log_info, log_warning, log_error, log_success, IS_MACOS, IS_WINDOWS, IS_LINUX
@@ -115,6 +131,7 @@ def build_main(
     gn_flags_file = None
     architectures = [arch] if arch else []  # Empty list if no arch specified
     universal = False
+    certificate_name = None  # For Windows signing
     if config_file:
         config = load_config(config_file)
         log_info(f"📄 Loaded config from: {config_file}")
@@ -156,6 +173,11 @@ def build_main(
             config_chromium_src = Path(config["paths"]["chromium_src"])
             chromium_src = config_chromium_src
             log_info(f"📁 Using Chromium source from config: {chromium_src}")
+        
+        # Get Windows signing certificate name from config
+        if IS_WINDOWS and "signing" in config and "certificate_name" in config["signing"]:
+            certificate_name = config["signing"]["certificate_name"]
+            log_info(f"🔏 Using certificate for signing: {certificate_name}")
 
     # CLI takes precedence over config
     if chromium_src_dir:
@@ -283,7 +305,11 @@ def build_main(
                 log_info(f"\n🔏 Signing {ctx.architecture} build...")
                 if slack_notifications:
                     notify_build_step(f"[{ctx.architecture}] Started signing")
-                sign(ctx)
+                # Pass certificate_name for Windows signing
+                if IS_WINDOWS:
+                    sign(ctx, certificate_name)
+                else:
+                    sign(ctx)
                 if slack_notifications:
                     notify_build_step(f"[{ctx.architecture}] Completed signing")
 

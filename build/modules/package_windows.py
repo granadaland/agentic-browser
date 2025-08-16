@@ -4,6 +4,7 @@ Windows packaging module for Nxtscape Browser
 Based on ungoogled-chromium-windows packaging approach
 """
 
+import os
 import sys
 import shutil
 import zipfile
@@ -161,20 +162,166 @@ def create_portable_zip(ctx: BuildContext) -> bool:
 
 
 def sign_binaries(ctx: BuildContext, certificate_name: Optional[str] = None) -> bool:
-    """Sign Windows binaries using signtool"""
+    """Sign Windows binaries using signtool or eSigner"""
     log_info("\n🔏 Signing Windows binaries...")
     
+    # Check for signing method from environment or config
+    signing_method = os.environ.get('SIGNING_METHOD', 'signtool').lower()
+    
+    # Get paths to sign
+    build_output_dir = join_paths(ctx.chromium_src, ctx.out_dir)
+    
+    # List of binaries to sign
+    binaries_to_sign = [
+        build_output_dir / "chrome.exe",
+        build_output_dir / "mini_installer.exe"
+    ]
+    
+    # Check which binaries exist
+    existing_binaries = []
+    for binary in binaries_to_sign:
+        if binary.exists():
+            existing_binaries.append(binary)
+            log_info(f"Found binary to sign: {binary.name}")
+        else:
+            log_warning(f"Binary not found: {binary}")
+    
+    if not existing_binaries:
+        log_error("No binaries found to sign")
+        return False
+    
+    # Use eSigner if configured
+    if signing_method == 'esigner' or os.environ.get('ESIGNER_USERNAME'):
+        return sign_with_esigner(existing_binaries)
+    
+    # Use PFX certificate if configured
+    if os.environ.get('PFX_PATH'):
+        return sign_with_pfx(existing_binaries)
+    
+    # Otherwise use traditional certificate store signing
     if not certificate_name:
         log_warning("No certificate specified, skipping signing")
         return True
     
-    # Get paths to sign
-    build_output_dir = join_paths(ctx.chromium_src, ctx.out_dir)
-    chrome_exe = build_output_dir / "chrome.exe"
+    return sign_with_certificate_store(existing_binaries, certificate_name)
+
+
+def sign_with_esigner(binaries: List[Path]) -> bool:
+    """Sign binaries using SSL.com CodeSignTool"""
+    log_info("Using SSL.com CodeSignTool for signing...")
     
-    if not chrome_exe.exists():
-        log_error(f"chrome.exe not found at: {chrome_exe}")
+    # Check for CodeSignTool from environment or default locations
+    codesigntool_path_str = os.environ.get('CODESIGNTOOL_PATH')
+    if codesigntool_path_str:
+        codesigntool_path = Path(codesigntool_path_str)
+        log_info(f"Using CodeSignTool from env: {codesigntool_path}")
+    else:
+        # Try default locations
+        codesigntool_path = Path("C:/src/BrowserOS/CodeSignTool-v1.3.2-windows/CodeSignTool.bat")
+        if not codesigntool_path.exists():
+            codesigntool_path = Path("CodeSignTool.bat")
+    
+    if not codesigntool_path.exists():
+        log_error(f"CodeSignTool.bat not found at: {codesigntool_path}")
+        log_error("Set CODESIGNTOOL_PATH in .env file or download from SSL.com")
         return False
+    
+    # Check for required environment variables
+    username = os.environ.get('ESIGNER_USERNAME')
+    password = os.environ.get('ESIGNER_PASSWORD') 
+    totp_secret = os.environ.get('ESIGNER_TOTP_SECRET')
+    credential_id = os.environ.get('ESIGNER_CREDENTIAL_ID')
+    
+    # Check if using TOTP secret or OTP
+    use_otp = os.environ.get('ESIGNER_USE_OTP', 'false').lower() == 'true'
+    
+    if use_otp:
+        # Prompt for OTP code
+        import getpass
+        otp_code = getpass.getpass("Enter your 6-digit OTP code from authenticator app: ")
+        if not otp_code or len(otp_code) != 6:
+            log_error("Invalid OTP code. Must be 6 digits.")
+            return False
+    else:
+        # Use TOTP secret
+        if not totp_secret:
+            log_error("Missing ESIGNER_TOTP_SECRET environment variable")
+            log_error("Either set ESIGNER_TOTP_SECRET or set ESIGNER_USE_OTP=true to enter OTP manually")
+            return False
+    
+    if not all([username, password]):
+        log_error("Missing required eSigner environment variables:")
+        log_error("  set ESIGNER_USERNAME=your-email")
+        log_error("  set ESIGNER_PASSWORD=your-password")
+        log_error("  set ESIGNER_TOTP_SECRET=your-totp-secret (or set ESIGNER_USE_OTP=true)")
+        log_error("  set ESIGNER_CREDENTIAL_ID=your-credential-id (optional)")
+        return False
+    
+    all_success = True
+    for binary in binaries:
+        try:
+            log_info(f"Signing {binary.name} with CodeSignTool...")
+            
+            # Build command
+            cmd = [
+                str(codesigntool_path),
+                "sign",
+                "-username", username,
+                "-password", password,
+                "-input_file_path", str(binary),
+                "-output_dir_path", str(binary.parent),
+                "-override"  # Override the input file after signing
+            ]
+            
+            # CodeSignTool doesn't support -otp flag, only -totp_secret
+            # For OTP, we need to convert it to a temporary TOTP secret
+            if use_otp:
+                # For manual OTP, we can't use it directly - need TOTP secret
+                log_warning("Note: CodeSignTool requires TOTP secret, not OTP code")
+                log_error("Please set ESIGNER_TOTP_SECRET in .env file")
+                log_error("You can find it in SSL.com dashboard under eSigner settings")
+                return False
+            else:
+                cmd.extend(["-totp_secret", totp_secret])
+            
+            if credential_id:
+                cmd.extend(["-credential_id", credential_id])
+            
+            # Note: Timestamp server is configured on SSL.com side automatically
+            
+            run_command(cmd)
+            log_success(f"{binary.name} signed successfully with CodeSignTool")
+            
+        except Exception as e:
+            log_error(f"Failed to sign {binary.name} with CodeSignTool: {e}")
+            all_success = False
+    
+    return all_success
+
+
+def sign_with_pfx(binaries: List[Path]) -> bool:
+    """Sign binaries using PFX certificate file"""
+    pfx_path = os.environ.get('PFX_PATH')
+    if not pfx_path or not Path(pfx_path).exists():
+        log_error(f"PFX certificate not found at: {pfx_path}")
+        return False
+    
+    log_info(f"Using PFX certificate: {pfx_path}")
+    
+    # Import the signing module
+    from .sign_with_esigner import sign_with_local_pfx
+    
+    all_success = True
+    for binary in binaries:
+        if not sign_with_local_pfx(str(binary), pfx_path):
+            all_success = False
+    
+    return all_success
+
+
+def sign_with_certificate_store(binaries: List[Path], certificate_name: str) -> bool:
+    """Sign binaries using certificate from Windows certificate store"""
+    log_info(f"Using certificate from store: {certificate_name}")
     
     # Check if signtool is available
     signtool_path = shutil.which("signtool")
@@ -200,30 +347,35 @@ def sign_binaries(ctx: BuildContext, certificate_name: Optional[str] = None) -> 
         log_error("signtool.exe not found. Please install Windows SDK.")
         return False
     
-    # Sign the main executable
-    try:
-        # Basic signing command - can be extended with timestamp server etc.
-        cmd = [
-            signtool_path,
-            "sign",
-            "/n", certificate_name,  # Certificate name
-            "/t", "http://timestamp.digicert.com",  # Timestamp server
-            "/fd", "sha256",  # File digest algorithm
-            str(chrome_exe)
-        ]
-        
-        run_command(cmd)
-        log_success("Binary signed successfully")
-        
-        # Verify signature
-        verify_cmd = [signtool_path, "verify", "/pa", str(chrome_exe)]
-        run_command(verify_cmd)
-        log_success("Signature verified successfully")
-        
-        return True
-    except Exception as e:
-        log_error(f"Failed to sign binary: {e}")
-        return False
+    # Sign each binary
+    all_success = True
+    for binary in binaries:
+        try:
+            log_info(f"Signing {binary.name}...")
+            
+            cmd = [
+                signtool_path,
+                "sign",
+                "/n", certificate_name,  # Certificate name
+                "/tr", "http://ts.ssl.com",  # SSL.com timestamp server for eSigner
+                "/td", "sha256",  # Timestamp digest algorithm
+                "/fd", "sha256",  # File digest algorithm
+                str(binary)
+            ]
+            
+            run_command(cmd)
+            log_success(f"{binary.name} signed successfully")
+            
+            # Verify signature
+            verify_cmd = [signtool_path, "verify", "/pa", str(binary)]
+            run_command(verify_cmd)
+            log_success(f"{binary.name} signature verified successfully")
+            
+        except Exception as e:
+            log_error(f"Failed to sign {binary.name}: {e}")
+            all_success = False
+    
+    return all_success
 
 
 def package_universal(contexts: List[BuildContext]) -> bool:
