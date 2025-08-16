@@ -18,7 +18,8 @@ export enum MessageType {
   AI = 'ai', 
   HUMAN = 'human',
   TOOL = 'tool',
-  BROWSER_STATE = 'browser_state'
+  BROWSER_STATE = 'browser_state',
+  TODO_LIST = 'todo_list'
 }
 
 // Create a new custom message type for browser state by extending LangChain's AIMessage.
@@ -27,6 +28,14 @@ export class BrowserStateMessage extends AIMessage {
   constructor(content: string) {
     super(`<BrowserState>${content}</BrowserState>`);
     this.additional_kwargs = { messageType: MessageType.BROWSER_STATE };
+  }
+}
+
+// Custom message type for TODO list by extending LangChain's AIMessage
+export class TodoListMessage extends AIMessage {
+  constructor(content: string) {
+    super(`<TodoList>${content}</TodoList>`);
+    this.additional_kwargs = { messageType: MessageType.TODO_LIST };
   }
 }
 
@@ -108,6 +117,11 @@ export class MessageManager {
         // Only one browser state at a time
         this.removeMessagesByType(MessageType.BROWSER_STATE);
         break;
+        
+      case MessageType.TODO_LIST:
+        // Only one todo list at a time
+        this.removeMessagesByType(MessageType.TODO_LIST);
+        break;
     }
     
     // Calculate tokens once using TokenCounter utility
@@ -144,6 +158,10 @@ export class MessageManager {
 
   addBrowserState(content: string): void {
     this.add(new BrowserStateMessage(content));
+  }
+
+  addTodoList(content: string): void {
+    this.add(new TodoListMessage(content));
   }
 
   addTool(content: string, toolCallId: string): void {
@@ -248,6 +266,9 @@ export class MessageManager {
     if (message.additional_kwargs?.messageType === MessageType.BROWSER_STATE) {
       return MessageType.BROWSER_STATE;
     }
+    if (message.additional_kwargs?.messageType === MessageType.TODO_LIST) {
+      return MessageType.TODO_LIST;
+    }
     if (message instanceof HumanMessage) return MessageType.HUMAN;
     if (message instanceof AIMessage) return MessageType.AI;
     if (message instanceof SystemMessage) return MessageType.SYSTEM;
@@ -273,13 +294,14 @@ export class MessageManager {
   // Remove lowest priority message
   private _removeLowestPriority(): boolean {
     // Priority tiers (lower number = remove first)
-    // TOOL < AI < HUMAN < old BROWSER_STATE < SYSTEM
+    // BROWSER_STATE < AI < TOOL < HUMAN < TODO_LIST < SYSTEM
     const priorities: Record<MessageType, number> = {
       [MessageType.BROWSER_STATE]: 0,
       [MessageType.AI]: 1, 
       [MessageType.TOOL]: 2,
       [MessageType.HUMAN]: 3,
-      [MessageType.SYSTEM]: 4
+      [MessageType.TODO_LIST]: 4,  // High priority - keep unless necessary
+      [MessageType.SYSTEM]: 5
     };
     
     // Keep last 3 messages for context continuity

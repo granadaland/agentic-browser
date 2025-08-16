@@ -559,12 +559,10 @@ export class BrowserAgent {
         this.messageManager.addTool(toolResult, toolCallId);
       }
 
-      // Special handling for todo_manager_tool, add system reminder for mutations
+      // Special handling for todo_manager_tool, replace existing todo list message
       if (toolName === 'todo_manager_tool' && parsedResult.ok && args.action === 'set') {
         const markdown = args.todos || '';
-        this.messageManager.addSystemReminder(
-          `TODO list updated:\n${markdown}`
-        );
+        this.messageManager.addTodoList(markdown);
         this.pubsub.publishMessage(PubSub.createMessage(markdown, 'thinking'));
       }
 
