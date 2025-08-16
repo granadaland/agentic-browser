@@ -6,6 +6,8 @@ import { findElementPrompt } from "./FindElementTool.prompt"
 import { invokeWithRetry } from "@/lib/utils/retryable"
 import { HumanMessage, SystemMessage } from "@langchain/core/messages"
 import { PubSub } from "@/lib/pubsub"
+import { TokenCounter } from "@/lib/utils/TokenCounter"
+import { Logging } from "@/lib/utils/Logging"
 
 // Constants
 const INTERACTION_WAIT_MS = 1000
@@ -70,12 +72,6 @@ export class InteractionTool {
 
   // Find element using LLM (adapted from FindElementTool)
   private async _findElementWithLLM(description: string): Promise<z.infer<typeof _FindElementSchema>> {
-    // Get LLM instance from execution context
-    const llm = await this.executionContext.getLLM();
-
-    // Create structured LLM
-    const structuredLLM = llm.withStructuredOutput(_FindElementSchema)
-
     // Get current task from execution context
     const currentTask = this.executionContext.getCurrentTask()
 
@@ -88,20 +84,28 @@ export class InteractionTool {
     
     // Get browser state
     const browserState = await this.executionContext.browserContext.getBrowserState()
-
     if (!browserState.clickableElements.length && !browserState.typeableElements.length) {
       throw new Error("No interactive elements found on the current page")
     }
     
     userMessage += `\n\nInteractive elements on the page:\n${browserState.clickableElementsString}\n${browserState.typeableElementsString}`
 
-    // Invoke LLM with retry logic
+    // Prepare messages for LLM
+    const messages = [
+      new SystemMessage(findElementPrompt),
+      new HumanMessage(userMessage)
+    ]
+    
+    // Log token count
+    const tokenCount = TokenCounter.countMessages(messages)
+    Logging.log('InteractionTool', `Invoking LLM with ${TokenCounter.format(tokenCount)}`, 'info')
+    
+    // Get LLM instance from execution context
+    const llm = await this.executionContext.getLLM();
+    const structuredLLM = llm.withStructuredOutput(_FindElementSchema)
     const result = await invokeWithRetry<z.infer<typeof _FindElementSchema>>(
       structuredLLM,
-      [
-        new SystemMessage(findElementPrompt),
-        new HumanMessage(userMessage)
-      ],
+      messages,
       3
     )
 

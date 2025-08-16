@@ -9,6 +9,8 @@ import { PLANNING_CONFIG } from './PlannerTool.config';
 import { MessageType } from '@/lib/runtime/MessageManager';
 import { invokeWithRetry } from '@/lib/utils/retryable';
 import { PubSub } from '@/lib/pubsub';
+import { TokenCounter } from '@/lib/utils/TokenCounter';
+import { Logging } from '@/lib/utils/Logging';
 
 // Input schema - simple so LLM can generate and pass it
 const PlannerInputSchema = z.object({
@@ -37,11 +39,11 @@ export function createPlannerTool(executionContext: ExecutionContext): DynamicSt
         executionContext.getPubSub().publishMessage(PubSub.createMessage(`Creating plan for task...`, 'thinking'))
         // Get LLM instance from execution context
         const llm = await executionContext.getLLM();
-        
-        // Create message reader inline
+
+        // Get message history excluding initial System Message saying ("Your are a web agent") as that is not required for planning
+        // and excluding browser state messages as we will add that separately.
         const read_only_message_manager = new MessageManagerReadOnly(executionContext.messageManager);
-        // Filter out browser state messages as they take up too much context
-        const message_history = read_only_message_manager.getAll().filter(m => m.additional_kwargs?.messageType !== MessageType.BROWSER_STATE).map(m => `${m._getType()}: ${m.content}`).join('\n');
+        const message_history = read_only_message_manager.getFilteredAsString([MessageType.SYSTEM, MessageType.BROWSER_STATE]);
        
         // Get browser state using BrowserContext's method
         const browserState = await executionContext.browserContext.getBrowserStateString();
@@ -55,14 +57,21 @@ export function createPlannerTool(executionContext: ExecutionContext): DynamicSt
           browserState
         );
         
+        // Prepare messages for LLM
+        const messages = [
+          new SystemMessage(systemPrompt),
+          new HumanMessage(taskPrompt)
+        ];
+        
+        // Log token count
+        const tokenCount = TokenCounter.countMessages(messages);
+        Logging.log('PlannerTool', `Invoking LLM with ${TokenCounter.format(tokenCount)}`, 'info');
+        
         // Get structured response from LLM with retry logic
         const structuredLLM = llm.withStructuredOutput(PlanSchema);
         const plan = await invokeWithRetry<z.infer<typeof PlanSchema>>(
           structuredLLM,
-          [
-            new SystemMessage(systemPrompt),
-            new HumanMessage(taskPrompt)
-          ],
+          messages,
           3
         );
         
