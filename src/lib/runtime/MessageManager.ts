@@ -9,6 +9,9 @@ import {
 import { TokenCounter } from "@/lib/utils/TokenCounter";
 import { Logging } from "@/lib/utils/Logging";
 
+// Constants
+export const TRIM_THRESHOLD = 0.6;  // Start trimming at 60% capacity to maintain buffer
+
 // Message type enum
 export enum MessageType {
   SYSTEM = 'system',
@@ -260,7 +263,8 @@ export class MessageManager {
 
   // Ensure we have space for new tokens
   private _ensureSpace(needed: number): void {
-    while (this.totalTokens + needed > this.maxTokens && this.entries.length > 0) {
+    const threshold = this.maxTokens * TRIM_THRESHOLD;  // Use configured trim threshold
+    while (this.totalTokens + needed > threshold && this.entries.length > 0) {
       const removed = this._removeLowestPriority();
       if (!removed) break;  // Nothing left to remove
     }
@@ -271,10 +275,10 @@ export class MessageManager {
     // Priority tiers (lower number = remove first)
     // TOOL < AI < HUMAN < old BROWSER_STATE < SYSTEM
     const priorities: Record<MessageType, number> = {
-      [MessageType.TOOL]: 0,
+      [MessageType.BROWSER_STATE]: 0,
       [MessageType.AI]: 1, 
-      [MessageType.HUMAN]: 2,
-      [MessageType.BROWSER_STATE]: 3,
+      [MessageType.TOOL]: 2,
+      [MessageType.HUMAN]: 3,
       [MessageType.SYSTEM]: 4
     };
     
