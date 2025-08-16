@@ -230,24 +230,88 @@ def sign_with_codesigntool(binaries: List[Path]) -> bool:
             log_info(f"Signing {binary.name}...")
             
             # Build command
+            # Check if password already has quotes, if not add them for special chars
+            if password.startswith('"') and password.endswith('"'):
+                quoted_password = password
+            elif any(c in password for c in ['^', '&', '|', '<', '>', ' ']):
+                quoted_password = f'"{password}"'
+            else:
+                quoted_password = password
+            
+            # Create a temp output directory to avoid source/dest conflict
+            temp_output_dir = binary.parent / "signed_temp"
+            temp_output_dir.mkdir(exist_ok=True)
+            
             cmd = [
                 str(codesigntool_path),
                 "sign",
                 "-username", username,
-                "-password", password,
-                "-input_file_path", str(binary),
-                "-output_dir_path", str(binary.parent),
-                "-totp_secret", totp_secret,
-                "-override"  # Override the input file after signing
+                "-password", quoted_password,
             ]
             
+            # Add credential_id BEFORE totp_secret (order matters!)
             if credential_id:
                 cmd.extend(["-credential_id", credential_id])
             
+            cmd.extend([
+                "-totp_secret", totp_secret,
+                "-input_file_path", str(binary),
+                "-output_dir_path", str(temp_output_dir),
+                "-override"  # Add this back
+            ])
+            
             # Note: Timestamp server is configured on SSL.com side automatically
             
-            run_command(cmd)
-            log_success(f"✓ {binary.name} signed successfully")
+            # CodeSignTool needs to be run as a shell command for proper quote handling
+            cmd_str = ' '.join(cmd)
+            log_info(f"Running: {cmd_str}")
+            
+            import subprocess
+            result = subprocess.run(cmd_str, shell=True, capture_output=True, text=True, cwd=str(codesigntool_path.parent))
+            
+            # Print output for debugging
+            if result.stdout:
+                for line in result.stdout.split('\n'):
+                    if line.strip():
+                        log_info(line.strip())
+            if result.stderr:
+                for line in result.stderr.split('\n'):
+                    if line.strip() and "WARNING" not in line:
+                        log_error(line.strip())
+            
+            # Check if signing actually succeeded by looking for error messages
+            # CodeSignTool returns 0 even on auth errors, so we need to check output
+            if result.stdout and "Error:" in result.stdout:
+                log_error(f"✗ Failed to sign {binary.name} - Authentication or signing error")
+                all_success = False
+                continue
+            
+            # Move the signed file back to original location
+            signed_file = temp_output_dir / binary.name
+            if signed_file.exists():
+                import shutil
+                shutil.move(str(signed_file), str(binary))
+                log_info(f"Moved signed {binary.name} to original location")
+            
+            # Clean up temp directory
+            try:
+                temp_output_dir.rmdir()
+            except:
+                pass  # Directory might not be empty
+                
+            # Verify the file is actually signed (Windows only)
+            verify_cmd = ["powershell", "-Command", 
+                         f"(Get-AuthenticodeSignature '{binary}').Status"]
+            try:
+                import subprocess
+                verify_result = subprocess.run(verify_cmd, capture_output=True, text=True)
+                if "Valid" in verify_result.stdout:
+                    log_success(f"✓ {binary.name} signed and verified successfully")
+                else:
+                    log_error(f"✗ {binary.name} signing verification failed - Status: {verify_result.stdout.strip()}")
+                    all_success = False
+            except:
+                log_warning(f"Could not verify signature for {binary.name}")
             
         except Exception as e:
             log_error(f"Failed to sign {binary.name}: {e}")
