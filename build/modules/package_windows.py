@@ -230,14 +230,6 @@ def sign_with_codesigntool(binaries: List[Path]) -> bool:
             log_info(f"Signing {binary.name}...")
             
             # Build command
-            # Check if password already has quotes, if not add them for special chars
-            if password.startswith('"') and password.endswith('"'):
-                quoted_password = password
-            elif any(c in password for c in ['^', '&', '|', '<', '>', ' ']):
-                quoted_password = f'"{password}"'
-            else:
-                quoted_password = password
-            
             # Create a temp output directory to avoid source/dest conflict
             temp_output_dir = binary.parent / "signed_temp"
             temp_output_dir.mkdir(exist_ok=True)
@@ -246,7 +238,7 @@ def sign_with_codesigntool(binaries: List[Path]) -> bool:
                 str(codesigntool_path),
                 "sign",
                 "-username", username,
-                "-password", quoted_password,
+                "-password", f'"{password}"',  # Always quote the password for shell
             ]
             
             # Add credential_id BEFORE totp_secret (order matters!)
