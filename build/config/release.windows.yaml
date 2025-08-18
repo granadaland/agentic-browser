@@ -1,18 +1,18 @@
 # Nxtscape Windows Release Build Configuration
 build:
   type: release
-  architecture: x64  # Windows default architecture
+  architecture: x64 # Windows default architecture
   # No universal builds on Windows
 
 gn_flags:
   file: build/config/gn/flags.windows.release.gn
 
 steps:
-  clean: true
-  git_setup: true
-  apply_patches: true
-  build: true
-  sign: false  # Windows signing requires certificate
+  clean: false
+  git_setup: false
+  apply_patches: false
+  build: false
+  sign: true # Enable signing with eSigner CKA
   package: true
 
 paths:
@@ -23,16 +23,16 @@ paths:
 env:
   PYTHONPATH: scripts
 
-# Signing configuration (optional - requires code signing certificate)
+# Signing configuration (using eSigner CKA certificate in Windows store)
 signing:
-  # certificate_name: "Your Company Name"  # Certificate subject name
+  certificate_name: "FELAFAX, INC." # Your certificate subject name from SSL.com
   # Or use environment variable:
   # require_env_vars:
   #   - WINDOWS_CERTIFICATE_NAME
 
 # Notification settings
 notifications:
-  slack: true  # Enable Slack notifications for release builds
+  slack: false # Enable Slack notifications for release builds
 
 # Build options
 build_options:

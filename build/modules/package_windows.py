@@ -4,6 +4,7 @@ Windows packaging module for Nxtscape Browser
 Based on ungoogled-chromium-windows packaging approach
 """
 
+import os
 import sys
 import shutil
 import zipfile
@@ -161,69 +162,156 @@ def create_portable_zip(ctx: BuildContext) -> bool:
 
 
 def sign_binaries(ctx: BuildContext, certificate_name: Optional[str] = None) -> bool:
-    """Sign Windows binaries using signtool"""
+    """Sign Windows binaries using SSL.com CodeSignTool"""
     log_info("\n🔏 Signing Windows binaries...")
-    
-    if not certificate_name:
-        log_warning("No certificate specified, skipping signing")
-        return True
     
     # Get paths to sign
     build_output_dir = join_paths(ctx.chromium_src, ctx.out_dir)
-    chrome_exe = build_output_dir / "chrome.exe"
     
-    if not chrome_exe.exists():
-        log_error(f"chrome.exe not found at: {chrome_exe}")
+    # List of binaries to sign
+    binaries_to_sign = [
+        build_output_dir / "chrome.exe",
+        build_output_dir / "mini_installer.exe"
+    ]
+    
+    # Check which binaries exist
+    existing_binaries = []
+    for binary in binaries_to_sign:
+        if binary.exists():
+            existing_binaries.append(binary)
+            log_info(f"Found binary to sign: {binary.name}")
+        else:
+            log_warning(f"Binary not found: {binary}")
+    
+    if not existing_binaries:
+        log_error("No binaries found to sign")
         return False
     
-    # Check if signtool is available
-    signtool_path = shutil.which("signtool")
-    if not signtool_path:
-        # Try to find it in Windows SDK locations
-        sdk_paths = [
-            Path("C:/Program Files (x86)/Windows Kits/10/bin"),
-            Path("C:/Program Files/Windows Kits/10/bin"),
-        ]
-        
-        for sdk_path in sdk_paths:
-            if sdk_path.exists():
-                # Look for signtool in architecture-specific subdirectories
-                for arch_dir in sdk_path.glob("*/x64"):
-                    potential_signtool = arch_dir / "signtool.exe"
-                    if potential_signtool.exists():
-                        signtool_path = str(potential_signtool)
-                        break
-            if signtool_path:
-                break
+    # Always use CodeSignTool for signing
+    return sign_with_codesigntool(existing_binaries)
+
+
+def sign_with_codesigntool(binaries: List[Path]) -> bool:
+    """Sign binaries using SSL.com CodeSignTool"""
+    log_info("Using SSL.com CodeSignTool for signing...")
     
-    if not signtool_path:
-        log_error("signtool.exe not found. Please install Windows SDK.")
+    # Get CodeSignTool directory from environment
+    codesigntool_dir = os.environ.get('CODE_SIGN_TOOL_PATH')
+    if not codesigntool_dir:
+        log_error("CODE_SIGN_TOOL_PATH not set in .env file")
+        log_error("Set CODE_SIGN_TOOL_PATH=C:/src/CodeSignTool-v1.3.2-windows")
         return False
     
-    # Sign the main executable
-    try:
-        # Basic signing command - can be extended with timestamp server etc.
-        cmd = [
-            signtool_path,
-            "sign",
-            "/n", certificate_name,  # Certificate name
-            "/t", "http://timestamp.digicert.com",  # Timestamp server
-            "/fd", "sha256",  # File digest algorithm
-            str(chrome_exe)
-        ]
-        
-        run_command(cmd)
-        log_success("Binary signed successfully")
-        
-        # Verify signature
-        verify_cmd = [signtool_path, "verify", "/pa", str(chrome_exe)]
-        run_command(verify_cmd)
-        log_success("Signature verified successfully")
-        
-        return True
-    except Exception as e:
-        log_error(f"Failed to sign binary: {e}")
+    # Construct path to CodeSignTool.bat
+    codesigntool_path = Path(codesigntool_dir) / "CodeSignTool.bat"
+    if not codesigntool_path.exists():
+        log_error(f"CodeSignTool.bat not found at: {codesigntool_path}")
+        log_error(f"Make sure CODE_SIGN_TOOL_PATH points to the CodeSignTool directory")
         return False
+    
+    # Check for required environment variables
+    username = os.environ.get('ESIGNER_USERNAME')
+    password = os.environ.get('ESIGNER_PASSWORD') 
+    totp_secret = os.environ.get('ESIGNER_TOTP_SECRET')
+    credential_id = os.environ.get('ESIGNER_CREDENTIAL_ID')
+    
+    if not all([username, password, totp_secret]):
+        log_error("Missing required eSigner environment variables in .env:")
+        log_error("  ESIGNER_USERNAME=your-email")
+        log_error("  ESIGNER_PASSWORD=your-password")
+        log_error("  ESIGNER_TOTP_SECRET=your-totp-secret")
+        if not credential_id:
+            log_warning("  ESIGNER_CREDENTIAL_ID is recommended but optional")
+        return False
+    
+    all_success = True
+    for binary in binaries:
+        try:
+            log_info(f"Signing {binary.name}...")
+            
+            # Build command
+            # Create a temp output directory to avoid source/dest conflict
+            temp_output_dir = binary.parent / "signed_temp"
+            temp_output_dir.mkdir(exist_ok=True)
+            
+            cmd = [
+                str(codesigntool_path),
+                "sign",
+                "-username", username,
+                "-password", f'"{password}"',  # Always quote the password for shell
+            ]
+            
+            # Add credential_id BEFORE totp_secret (order matters!)
+            if credential_id:
+                cmd.extend(["-credential_id", credential_id])
+            
+            cmd.extend([
+                "-totp_secret", totp_secret,
+                "-input_file_path", str(binary),
+                "-output_dir_path", str(temp_output_dir),
+                "-override"  # Add this back
+            ])
+            
+            # Note: Timestamp server is configured on SSL.com side automatically
+            
+            # CodeSignTool needs to be run as a shell command for proper quote handling
+            cmd_str = ' '.join(cmd)
+            log_info(f"Running: {cmd_str}")
+            
+            import subprocess
+            result = subprocess.run(cmd_str, shell=True, capture_output=True, text=True, cwd=str(codesigntool_path.parent))
+            
+            # Print output for debugging
+            if result.stdout:
+                for line in result.stdout.split('\n'):
+                    if line.strip():
+                        log_info(line.strip())
+            if result.stderr:
+                for line in result.stderr.split('\n'):
+                    if line.strip() and "WARNING" not in line:
+                        log_error(line.strip())
+            
+            # Check if signing actually succeeded by looking for error messages
+            # CodeSignTool returns 0 even on auth errors, so we need to check output
+            if result.stdout and "Error:" in result.stdout:
+                log_error(f"✗ Failed to sign {binary.name} - Authentication or signing error")
+                all_success = False
+                continue
+            
+            # Move the signed file back to original location
+            signed_file = temp_output_dir / binary.name
+            if signed_file.exists():
+                import shutil
+                shutil.move(str(signed_file), str(binary))
+                log_info(f"Moved signed {binary.name} to original location")
+            
+            # Clean up temp directory
+            try:
+                temp_output_dir.rmdir()
+            except:
+                pass  # Directory might not be empty
+                
+            # Verify the file is actually signed (Windows only)
+            verify_cmd = ["powershell", "-Command", 
+                         f"(Get-AuthenticodeSignature '{binary}').Status"]
+            try:
+                import subprocess
+                verify_result = subprocess.run(verify_cmd, capture_output=True, text=True)
+                if "Valid" in verify_result.stdout:
+                    log_success(f"✓ {binary.name} signed and verified successfully")
+                else:
+                    log_error(f"✗ {binary.name} signing verification failed - Status: {verify_result.stdout.strip()}")
+                    all_success = False
+            except:
+                log_warning(f"Could not verify signature for {binary.name}")
+            
+        except Exception as e:
+            log_error(f"Failed to sign {binary.name}: {e}")
+            all_success = False
+    
+    return all_success
+
+
 
 
 def package_universal(contexts: List[BuildContext]) -> bool:

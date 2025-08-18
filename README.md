@@ -114,7 +114,7 @@ We'd love your help making BrowserOS better!
 - 🐛 [Report bugs](https://github.com/nxtscape/nxtscape/issues)
 - 💡 [Suggest features](https://dub.sh/nxtscape-feature-request)
 - 💬 [Join Discord](https://discord.gg/YKwjt5vuKr)
-- 🐦 [Follow on Twitter](https://twitter.com/nxtscape)
+- 🐦 [Follow on Twitter](https://x.com/browserOS_ai)
 
 ## License
 
