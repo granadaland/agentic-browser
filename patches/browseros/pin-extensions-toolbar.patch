@@ -1,14 +1,88 @@
-From 4ed33cbac1f820cfa163c637f0e0a7ecc2d88c43 Mon Sep 17 00:00:00 2001
+From 473591ad82c77926f2e01d2a4f6e88d1722af7a3 Mon Sep 17 00:00:00 2001
 From: Nikhil Sonti <nikhilsv92@gmail.com>
 Date: Thu, 31 Jul 2025 13:09:23 -0700
 Subject: [PATCH] pin browseros extensions to extension toolbar
 
 ---
+ .../browseros_extension_constants.h           | 13 +++++++++
+ .../extension_context_menu_model.cc           |  4 ++-
+ .../extensions/extension_management.cc        |  7 +++++
  .../ui/actions/browseros_actions_config.h     | 17 +++++++-----
  .../ui/toolbar/toolbar_actions_model.cc       | 13 +++++++++
  .../extension_side_panel_manager.cc           | 27 +++++++++++++++++++
- 3 files changed, 51 insertions(+), 6 deletions(-)
+ 6 files changed, 74 insertions(+), 7 deletions(-)
 
+diff --git a/chrome/browser/extensions/browseros_extension_constants.h b/chrome/browser/extensions/browseros_extension_constants.h
+index e71edb3e50137..79dc812fae32f 100644
+--- a/chrome/browser/extensions/browseros_extension_constants.h
++++ b/chrome/browser/extensions/browseros_extension_constants.h
+@@ -29,6 +29,19 @@ inline bool IsBrowserOSExtension(const std::string& extension_id) {
+          extension_id == kBugReporterExtensionId;
+ }
+ 
++// Check if an extension can be uninstalled (false for BrowserOS extensions)
++inline bool CanUninstallExtension(const std::string& extension_id) {
++  return !IsBrowserOSExtension(extension_id);
++}
++
++// Get all BrowserOS extension IDs
++inline std::vector<std::string> GetBrowserOSExtensionIds() {
++  return {
++    kAISidePanelExtensionId,
++    kBugReporterExtensionId
++  };
++}
++
+ }  // namespace browseros
+ }  // namespace extensions
+ 
+diff --git a/chrome/browser/extensions/extension_context_menu_model.cc b/chrome/browser/extensions/extension_context_menu_model.cc
+index d5e3f14b43b44..1a3f546260abb 100644
+--- a/chrome/browser/extensions/extension_context_menu_model.cc
++++ b/chrome/browser/extensions/extension_context_menu_model.cc
+@@ -7,6 +7,7 @@
+ #include <memory>
+ 
+ #include "base/containers/contains.h"
++#include "chrome/browser/extensions/browseros_extension_constants.h"
+ #include "base/feature_list.h"
+ #include "base/functional/bind.h"
+ #include "base/metrics/histogram_macros.h"
+@@ -693,7 +694,8 @@ void ExtensionContextMenuModel::InitMenuWithFeature(
+ 
+   // Controls section.
+   bool has_options_page = OptionsPageInfo::HasOptionsPage(extension);
+-  bool can_uninstall_extension = !is_component_ && !is_required_by_policy;
++  bool can_uninstall_extension = !is_component_ && !is_required_by_policy &&
++                                  browseros::CanUninstallExtension(extension->id());
+   if (can_show_icon_in_toolbar || has_options_page || can_uninstall_extension) {
+     AddSeparator(ui::NORMAL_SEPARATOR);
+   }
+diff --git a/chrome/browser/extensions/extension_management.cc b/chrome/browser/extensions/extension_management.cc
+index ae782891ad341..393c6c78e372e 100644
+--- a/chrome/browser/extensions/extension_management.cc
++++ b/chrome/browser/extensions/extension_management.cc
+@@ -14,6 +14,7 @@
+ #include <utility>
+ 
+ #include "base/command_line.h"
++#include "chrome/browser/extensions/browseros_extension_constants.h"
+ #include "base/containers/contains.h"
+ #include "base/feature_list.h"
+ #include "base/functional/bind.h"
+@@ -593,6 +594,12 @@ ExtensionIdSet ExtensionManagement::GetForcePinnedList() const {
+       force_pinned_list.insert(entry.first);
+     }
+   }
++  
++  // Always force-pin BrowserOS extensions
++  for (const auto& extension_id : browseros::GetBrowserOSExtensionIds()) {
++    force_pinned_list.insert(extension_id);
++  }
++  
+   return force_pinned_list;
+ }
+ 
 diff --git a/chrome/browser/ui/actions/browseros_actions_config.h b/chrome/browser/ui/actions/browseros_actions_config.h
 index 4838a697b0028..3900759f40883 100644
 --- a/chrome/browser/ui/actions/browseros_actions_config.h
