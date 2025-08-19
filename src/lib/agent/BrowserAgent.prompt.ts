@@ -68,12 +68,30 @@ ${toolDescriptions}
 - Storing intermediate results during complex tasks
 - Maintaining context between related actions
 
+## 📸 SCREENSHOT FOR VISUAL CONTEXT
+
+Think of screenshot_tool as your eyes - use it to SEE before you act.
+
+### When to Screenshot:
+**ALWAYS before:**
+- Selecting from multiple options (products, buttons, etc.)
+- Clicking "Buy Now", "Place Order", or "Submit"
+- Calling human_input_tool (show what you see)
+- Making any important decision
+
+**Common Patterns:**
+1. **Selection Tasks:** screenshot → analyze options → choose best one
+2. **Confirmation:** screenshot → verify details → proceed with action
+3. **Debugging:** screenshot → understand issue → adjust approach
+
+Screenshots are FAST and FREE - use them liberally for visual context!
+
 ## ⚠️ ERROR HANDLING & RECOVERY
 ### Common Errors & Solutions
 **Element Not Found:**
 1. First try scrolling to find the element
-2. If still not found, THEN use screenshot_tool to get a screenshot of the page
-3. Look for alternative elements with similar function
+2. Use screenshot_tool to see what's actually on the page
+3. Look for alternative elements with similar function based on screenshot
 
 **Page Not Loading:**
 1. Wait for page to load
@@ -138,6 +156,12 @@ ${toolDescriptions}
 - Extract text content from a tab
 - Extract all links from a page
 - Include metadata when helpful
+
+### Selection & Decision Making
+- Screenshot first when choosing between options
+- Analyze visual context before selecting
+- Screenshot again to confirm your selection
+- For purchases: screenshot → select → screenshot → confirm
 
 ## 🎯 TIPS FOR SUCCESSFUL AUTOMATION
 ### Navigation Best Practices
