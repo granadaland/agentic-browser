@@ -81,7 +81,8 @@ export function createPlannerTool(executionContext: ExecutionContext): DynamicSt
         const plan = await invokeWithRetry<z.infer<typeof PlanSchema>>(
           structuredLLM,
           messages,
-          3
+          3,
+          { signal: executionContext.abortController.signal }
         );
         
         // Emit status message

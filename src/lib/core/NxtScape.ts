@@ -321,6 +321,14 @@ export class NxtScape {
       
       // Publish cancelled status with message
       PubSub.getInstance().publishExecutionStatus('cancelled', 'Task cancelled by user');
+      // Emit a friendly pause message so UI shows clear state
+      PubSub.getInstance().publishMessage(
+        PubSub.createMessageWithId(
+          'pause_message_id',
+          '✋ Task paused. To continue this task, just type your next request OR use 🔄 to start a new task!',
+          'assistant'
+        )
+      );
     }
   }
 

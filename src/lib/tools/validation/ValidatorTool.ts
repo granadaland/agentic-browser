@@ -33,7 +33,8 @@ async function _chunkedValidation(
   browserStateString: string,
   messageHistory: string,
   screenshot: string,
-  maxTokens: number
+  maxTokens: number,
+  signal?: AbortSignal
 ): Promise<any> {
   const chunker = new BrowserStateChunker(browserStateString, maxTokens)
   const totalChunks = chunker.getTotalChunks()
@@ -73,7 +74,8 @@ async function _chunkedValidation(
       const validation = await invokeWithRetry<z.infer<typeof ValidationResultSchema>>(
         structuredLLM,
         messages,
-        3
+        3,
+        { signal }
       )
       
       // Update aggregated results
@@ -165,7 +167,8 @@ export function createValidatorTool(executionContext: ExecutionContext): Dynamic
           const validation = await invokeWithRetry<z.infer<typeof ValidationResultSchema>>(
             structuredLLM,
             messages,
-            3
+            3,
+            { signal: executionContext.abortController.signal }
           )
           
           validationData = {
@@ -182,7 +185,8 @@ export function createValidatorTool(executionContext: ExecutionContext): Dynamic
             browserStateString,
             messageHistory,
             screenshot,
-            maxTokens
+            maxTokens,
+            executionContext.abortController.signal
           )
         }
         

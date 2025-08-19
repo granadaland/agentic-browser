@@ -71,7 +71,7 @@ import { AbortError } from '@/lib/utils/Abortable';
 import { GlowAnimationService } from '@/lib/services/GlowAnimationService';
 import { NarratorService } from '@/lib/services/NarratorService';
 import { PubSub } from '@/lib/pubsub'; // For static helper methods
-import { Subscription, HumanInputResponse } from '@/lib/pubsub/types';
+import { HumanInputResponse } from '@/lib/pubsub/types';
 import { Logging } from '@/lib/utils/Logging';
 
 // Type Definitions
@@ -126,7 +126,6 @@ export class BrowserAgent {
   private readonly toolManager: ToolManager;
   private readonly glowService: GlowAnimationService;
   private narrator?: NarratorService;  // Narrator service for human-friendly messages
-  private statusSubscription?: Subscription;  // Subscription to execution status events
 
   constructor(executionContext: ExecutionContext) {
     this.executionContext = executionContext;
@@ -135,7 +134,6 @@ export class BrowserAgent {
     this.narrator = new NarratorService(executionContext);
     
     this._registerTools();
-    this._subscribeToExecutionStatus();
   }
 
   // Getters to access context components
@@ -158,29 +156,9 @@ export class BrowserAgent {
   }
 
   /**
-   * Subscribe to execution status events and handle cancellation
-   */
-  private _subscribeToExecutionStatus(): void {
-    this.statusSubscription = this.pubsub.subscribe((event) => {
-      if (event.type === 'execution-status') {
-        const { status } = event.payload;
-        
-        if (status === 'cancelled') {
-          this.pubsub.publishMessage(PubSub.createMessageWithId('pause_message_id','✋ Task paused. To continue this task, just type your next request OR use 🔄 to start a new task!', 'assistant'));
-          this.executionContext.cancelExecution(true);
-        }
-      }
-    });
-  }
-
-  /**
    * Cleanup method to properly unsubscribe when agent is being destroyed
    */
   public cleanup(): void {
-    if (this.statusSubscription) {
-      this.statusSubscription.unsubscribe();
-      this.statusSubscription = undefined;
-    }
     this.narrator?.cleanup();
   }
 
@@ -253,11 +231,7 @@ export class BrowserAgent {
       // Cleanup narrator service
       this.narrator?.cleanup();
       
-      // Cleanup status subscription
-      if (this.statusSubscription) {
-        this.statusSubscription.unsubscribe();
-        this.statusSubscription = undefined;
-      }
+      // No status subscription cleanup needed; cancellation is centralized via AbortController
       
       // Ensure glow animation is stopped at the end of execution
       try {
