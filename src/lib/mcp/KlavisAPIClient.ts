@@ -119,9 +119,9 @@ export class KlavisAPIClient {
    * List available tools for an MCP server
    * POST /mcp-server/list-tools
    */
-  async listTools(instanceId: string, instanceName: string): Promise<any[]> {
-    // Construct serverUrl from instanceId and instanceName
-    const serverUrl = `https://${instanceName.toLowerCase()}-mcp-server.klavis.ai/mcp/?instance_id=${instanceId}`
+  async listTools(instanceId: string, serverSubdomain: string): Promise<any[]> {
+    // Construct serverUrl from instanceId and serverSubdomain
+    const serverUrl = `https://${serverSubdomain}-mcp-server.klavis.ai/mcp/?instance_id=${instanceId}`
     
     const data = await this.request<{
       success: boolean
@@ -132,7 +132,7 @@ export class KlavisAPIClient {
       '/mcp-server/list-tools',
       {
         serverUrl,
-        format: 'mcp_native',  // Use native format for flexibility
+        format: 'openai',  // Use native format for flexibility
         connectionType: 'StreamableHttp'
       }
     )
@@ -150,12 +150,12 @@ export class KlavisAPIClient {
    */
   async callTool(
     instanceId: string,
-    instanceName: string,
+    serverSubdomain: string,
     toolName: string,
     toolArgs: any
   ): Promise<ToolCallResult> {
-    // Construct serverUrl from instanceId and instanceName
-    const serverUrl = `https://${instanceName.toLowerCase()}-mcp-server.klavis.ai/mcp/?instance_id=${instanceId}`
+    // Construct serverUrl from instanceId and serverSubdomain
+    const serverUrl = `https://${serverSubdomain}-mcp-server.klavis.ai/mcp/?instance_id=${instanceId}`
     
     try {
       const response = await this.request<ToolCallResult>(
@@ -165,6 +165,7 @@ export class KlavisAPIClient {
           serverUrl,
           toolName,
           toolArgs: toolArgs || {},
+          format: 'openai',
           connectionType: 'StreamableHttp'
         }
       )

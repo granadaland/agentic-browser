@@ -3,6 +3,7 @@ import { DynamicStructuredTool } from "@langchain/core/tools"
 import { ExecutionContext } from "@/lib/runtime/ExecutionContext"
 import { toolSuccess, toolError, type ToolOutput } from "@/lib/tools/Tool.interface"
 import { KlavisAPIManager } from "@/lib/mcp/KlavisAPIManager"
+import { MCP_SERVERS } from "@/config/mcpServers"
 
 // Input schema for MCP operations - runtime only
 const MCPToolInputSchema = z.object({
@@ -24,6 +25,19 @@ export class MCPTool {
 
   constructor(private executionContext: ExecutionContext) {
     this.manager = this.executionContext.getKlavisAPIManager()
+  }
+
+  /**
+   * Get server subdomain from instance name using config mapping
+   */
+  private _getSubdomainFromName(instanceName: string): string {
+    // Look up subdomain from config
+    const config = MCP_SERVERS.find(s => s.name === instanceName)
+    if (config?.subdomain) {
+      return config.subdomain
+    }
+    // Fallback: derive from name for unknown servers
+    return instanceName.toLowerCase().replace(/\s+/g, '')
   }
 
   async execute(input: MCPToolInput): Promise<ToolOutput> {
@@ -98,7 +112,9 @@ export class MCPTool {
     }
 
     try {
-      const tools = await this.manager.client.listTools(instanceId, instance.name)
+      // Get subdomain from config mapping
+      const subdomain = this._getSubdomainFromName(instance.name)
+      const tools = await this.manager.client.listTools(instanceId, subdomain)
       
       if (!tools || tools.length === 0) {
         return toolSuccess(JSON.stringify({
@@ -107,17 +123,10 @@ export class MCPTool {
         }))
       }
 
-      // Extract tool names and descriptions
-      const formattedTools = tools.map(tool => ({
-        name: tool.name || 'unnamed',
-        description: tool.description || 'No description',
-        // Include input schema if available
-        inputSchema: tool.inputSchema || null
-      }))
-
+      // Return raw tools from Klavis without formatting
       return toolSuccess(JSON.stringify({
-        tools: formattedTools,
-        count: formattedTools.length,
+        tools: tools,
+        count: tools.length,
         instanceId
       }))
     } catch (error) {
@@ -148,12 +157,26 @@ export class MCPTool {
     }
 
     try {
+      // Get subdomain from config mapping
+      const subdomain = this._getSubdomainFromName(instance.name)
+      
+      // Parse toolArgs if it's a string
+      let parsedArgs = toolArgs
+      if (typeof toolArgs === 'string') {
+        try {
+          parsedArgs = JSON.parse(toolArgs)
+        } catch (e) {
+          // If parsing fails, use as-is
+          parsedArgs = toolArgs
+        }
+      }
+      
       // Call the tool
       const result = await this.manager.client.callTool(
         instanceId,
-        instance.name,
+        subdomain,
         toolName,
-        toolArgs || {}
+        parsedArgs || {}
       )
 
       if (!result.success) {
