@@ -23,7 +23,7 @@ Use this when:
 - You're blocked and need the human to take over temporarily
 - You encounter an error that requires human judgment
 
-The human will either click "Done" (after taking action) or "Skip this site" (to abort).
+The human will either click "Done" (after taking action) or "Abort task" (to cancel).
 After human input, re-planning will be triggered automatically.`,
     schema: HumanInputSchema,
     func: async (args: HumanInputRequest): Promise<string> => {

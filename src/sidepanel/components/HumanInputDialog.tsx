@@ -59,7 +59,7 @@ export function HumanInputDialog({ requestId, prompt, onClose }: HumanInputDialo
             </p>
             <p className="text-amber-700 dark:text-amber-300 text-xs">
               Please complete the required action manually, then click "Done" to continue. 
-              Click "Skip this site" to abort the current task.
+              Click "Abort task" to cancel the current operation.
             </p>
           </div>
         </div>
@@ -77,7 +77,7 @@ export function HumanInputDialog({ requestId, prompt, onClose }: HumanInputDialo
             variant="outline"
             className="border-amber-400 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/30 px-4 py-2 rounded"
           >
-            Skip this site
+            Abort task
           </Button>
         </div>
       </div>
