@@ -88,7 +88,7 @@ export function ListEditor ({ items, onChange, placeholder, itemPrefix, label, e
             onChange={(e) => updateItem(i, e.target.value)}
             onKeyDown={(e) => handleKeyDown(e, i)}
             placeholder={getPlaceholder(i)}
-            className='w-full min-h-[28px] text-[16px] leading-7 outline-none resize-none placeholder:text-muted-foreground'
+            className='w-full min-h-[28px] text-[16px] leading-7 outline-none resize-none placeholder:text-muted-foreground bg-transparent text-foreground'
           />
         </div>
       ))}

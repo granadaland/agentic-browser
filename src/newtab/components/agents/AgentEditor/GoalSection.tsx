@@ -20,7 +20,7 @@ export function GoalSection ({ goal, onChange, error }: GoalSectionProps) {
         onChange={(e) => onChange(e.target.value)}
         placeholder="One line description of the agent's goal, e.g. 'Help me summarise my emails'"
         minRows={1}
-        className={`w-full min-h-[28px] text-[16px] leading-7 outline-none resize-none placeholder:text-muted-foreground ${
+        className={`w-full min-h-[28px] text-[16px] leading-7 outline-none resize-none placeholder:text-muted-foreground bg-transparent text-foreground ${
           error ? 'ring-1 ring-red-500/60 rounded' : ''
         }`}
       />

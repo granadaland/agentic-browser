@@ -39,13 +39,13 @@ export function AgentEditorForm ({
         value={name}
         onChange={(e) => onNameChange(e.target.value)}
         placeholder={DEFAULT_TITLE}
-        className='w-full text-[34px] font-semibold tracking-tight outline-none placeholder:text-muted-foreground'
+        className='w-full text-[34px] font-semibold tracking-tight outline-none placeholder:text-muted-foreground bg-transparent text-foreground'
       />
       <input
         value={description}
         onChange={(e) => onDescriptionChange(e.target.value)}
         placeholder='Add a short description…'
-        className='w-full mt-2 text-[15px] text-muted-foreground outline-none placeholder:text-muted-foreground'
+        className='w-full mt-2 text-[15px] text-muted-foreground outline-none placeholder:text-muted-foreground bg-transparent'
       />
 
       {/* Goal */}
