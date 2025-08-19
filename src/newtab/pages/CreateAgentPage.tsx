@@ -132,7 +132,7 @@ export function CreateAgentPage ({ onBack }: CreateAgentPageProps) {
   }
 
   return (
-    <div className='h-screen flex flex-col bg-white'>
+    <div className='h-screen flex flex-col bg-background'>
       {/* Top header */}
       <header className='sticky top-0 z-10 border-b border-border bg-background/80 backdrop-blur'>
         <div className='h-12 px-4 flex items-center justify-between gap-4'>
