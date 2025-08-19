@@ -64,6 +64,7 @@ import { createStorageTool } from '@/lib/tools/utils/StorageTool';
 import { createExtractTool } from '@/lib/tools/extraction/ExtractTool';
 import { createResultTool } from '@/lib/tools/result/ResultTool';
 import { createHumanInputTool } from '@/lib/tools/utils/HumanInputTool';
+import { createMCPTool } from '@/lib/tools/mcp/MCPTool';
 import { generateSystemPrompt, generateSingleTurnExecutionPrompt } from './BrowserAgent.prompt';
 import { AIMessage, AIMessageChunk } from '@langchain/core/messages';
 import { PLANNING_CONFIG } from '@/lib/tools/planning/PlannerTool.config';
@@ -291,7 +292,7 @@ export class BrowserAgent {
     this.toolManager.register(createResultTool(this.executionContext));
     
     // MCP tool for external integrations
-    // this.toolManager.register(createMCPTool(this.executionContext));
+    this.toolManager.register(createMCPTool(this.executionContext));
     
     // Register classification tool last with all tool descriptions
     const toolDescriptions = this.toolManager.getDescriptions();
