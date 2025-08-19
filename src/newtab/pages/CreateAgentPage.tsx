@@ -30,6 +30,7 @@ export function CreateAgentPage ({ onBack }: CreateAgentPageProps) {
   const [headerNotification, setHeaderNotification] = useState<string>('')
   const [waitingForNewAgent, setWaitingForNewAgent] = useState<string | null>(null)
   const [planVersion, setPlanVersion] = useState<number>(0)
+  const [isFromTemplate, setIsFromTemplate] = useState<boolean>(false)
 
   // Computed display title
   const displayTitle: string = currentAgent?.name || DEFAULT_TITLE
@@ -52,6 +53,7 @@ export function CreateAgentPage ({ onBack }: CreateAgentPageProps) {
     setActiveAgentId(agent.id)
     setCurrentAgent(agent)
     setCurrentTemplate(null)
+    setIsFromTemplate(false)
     setHeaderNotification('')
   }
 
@@ -61,6 +63,7 @@ export function CreateAgentPage ({ onBack }: CreateAgentPageProps) {
     setCurrentAgent(null)
     setCurrentTemplate(null)
     setWaitingForNewAgent(null)
+    setIsFromTemplate(false)
     localStorage.removeItem('agent-draft')
     setMode('editor')
     setHeaderNotification('Save to enable Run')
@@ -73,7 +76,8 @@ export function CreateAgentPage ({ onBack }: CreateAgentPageProps) {
     setActiveAgentId(null)
     setCurrentAgent(null)
     setCurrentTemplate(template)
-    setHeaderNotification('Save to enable Run')
+    setIsFromTemplate(true)
+    setHeaderNotification('Copy template to run')
     setMode('editor')
   }
 
@@ -106,6 +110,7 @@ export function CreateAgentPage ({ onBack }: CreateAgentPageProps) {
       })
     }
     
+    setIsFromTemplate(false)
     setHeaderNotification('Saved')
     setTimeout(() => setHeaderNotification(''), 2500)
   }
@@ -155,6 +160,7 @@ export function CreateAgentPage ({ onBack }: CreateAgentPageProps) {
             <AgentEditorHeader
               notification={headerNotification}
               canRun={!!activeAgentId}
+              isFromTemplate={isFromTemplate}
               onRun={handleRun}
               onSave={() => {
                 // Trigger save in AgentEditor by calling its internal save

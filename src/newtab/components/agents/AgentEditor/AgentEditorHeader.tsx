@@ -4,11 +4,12 @@ import { Play, Save } from 'lucide-react'
 interface AgentEditorHeaderProps {
   notification?: string
   canRun: boolean
+  isFromTemplate?: boolean
   onRun: () => void
   onSave: () => void
 }
 
-export function AgentEditorHeader ({ notification, canRun, onRun, onSave }: AgentEditorHeaderProps) {
+export function AgentEditorHeader ({ notification, canRun, isFromTemplate, onRun, onSave }: AgentEditorHeaderProps) {
   return (
     <div className='flex items-center gap-3'>
       {notification && (
@@ -25,7 +26,7 @@ export function AgentEditorHeader ({ notification, canRun, onRun, onSave }: Agen
         onClick={onSave} 
         className='px-3 py-1.5 text-sm rounded border border-border hover:bg-accent transition-colors'
       >
-        <Save className='w-4 h-4 inline mr-1' /> Save
+        <Save className='w-4 h-4 inline mr-1' /> {isFromTemplate ? 'Copy this template' : 'Save'}
       </button>
     </div>
   )
