@@ -15,7 +15,7 @@ import { MCP_SERVERS, type MCPServerConfig } from '@/config/mcpServers'
 const GITHUB_REPO_URL: string = 'https://github.com/browseros-ai/BrowserOS'
 
 // Feature flag to enable/disable MCP connector dropdown
-const MCP_FEATURE_ENABLED = false
+const MCP_FEATURE_ENABLED = true
 
 interface HeaderProps {
   onReset: () => void
