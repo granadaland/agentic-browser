@@ -7,7 +7,7 @@ import { KlavisAPIManager } from "@/lib/mcp/KlavisAPIManager"
 // Input schema for MCP operations - runtime only
 const MCPToolInputSchema = z.object({
   action: z.enum(['getUserInstances', 'listTools', 'callTool']).describe('The action to perform'),
-  serverUrl: z.string().optional().describe('Server URL for listTools and callTool'),
+  instanceId: z.string().optional().describe('Instance ID for listTools and callTool'),
   toolName: z.string().optional().describe('Tool name for callTool'),
   toolArgs: z.any().optional().describe('Arguments for callTool')
 })
@@ -20,6 +20,7 @@ export type MCPToolInput = z.infer<typeof MCPToolInputSchema>
  */
 export class MCPTool {
   private manager: KlavisAPIManager
+  private instancesCache: Map<string, { id: string; name: string }> = new Map()
 
   constructor(private executionContext: ExecutionContext) {
     this.manager = this.executionContext.getKlavisAPIManager()
@@ -32,10 +33,10 @@ export class MCPTool {
           return await this._getUserInstances()
         
         case 'listTools':
-          return await this._listTools(input.serverUrl)
+          return await this._listTools(input.instanceId)
         
         case 'callTool':
-          return await this._callTool(input.serverUrl, input.toolName, input.toolArgs)
+          return await this._callTool(input.instanceId, input.toolName, input.toolArgs)
         
         default:
           return toolError(`Unknown action: ${input.action}`)
@@ -59,10 +60,15 @@ export class MCPTool {
         }))
       }
 
+      // Store instances in cache for later use
+      instances.forEach(instance => {
+        this.instancesCache.set(instance.id, { id: instance.id, name: instance.name })
+      })
+      
       // Format instances for easy consumption
       const formattedInstances = instances.map(instance => ({
+        id: instance.id,
         name: instance.name,
-        serverUrl: instance.serverUrl,
         authenticated: instance.isAuthenticated,
         authNeeded: instance.authNeeded,
         toolCount: instance.tools?.length || 0
@@ -80,13 +86,19 @@ export class MCPTool {
   /**
    * List available tools for a specific MCP server
    */
-  private async _listTools(serverUrl?: string): Promise<ToolOutput> {
-    if (!serverUrl) {
-      return toolError('serverUrl is required for listTools action')
+  private async _listTools(instanceId?: string): Promise<ToolOutput> {
+    if (!instanceId) {
+      return toolError('instanceId is required for listTools action')
+    }
+
+    // Get instance details from cache
+    const instance = this.instancesCache.get(instanceId)
+    if (!instance) {
+      return toolError(`Instance ${instanceId} not found. Please run getUserInstances first.`)
     }
 
     try {
-      const tools = await this.manager.client.listTools(serverUrl)
+      const tools = await this.manager.client.listTools(instanceId, instance.name)
       
       if (!tools || tools.length === 0) {
         return toolSuccess(JSON.stringify({
@@ -106,7 +118,7 @@ export class MCPTool {
       return toolSuccess(JSON.stringify({
         tools: formattedTools,
         count: formattedTools.length,
-        serverUrl
+        instanceId
       }))
     } catch (error) {
       return toolError(`Failed to list tools: ${error instanceof Error ? error.message : 'Unknown error'}`)
@@ -117,22 +129,29 @@ export class MCPTool {
    * Execute a tool on an MCP server
    */
   private async _callTool(
-    serverUrl?: string,
+    instanceId?: string,
     toolName?: string,
     toolArgs?: any
   ): Promise<ToolOutput> {
     // Validate required parameters
-    if (!serverUrl) {
-      return toolError('serverUrl is required for callTool action')
+    if (!instanceId) {
+      return toolError('instanceId is required for callTool action')
     }
     if (!toolName) {
       return toolError('toolName is required for callTool action')
+    }
+    
+    // Get instance details from cache
+    const instance = this.instancesCache.get(instanceId)
+    if (!instance) {
+      return toolError(`Instance ${instanceId} not found. Please run getUserInstances first.`)
     }
 
     try {
       // Call the tool
       const result = await this.manager.client.callTool(
-        serverUrl,
+        instanceId,
+        instance.name,
         toolName,
         toolArgs || {}
       )
@@ -146,7 +165,7 @@ export class MCPTool {
         success: true,
         toolName,
         result: result.result?.content || result.result,
-        serverUrl
+        instanceId
       }
 
       return toolSuccess(JSON.stringify(output))
@@ -166,9 +185,10 @@ export function createMCPTool(executionContext: ExecutionContext): DynamicStruct
     name: "mcp_tool",
     description: `Interact with installed MCP servers (Gmail, GitHub, Slack, etc.). 
     Actions:
-    - getUserInstances: Get all installed MCP servers
-    - listTools: List available tools for a server (requires serverUrl)
-    - callTool: Execute a tool on a server (requires serverUrl, toolName, toolArgs)`,
+    - getUserInstances: Get all installed MCP servers with their instance IDs
+    - listTools: List available tools for a server (requires instanceId)
+    - callTool: Execute a tool on a server (requires instanceId, toolName, toolArgs)`,
+
     schema: MCPToolInputSchema,
     func: async (args): Promise<string> => {
       const result = await mcpTool.execute(args)

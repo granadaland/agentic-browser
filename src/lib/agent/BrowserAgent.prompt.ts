@@ -59,40 +59,40 @@ When users ask about emails, videos, documents, calendars, repositories, or othe
 
 **🔴 STEP 1: MANDATORY - Check Installed MCP Servers**
 - Use: mcp_tool with action: 'getUserInstances'
-- Returns: List of installed servers with serverUrls
-- Example response: { instances: [{ name: 'Gmail', serverUrl: 'https://mcp-gmail.klavis.ai/abc-123', authenticated: true }] }
-- SAVE the serverUrl for next steps
+- Returns: List of installed servers with their instance IDs
+- Example response: { instances: [{ id: 'a146178c-e0c8-416c-96cd-6fbe809e0cf8', name: 'Gmail', authenticated: true }] }
+- SAVE the instance ID for next steps
 
 **🔴 STEP 2: MANDATORY - Get Available Tools (NEVER SKIP THIS)**
-- Use: mcp_tool with action: 'listTools', serverUrl: [EXACT URL from step 1]
+- Use: mcp_tool with action: 'listTools', instanceId: [EXACT ID from step 1]
 - Returns: List of available tools for that server
 - Example response: { tools: [{ name: 'gmail_search', description: 'Search emails' }, { name: 'gmail_send', description: 'Send email' }] }
 - DO NOT GUESS TOOL NAMES - you MUST get them from listTools
 
 **🔴 STEP 3: Call the Tool**
-- Use: mcp_tool with action: 'callTool', serverUrl: [EXACT URL from step 1], toolName: [EXACT NAME from step 2], toolArgs: {relevant arguments as JSON object}
+- Use: mcp_tool with action: 'callTool', instanceId: [EXACT ID from step 1], toolName: [EXACT NAME from step 2], toolArgs: {relevant arguments as JSON object}
 - IMPORTANT: toolArgs must be a proper JSON object, not a string
 - Returns: Tool execution result
 
 ### ⚠️ COMMON MISTAKES TO AVOID:
 - ❌ NEVER assume tool names like 'gmail_list_messages' - always get from listTools
 - ❌ NEVER skip the listTools step - tool names vary between servers
-- ❌ NEVER use partial URLs - use the full serverUrl from getUserInstances
+- ❌ NEVER use partial IDs - use the exact instanceId from getUserInstances
 - ❌ NEVER combine steps - execute them sequentially
 
 ### Example: "Check my unread emails"
 1. mcp_tool { action: 'getUserInstances' }
-   → Returns: { instances: [{ name: 'Gmail', serverUrl: 'https://mcp-gmail.klavis.ai/a6ea8271-61d3-421b-af51-e61a546e7446', authenticated: true }] }
-2. mcp_tool { action: 'listTools', serverUrl: 'https://mcp-gmail.klavis.ai/a6ea8271-61d3-421b-af51-e61a546e7446' }
+   → Returns: { instances: [{ id: 'a146178c-e0c8-416c-96cd-6fbe809e0cf8', name: 'Gmail', authenticated: true }] }
+2. mcp_tool { action: 'listTools', instanceId: 'a146178c-e0c8-416c-96cd-6fbe809e0cf8' }
    → Returns: { tools: [{ name: 'gmail_search_emails', description: 'Searches for emails using Gmail search syntax' }, { name: 'gmail_read_email', description: 'Retrieves the content of a specific email' }] }
-3. mcp_tool { action: 'callTool', serverUrl: 'https://mcp-gmail.klavis.ai/a6ea8271-61d3-421b-af51-e61a546e7446', toolName: 'gmail_search_emails', toolArgs: { "q": "is:unread" } }
+3. mcp_tool { action: 'callTool', instanceId: 'a146178c-e0c8-416c-96cd-6fbe809e0cf8', toolName: 'gmail_search_emails', toolArgs: { "q": "is:unread" } }
    → Note: toolArgs is a JSON object with property "q", NOT a string like "{'q': 'is:unread'}"
    → Returns: unread email messages
 
 ### MCP Usage Rules
 - **ALWAYS execute all 3 steps in order** - No exceptions
 - **ALWAYS check listTools** - Tool names are dynamic and server-specific
-- **Use exact serverUrl** from getUserInstances response (full URL)
+- **Use exact instanceId** from getUserInstances response
 - **Use exact toolName** from listTools response (don't guess)
 - **If server not authenticated** (authenticated: false), inform user to reconnect in settings
 - **Prefer MCP over browser automation** when available for supported services
