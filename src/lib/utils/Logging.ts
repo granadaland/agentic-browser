@@ -157,14 +157,28 @@ export class Logging {
   public static async logMetric(eventName: string, properties?: Record<string, any>): Promise<void> {
     const prefixedEventName = `agent.${eventName}`
     
+    // Get manifest version
+    let version: string | undefined
     try {
-      await this.browserOSAdapter.logMetric(prefixedEventName, properties)
+      const manifest = chrome.runtime.getManifest()
+      version = manifest.version
+    } catch {
+      // Chrome runtime not available, continue without version
+    }
+    
+    const enhancedProperties = {
+      ...properties,
+      ...(version && { version })
+    }
+    
+    try {
+      await this.browserOSAdapter.logMetric(prefixedEventName, enhancedProperties)
     } catch (error) {
       // BrowserOS failed, use PostHog fallback
       if (this.posthogApiKey && this.posthogInitialized) {
         try {
-          posthog.capture('agent.metric_api_failed', { event: eventName })
-          posthog.capture(prefixedEventName, properties)
+          posthog.capture('agent.metric_api_failed', { event: eventName, ...(version && { version }) })
+          posthog.capture(prefixedEventName, enhancedProperties)
         } catch (posthogError) {
         }
       }
