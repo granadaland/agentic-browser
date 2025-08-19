@@ -59,6 +59,7 @@ import { createGetSelectedTabsTool } from '@/lib/tools/tab/GetSelectedTabsTool';
 import { createClassificationTool } from '@/lib/tools/classification/ClassificationTool';
 import { createValidatorTool } from '@/lib/tools/validation/ValidatorTool';
 import { createScreenshotTool } from '@/lib/tools/utils/ScreenshotTool';
+import { createStorageTool } from '@/lib/tools/utils/StorageTool';
 import { createExtractTool } from '@/lib/tools/extraction/ExtractTool';
 import { createResultTool } from '@/lib/tools/result/ResultTool';
 import { createHumanInputTool } from '@/lib/tools/utils/HumanInputTool';
@@ -281,6 +282,7 @@ export class BrowserAgent {
 
     // util tools
     this.toolManager.register(createScreenshotTool(this.executionContext));
+    this.toolManager.register(createStorageTool(this.executionContext));
     this.toolManager.register(createExtractTool(this.executionContext));
     this.toolManager.register(createHumanInputTool(this.executionContext));
     
