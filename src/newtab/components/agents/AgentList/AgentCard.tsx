@@ -12,7 +12,7 @@ export function AgentCard ({ agent, onEdit, onDelete }: AgentCardProps) {
   return (
     <div className='rounded-lg border border-[hsl(var(--brand)/0.2)] bg-card/95 backdrop-blur-sm p-3.5 shadow-sm hover:shadow-md hover:-translate-y-[1px] transition-all will-change-transform flex h-[120px] flex-col'>
       <div className='text-[16px] font-semibold mb-1 line-clamp-1'>{agent.name}</div>
-      <div className='text-[14px] text-muted-foreground line-clamp-2 flex-1'>
+      <div className='text-[14px] text-muted-foreground truncate flex-1'>
         {agent.description || 'No description'}
       </div>
       <div className='mt-2 flex items-center justify-between'>

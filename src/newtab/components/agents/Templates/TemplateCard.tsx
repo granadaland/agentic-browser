@@ -14,7 +14,7 @@ export function TemplateCard ({ template, onPreview, onUse }: TemplateCardProps)
       onClick={() => onPreview(template)}
     >
       <div className='text-[16px] font-semibold mb-1'>{template.name}</div>
-      <div className='text-[14px] text-muted-foreground line-clamp-2 flex-1'>
+      <div className='text-[14px] text-muted-foreground truncate flex-1'>
         {template.description}
       </div>
       <div className='mt-2 flex items-center justify-between'>
