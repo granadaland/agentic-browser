@@ -120,7 +120,7 @@ export function CreateAgentPage ({ onBack }: CreateAgentPageProps) {
     if (!activeAgentId) return
     const agent = agents.find(a => a.id === activeAgentId)
     if (!agent) return
-    await executeAgent(agent, agent.goal, { runInNewTab: true })
+    await executeAgent(agent, agent.goal)
   }
 
   // Delete agent
