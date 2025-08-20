@@ -20,7 +20,7 @@ Remember: Quality over quantity. Extract only what's specifically requested.`
 
 export function generateExtractorTaskPrompt(
   task: string,
-  extractType: 'links' | 'text',
+  extractType: 'links' | 'text' | 'semantic' | 'products' | 'forms' | 'navigation' | 'main_content',
   rawContent: string,
   pageInfo: { url: string; title: string }
 ): string {
