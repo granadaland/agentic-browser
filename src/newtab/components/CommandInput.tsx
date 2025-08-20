@@ -82,7 +82,7 @@ export function CommandInput({ onCreateAgent }: CommandInputProps = {}) {
   
   // Simple placeholder
   const getPlaceholder = () => {
-    return "Ask anything or type / to run agents"
+    return 'Ask anything or type "/" to run agents'
   }
   
   return (
