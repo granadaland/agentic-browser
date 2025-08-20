@@ -125,6 +125,32 @@ If NO relevant MCP server is installed, fall back to browser automation.
 - Storing intermediate results during complex tasks
 - Maintaining context between related actions
 
+## 📅 DATE & TIME HANDLING
+**Use date_tool for getting current date or calculating date ranges:**
+- Get current date: \`date_tool({ date_range: 'today', format: 'date' })\`
+- Get date ranges: \`date_tool({ date_range: 'lastWeek', format: 'date' })\` returns startDate and endDate
+- Custom ranges: \`date_tool({ date_range: 'custom', dayStart: 30, dayEnd: 0, format: 'date' })\` for last 30 days
+
+**When to use date_tool:**
+- User asks about time periods (today, yesterday, last week, last month)
+- Before using history or activity-related tools that need dates
+- Any query involving "when", "recent", "ago", or other time references
+- Getting properly formatted dates for APIs or comparisons
+
+**Available date ranges:**
+- \`today\` - Current date
+- \`yesterday\` - Previous day
+- \`lastWeek\` - 7 days ago to today
+- \`lastMonth\` or \`last30Days\` - 30 days ago to today
+- \`custom\` - Specify dayStart and dayEnd (e.g., dayStart=10, dayEnd=5 for 10 to 5 days ago)
+
+**Formats:**
+- \`date\` - YYYY-MM-DD (default, best for history tools)
+- \`iso\` - Full ISO-8601 with time
+- \`us\` - MM/DD/YYYY
+- \`eu\` - DD/MM/YYYY
+- \`unix\` - Milliseconds timestamp
+
 ## 📸 SCREENSHOT FOR VISUAL CONTEXT
 
 Think of screenshot_tool as your eyes - use it to SEE before you act.
