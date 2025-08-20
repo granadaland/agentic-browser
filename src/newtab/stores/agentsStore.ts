@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { z } from 'zod'
+import { Logging } from '@/lib/utils/Logging'
 
 // Agent schema following v2 patterns
 export const AgentSchema = z.object({
@@ -66,6 +67,15 @@ export const useAgentsStore = create<AgentsState & AgentsActions>((set, get) => 
       selectedAgentId: newAgent.id
     }))
     
+    // Log metric for agent creation
+    Logging.logMetric('custom_agent.created', {
+      name: newAgent.name,
+      description: newAgent.description,
+      goal: newAgent.goal,
+      steps: newAgent.steps,
+      tools: newAgent.tools
+    })
+    
     // Persist to storage
     // get().agents already includes the newly added agent after set()
     chrome.storage.local.set({ agents: get().agents })
@@ -79,6 +89,19 @@ export const useAgentsStore = create<AgentsState & AgentsActions>((set, get) => 
           : agent
       )
     }))
+    
+    // Find the updated agent to log its properties
+    const updatedAgent = get().agents.find(agent => agent.id === id)
+    if (updatedAgent) {
+      // Log metric for agent update with 10% sampling
+      Logging.logMetric('custom_agent.updated', {
+        name: updatedAgent.name,
+        description: updatedAgent.description,
+        goal: updatedAgent.goal,
+        steps: updatedAgent.steps,
+        tools: updatedAgent.tools
+      }, 0.1)
+    }
     
     // Persist changes
     chrome.storage.local.set({ agents: get().agents })
