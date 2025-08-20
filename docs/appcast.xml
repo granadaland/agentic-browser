@@ -2,14 +2,29 @@
 <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle"
   xmlns:dc="http://purl.org/dc/elements/1.1/">
   <channel>
-    <title>Nxtscape Browser</title>
-    <link>https://nxtscape.github.io/nxtscape/appcast.xml</link>
+    <title>BrowserOS</title>
+    <link>https://cdn.browseros.com/appcast.xml</link>
     <description>Most recent changes with links to updates.</description>
     <language>en</language>
 
     <!-- Updates -->
     <item>
-      <title>Nxtscape - 0.20.0</title>
+      <title>BrowserOS - 0.21.0</title>
+      <description sparkle:format="plain-text">
+      </description>
+      <sparkle:version>7201.69</sparkle:version>
+      <sparkle:shortVersionString>0.21.0</sparkle:shortVersionString>
+      <pubDate>Tue, 20 Aug 2025 11:30:00 -0700</pubDate>
+      <link>https://nxtscape.ai</link>
+      <enclosure
+        url="http://cdn.browseros.com/dmg/BrowserOS_v0.21.0_arm64.dmg"
+        sparkle:edSignature="en02Zhdpa4J/zQ3Ly11psVJnsX8Bp5DS8+sK0sr3267xocHGCkfWN8BJmsZWkae7a1mlLh+2A1835PdX5CMmDg==" 
+        length="126187683"
+        type="application/octet-stream" />
+      <sparkle:minimumSystemVersion>10.15</sparkle:minimumSystemVersion>
+    </item>
+    <item>
+      <title>BrowserOS - 0.20.0</title>
       <description sparkle:format="plain-text">
 - New updated Agent UI!
 - Fixed MacOS bug which caused the app to crash on startup for some users. This unfortunately also makes a breaking change, requiring re-installation of extensions and logins.
@@ -26,7 +41,7 @@
       <sparkle:minimumSystemVersion>10.15</sparkle:minimumSystemVersion>
     </item>
     <item>
-      <title>Nxtscape - 0.19.0</title>
+      <title>BrowserOS - 0.19.0</title>
       <description sparkle:format="plain-text">
       </description>
       <sparkle:version>7197.69</sparkle:version>
@@ -41,7 +56,7 @@
       <sparkle:minimumSystemVersion>10.15</sparkle:minimumSystemVersion>
     </item>
     <item>
-      <title>Nxtscape - 0.18.0</title>
+      <title>BrowserOS - 0.18.0</title>
       <description sparkle:format="plain-text">
 - New revamped Agent infra! This should improve our agents reliability and performance. Please test it out and give us your feedback!
       </description>
@@ -57,7 +72,7 @@
       <sparkle:minimumSystemVersion>10.15</sparkle:minimumSystemVersion>
     </item>
     <item>
-      <title>Nxtscape - 0.17.0</title>
+      <title>BrowserOS - 0.17.0</title>
       <description sparkle:format="plain-text">
       </description>
       <sparkle:version>7193.69</sparkle:version>
@@ -72,7 +87,7 @@
       <sparkle:minimumSystemVersion>10.15</sparkle:minimumSystemVersion>
     </item>
     <item>
-      <title>Nxtscape - 0.16.0</title>
+      <title>BrowserOS - 0.16.0</title>
       <description sparkle:format="plain-text">
       </description>
       <sparkle:version>7192.69</sparkle:version>
@@ -87,7 +102,7 @@
       <sparkle:minimumSystemVersion>10.15</sparkle:minimumSystemVersion>
     </item>
     <item>
-      <title>Nxtscape - 0.15.0</title>
+      <title>BrowserOS - 0.15.0</title>
       <description sparkle:format="plain-text">
 - Support for screenshot in LLM chat.
 - New settings page `chrome://settings/browseros-settings` for configuring BrowserOS internals. Today, it supports hiding labels in toolbar.
@@ -105,7 +120,7 @@
       <sparkle:minimumSystemVersion>10.15</sparkle:minimumSystemVersion>
     </item>
     <item>
-      <title>Nxtscape - 0.14.0</title>
+      <title>BrowserOS - 0.14.0</title>
       <description sparkle:format="plain-text">
       </description>
       <sparkle:version>7187.69</sparkle:version>
@@ -120,7 +135,7 @@
       <sparkle:minimumSystemVersion>10.15</sparkle:minimumSystemVersion>
     </item>
     <!-- <item> -->
-    <!--   <title>Nxtscape - 0.13.0</title> -->
+    <!--   <title>BrowserOS - 0.13.0</title> -->
     <!--   <description sparkle:format="plain-text"> -->
     <!--   </description> -->
     <!--   <sparkle:version>7185.69</sparkle:version> -->
@@ -135,7 +150,7 @@
     <!--   <sparkle:minimumSystemVersion>10.15</sparkle:minimumSystemVersion> -->
     <!-- </item> -->
     <item>
-      <title>Nxtscape - 0.12.0</title>
+      <title>BrowserOS - 0.12.0</title>
       <description sparkle:format="plain-text">
       </description>
       <sparkle:version>7183.69</sparkle:version>
@@ -150,7 +165,7 @@
       <sparkle:minimumSystemVersion>10.15</sparkle:minimumSystemVersion>
     </item>
     <item>
-      <title>Nxtscape - 0.11.0</title>
+      <title>BrowserOS - 0.11.0</title>
       <description sparkle:format="plain-text">
       </description>
       <sparkle:version>7180.69</sparkle:version>
@@ -165,7 +180,7 @@
       <sparkle:minimumSystemVersion>10.15</sparkle:minimumSystemVersion>
     </item>
     <item>
-      <title>Nxtscape - 0.10.0</title>
+      <title>BrowserOS - 0.10.0</title>
       <description sparkle:format="plain-text">
 - BrowserOS now supports Windows. Check our GitHub page for the Windows installer.
 - Added a new easy way to report bugs and request features from the browser.
@@ -182,7 +197,7 @@
       <sparkle:minimumSystemVersion>10.15</sparkle:minimumSystemVersion>
     </item>
     <item>
-      <title>Nxtscape - 0.9.1</title>
+      <title>BrowserOS - 0.9.1</title>
       <description sparkle:format="plain-text">
       </description>
       <sparkle:version>7177.69</sparkle:version>
@@ -197,7 +212,7 @@
       <sparkle:minimumSystemVersion>10.15</sparkle:minimumSystemVersion>
     </item>
     <item>
-      <title>Nxtscape - 0.9.0</title>
+      <title>BrowserOS - 0.9.0</title>
       <description sparkle:format="plain-text">
 - Minor stability improvements.
       </description>
@@ -213,7 +228,7 @@
       <sparkle:minimumSystemVersion>10.15</sparkle:minimumSystemVersion>
     </item>
     <item>
-      <title>Nxtscape - 0.8.0</title>
+      <title>BrowserOS - 0.8.0</title>
       <description sparkle:format="plain-text">
 - NEW FEATURE: Sidekick LLM. Brings third party LLMs to side panel.
   - Quickly toggle between ChatGPT, Claude, Gemini, Perplexity, and Ollama
@@ -231,7 +246,7 @@
       <sparkle:minimumSystemVersion>10.15</sparkle:minimumSystemVersion>
     </item>
     <item>
-      <title>Nxtscape - 0.7.0</title>
+      <title>BrowserOS - 0.7.0</title>
       <description sparkle:format="plain-text">
 - Improved agent to allow interruptions
 - Agent now supports pausing and resuming tasks
@@ -248,7 +263,7 @@
       <sparkle:minimumSystemVersion>10.15</sparkle:minimumSystemVersion>
     </item>
     <item>
-      <title>Nxtscape - 0.6.0</title>
+      <title>BrowserOS - 0.6.0</title>
       <description sparkle:format="plain-text">
 - Support for MacOS x86_64 with Universal binary.
 - Minor fixes to updater
@@ -266,7 +281,7 @@
       <sparkle:minimumSystemVersion>10.15</sparkle:minimumSystemVersion>
     </item>
     <item>
-      <title>Nxtscape - 0.5.0</title>
+      <title>BrowserOS - 0.5.0</title>
       <description sparkle:format="plain-text">
 - Improved Ollama support
 - Fixed issues with the unified agent
@@ -283,7 +298,7 @@
       <sparkle:minimumSystemVersion>10.15</sparkle:minimumSystemVersion>
     </item>
     <item>
-      <title>Nxtscape - 0.4.0</title>
+      <title>BrowserOS - 0.4.0</title>
       <description sparkle:format="plain-text">
 - [Fix] OTA updates were not working correctly for some users; fixing it.
       </description>
@@ -299,7 +314,7 @@
       <sparkle:minimumSystemVersion>10.15</sparkle:minimumSystemVersion>
     </item>
     <item>
-      <title>Nxtscape - 0.3.0</title>
+      <title>BrowserOS - 0.3.0</title>
       <description sparkle:format="plain-text">
 – Much improved AI agent for browser navigation tasks
 - Merged Productivity Agent and Browser Agent into a single AI agent
@@ -316,7 +331,7 @@
       <sparkle:minimumSystemVersion>10.15</sparkle:minimumSystemVersion>
     </item>
     <item>
-      <title>Nxtscape - 0.2.0</title>
+      <title>BrowserOS - 0.2.0</title>
       <description sparkle:format="plain-text">
 – Support for overriding baseUrl in OpenAI, Claude
 – Gemini support in BYOK
@@ -334,7 +349,7 @@
       <sparkle:minimumSystemVersion>10.15</sparkle:minimumSystemVersion>
     </item>
     <item>
-      <title>Nxtscape - 0.1.0</title>
+      <title>BrowserOS - 0.1.0</title>
       <description sparkle:format="plain-text">
 – Updates to AI agent to perform better on navigation tasks
 – Improves to MacOS updater
@@ -345,7 +360,7 @@
       <pubDate>Mon, 23 Jun 2025 00:00:00 +0000</pubDate>
       <link>https://nxtscape.ai</link>
       <enclosure
-        url="https://storage.googleapis.com/nxtscape/Nxtscape_v0.1.0.dmg"
+        url="https://storage.googleapis.com/nxtscape/BrowserOS_v0.1.0.dmg"
         sparkle:edSignature="mPxpc/8SPEEOiCmiKE4haTGUaMRnUQRJ8SK8w3sWek/5oZD0dg/DQFg/HxbhHjt2mtFUI8VD5iUi4+uIBWr4Dg=="
         length="127005947"
         type="application/octet-stream" />
