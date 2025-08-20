@@ -6,12 +6,24 @@ interface SearchProvider {
   icon: string
 }
 
-const PROVIDERS: SearchProvider[] = [
+const DEFAULT_PROVIDERS: SearchProvider[] = [
   { id: 'google', name: 'Google', icon: '/assets/new_tab_search/google.svg' },
   { id: 'chatgpt', name: 'ChatGPT', icon: '/assets/new_tab_search/openai.svg' },
   { id: 'claude', name: 'Claude', icon: '/assets/new_tab_search/claude.svg' },
   { id: 'browseros', name: 'BrowserOS Agent', icon: '/assets/new_tab_search/browseros.svg' }
 ]
+
+function getEnabledProviders(): SearchProvider[] {
+  const stored = localStorage.getItem('searchProviders')
+  if (!stored) return DEFAULT_PROVIDERS
+  
+  try {
+    const data = JSON.parse(stored)
+    return data.enabled || DEFAULT_PROVIDERS
+  } catch {
+    return DEFAULT_PROVIDERS
+  }
+}
 
 interface SearchDropdownProps {
   query: string
@@ -21,19 +33,20 @@ interface SearchDropdownProps {
 
 export function SearchDropdown ({ query, onSelect, onClose }: SearchDropdownProps) {
   const [activeIndex, setActiveIndex] = useState(0)
+  const providers = getEnabledProviders()
 
   // Handle keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'ArrowDown') {
         e.preventDefault()
-        setActiveIndex(i => (i + 1) % PROVIDERS.length)
+        setActiveIndex(i => (i + 1) % providers.length)
       } else if (e.key === 'ArrowUp') {
         e.preventDefault()
-        setActiveIndex(i => (i - 1 + PROVIDERS.length) % PROVIDERS.length)
+        setActiveIndex(i => (i - 1 + providers.length) % providers.length)
       } else if (e.key === 'Enter') {
         e.preventDefault()
-        onSelect(PROVIDERS[activeIndex], query)
+        onSelect(providers[activeIndex], query)
       } else if (e.key === 'Escape') {
         onClose()
       }
@@ -41,11 +54,11 @@ export function SearchDropdown ({ query, onSelect, onClose }: SearchDropdownProp
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [activeIndex, query, onSelect, onClose])
+  }, [activeIndex, query, onSelect, onClose, providers])
 
   return (
     <div className='absolute top-full mt-2 left-0 right-0 bg-card border border-border rounded-lg shadow-lg overflow-hidden z-50'>
-      {PROVIDERS.map((provider, index) => (
+      {providers.map((provider, index) => (
         <button
           key={provider.id}
           className={`
