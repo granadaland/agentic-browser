@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { ProviderDropdown } from './ProviderDropdown'
 import { CommandPalette } from './CommandPalette'
+import { SearchDropdown } from './SearchDropdown'
 import { useProviderStore } from '../stores/providerStore'
 import { useAgentsStore } from '../stores/agentsStore'
 
@@ -12,6 +13,7 @@ export function CommandInput({ onCreateAgent }: CommandInputProps = {}) {
   const [value, setValue] = useState('')
   const [isFocused, setIsFocused] = useState(false)
   const [showCommandPalette, setShowCommandPalette] = useState(false)
+  const [showSearchDropdown, setShowSearchDropdown] = useState(false)
   const [isExecutingAgent, setIsExecutingAgent] = useState(false)
   const [executingAgentName, setExecutingAgentName] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
@@ -26,12 +28,36 @@ export function CommandInput({ onCreateAgent }: CommandInputProps = {}) {
     inputRef.current?.focus()
   }, [])
   
+  const handleProviderSelect = async (provider: any, query: string) => {
+    setShowSearchDropdown(false)
+    
+    // Execute based on provider type
+    if (provider.id === 'google') {
+      window.open(`https://google.com/search?q=${encodeURIComponent(query)}`, '_blank')
+    } else if (provider.id === 'chatgpt') {
+      window.open(`https://chatgpt.com/?q=${encodeURIComponent(query)}`, '_blank')
+    } else if (provider.id === 'claude') {
+      window.open(`https://claude.ai/new?q=${encodeURIComponent(query)}`, '_blank')
+    } else if (provider.id === 'browseros') {
+      const browserosProvider = { 
+        id: 'browseros-agent', 
+        name: 'BrowserOS Agent', 
+        category: 'llm' as const,
+        actionType: 'sidepanel' as const,
+        available: true
+      }
+      await executeProviderAction(browserosProvider, query)
+    }
+    
+    setValue('')
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!value.trim()) return
     
-    // Don't submit if command palette is open
-    if (showCommandPalette) return
+    // Don't submit if dropdowns are open
+    if (showCommandPalette || showSearchDropdown) return
     
     const query = value.trim()
     
@@ -54,23 +80,9 @@ export function CommandInput({ onCreateAgent }: CommandInputProps = {}) {
     setValue('')
   }
   
-  // Dynamic placeholder based on selected provider
+  // Simple placeholder
   const getPlaceholder = () => {
-    if (!selectedProvider) return "Ask anything..."
-    
-    // Special case for BrowserOS Agent
-    if (selectedProvider.id === 'browseros-agent') {
-      return "Ask BrowserOS Agent to automate anything..."
-    }
-    
-    switch(selectedProvider.category) {
-      case 'search':
-        return `Search with ${selectedProvider.name}...`
-      case 'llm':
-        return `Ask ${selectedProvider.name} anything...`
-      default:
-        return "Ask anything..."
-    }
+    return 'Ask anything or type "/" to run agents'
   }
   
   return (
@@ -82,9 +94,6 @@ export function CommandInput({ onCreateAgent }: CommandInputProps = {}) {
         ${isFocused ? 'border-[hsl(var(--brand))]/60 shadow-lg' : 'border-[hsl(var(--brand))]/30 hover:border-[hsl(var(--brand))]/50 hover:bg-background/90'}
         px-4 py-3
       `}>
-        {/* Provider Dropdown */}
-        <ProviderDropdown />
-        
         {/* Input Field */}
         <input
           ref={inputRef}
@@ -97,12 +106,18 @@ export function CommandInput({ onCreateAgent }: CommandInputProps = {}) {
             // Show command palette when user types '/'
             if (newValue === '/' || (newValue.startsWith('/') && showCommandPalette)) {
               setShowCommandPalette(true)
+              setShowSearchDropdown(false)
             } else {
               setShowCommandPalette(false)
+              // Show search dropdown when there's text (not starting with '/')
+              setShowSearchDropdown(newValue.trim().length > 0)
             }
           }}
           onFocus={() => setIsFocused(true)}
-          onBlur={() => setTimeout(() => setIsFocused(false), 200)}
+          onBlur={() => setTimeout(() => {
+            setIsFocused(false)
+            setShowSearchDropdown(false)
+          }, 200)}
           placeholder={getPlaceholder()}
           className="
             flex-1
@@ -115,6 +130,15 @@ export function CommandInput({ onCreateAgent }: CommandInputProps = {}) {
         />
         
       </div>
+      
+      {/* Search Dropdown */}
+      {showSearchDropdown && !showCommandPalette && (
+        <SearchDropdown
+          query={value}
+          onSelect={handleProviderSelect}
+          onClose={() => setShowSearchDropdown(false)}
+        />
+      )}
       
       {/* Command Palette */}
       {showCommandPalette && (
