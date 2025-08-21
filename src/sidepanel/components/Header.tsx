@@ -239,7 +239,7 @@ export const Header = memo(function Header({ onReset, showReset, isProcessing }:
               </Button>
               
               {showMCPDropdown && (
-                <div className="absolute right-0 mt-2 w-64 rounded-lg shadow-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 z-50">
+                <div className="absolute right-0 mt-2 w-64 rounded-lg shadow-lg bg-background border border-border z-50">
                   <div className="py-1">
                     {MCP_SERVERS.map((server) => {
                       // Check if this server is installed
@@ -249,7 +249,7 @@ export const Header = memo(function Header({ onReset, showReset, isProcessing }:
                       return (
                         <div
                           key={server.id}
-                          className="flex items-center justify-between w-full px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                          className="flex items-center justify-between w-full px-4 py-2 text-sm text-foreground hover:bg-accent transition-colors"
                         >
                           <div className="flex items-center gap-2">
                             <img 
@@ -291,7 +291,7 @@ export const Header = memo(function Header({ onReset, showReset, isProcessing }:
                             ) : (
                               <button
                                 onClick={() => handleMCPInstall(server.id)}
-                                className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+                                className="text-xs text-muted-foreground hover:text-foreground"
                               >
                                 Connect
                               </button>
