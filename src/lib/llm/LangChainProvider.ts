@@ -21,7 +21,7 @@ import { Logging } from '@/lib/utils/Logging'
 // Default constants
 const DEFAULT_TEMPERATURE = 0.7
 const DEFAULT_STREAMING = true
-const DEFAULT_MAX_TOKENS = 128000
+const DEFAULT_MAX_TOKENS = 4096
 const DEFAULT_OPENAI_MODEL = "gpt-4o"
 const DEFAULT_ANTHROPIC_MODEL = 'claude-4-sonnet'
 const DEFAULT_OLLAMA_MODEL = "qwen3:4b"
@@ -199,6 +199,33 @@ export class LangChainProvider {
     return model
   }
   
+  /**
+   * Calculate appropriate maxTokens based on user request, context window, and defaults
+   * @param provider - The LLM provider configuration
+   * @param requestedMaxTokens - User-requested max tokens (optional)
+   * @returns Calculated max tokens for the response
+   */
+  private _calculateMaxTokens(
+    provider: BrowserOSProvider,
+    requestedMaxTokens?: number
+  ): number {
+    const contextWindow = provider.modelConfig?.contextWindow
+    
+    if (requestedMaxTokens) {
+      // User explicitly requested a limit - respect it but cap at context window
+      return contextWindow 
+        ? Math.min(requestedMaxTokens, contextWindow)
+        : requestedMaxTokens
+    } else if (contextWindow) {
+      // No explicit request - use reasonable default capped by 50% of context window
+      // This leaves room for input and conversation history
+      return Math.min(DEFAULT_MAX_TOKENS, Math.floor(contextWindow * 0.5))
+    } else {
+      // No context window info - use conservative default
+      return DEFAULT_MAX_TOKENS
+    }
+  }
+  
   private _createLLMFromProvider(
     provider: BrowserOSProvider,
     options?: { temperature?: number; maxTokens?: number }
@@ -208,9 +235,7 @@ export class LangChainProvider {
                        provider.modelConfig?.temperature ?? 
                        DEFAULT_TEMPERATURE
     
-    const maxTokens = options?.maxTokens ?? 
-                     (provider.modelConfig?.contextWindow ? 
-                       provider.modelConfig.contextWindow : DEFAULT_MAX_TOKENS)
+    const maxTokens = this._calculateMaxTokens(provider, options?.maxTokens)
     
     const streaming = DEFAULT_STREAMING
     
