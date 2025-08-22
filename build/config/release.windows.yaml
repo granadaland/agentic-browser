@@ -8,10 +8,10 @@ gn_flags:
   file: build/config/gn/flags.windows.release.gn
 
 steps:
-  clean: false
-  git_setup: false
-  apply_patches: false
-  build: false
+  clean: true
+  git_setup: true
+  apply_patches: true
+  build: true
   sign: true # Enable signing with eSigner CKA
   package: true
 
