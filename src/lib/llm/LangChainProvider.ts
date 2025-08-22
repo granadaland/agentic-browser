@@ -89,6 +89,7 @@ export class LangChainProvider {
         // BrowserOS/Nxtscape uses gemini 2.5 flash by default
         return { maxTokens: 1_000_000 }
         
+      case 'openai':
       case 'openai_compatible':
       case 'openrouter':
         const modelId = provider.modelId || DEFAULT_OPENAI_MODEL
@@ -218,6 +219,7 @@ export class LangChainProvider {
       case 'browseros':
         return this._createBrowserOSLLM(temperature, maxTokens, streaming)
       
+      case 'openai':
       case 'openai_compatible':
       case 'openrouter':
       case 'custom':
@@ -262,7 +264,7 @@ export class LangChainProvider {
     return this._patchTokenCounting(model)
   }
   
-  // OpenAI-compatible providers (OpenAI, OpenRouter, Custom)
+  // OpenAI-compatible providers (OpenAI, OpenAI-compatible, OpenRouter, Custom)
   private _createOpenAICompatibleLLM(
     provider: BrowserOSProvider,
     temperature: number,
