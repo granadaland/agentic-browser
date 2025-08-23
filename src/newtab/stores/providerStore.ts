@@ -96,7 +96,7 @@ interface ProviderActions {
   removeCustomProvider: (id: string) => void
   getAllProviders: () => Provider[]
   executeProviderAction: (provider: Provider, query: string) => Promise<void>
-  executeAgent: (agent: Agent, query: string) => Promise<void>
+  executeAgent: (agent: Agent, query: string, isBuilder?: boolean) => Promise<void>
 }
 
 export const useProviderStore = create<ProviderState & ProviderActions>()(
@@ -214,7 +214,7 @@ export const useProviderStore = create<ProviderState & ProviderActions>()(
         }
       },
       
-      executeAgent: async (agent, query) => {
+      executeAgent: async (agent, query, isBuilder) => {
         Logging.logMetric('newtab.execute_agent', {
           agentName: agent.name
         })
@@ -227,6 +227,11 @@ export const useProviderStore = create<ProviderState & ProviderActions>()(
             console.error('No active tab found')
             return
           }
+          
+          // Prepend "Create new tab" if running from builder
+          const finalSteps = isBuilder 
+            ? ['Create new tab', ...agent.steps]
+            : agent.steps
           
           // Open the sidepanel for the current tab
           await chrome.sidePanel.open({ tabId: activeTab.id })
@@ -248,7 +253,7 @@ export const useProviderStore = create<ProviderState & ProviderActions>()(
                 executionMode: 'predefined',
                 predefinedPlan: {
                   agentId: agent.id,
-                  steps: agent.steps,
+                  steps: finalSteps,
                   goal: agent.goal,
                   name: agent.name
                 }
