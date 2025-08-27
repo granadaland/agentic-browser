@@ -1,23 +1,24 @@
-From edad7aaabe10102c5202ac293e977aeaba8cb413 Mon Sep 17 00:00:00 2001
+From 222f305971a2ba2290785cc6bd9f3d704e835f3e Mon Sep 17 00:00:00 2001
 From: Nikhil Sonti <nikhilsv92@gmail.com>
 Date: Tue, 5 Aug 2025 15:22:49 -0700
-Subject: [PATCH] browseros api updates: version, metric, click, prefs
+Subject: [PATCH] browseros api updates: version, metric, click, prefs,
+ screenshot
 
 ---
  chrome/browser/extensions/BUILD.gn            |   1 +
- .../api/browser_os/browser_os_api.cc          | 287 +++++++--
- .../api/browser_os/browser_os_api.h           |  66 +++
- .../api/browser_os/browser_os_api_helpers.cc  | 554 +++++++++++++++---
- .../api/browser_os/browser_os_api_helpers.h   |  61 +-
+ .../api/browser_os/browser_os_api.cc          | 316 ++++++--
+ .../api/browser_os/browser_os_api.h           |  66 ++
+ .../api/browser_os/browser_os_api_helpers.cc  | 710 ++++++++++++++++--
+ .../api/browser_os/browser_os_api_helpers.h   |  85 ++-
  .../api/browser_os/browser_os_api_utils.cc    |  54 --
  .../api/browser_os/browser_os_api_utils.h     |   6 -
- .../browser_os/browser_os_change_detector.cc  | 326 ++++-------
+ .../browser_os/browser_os_change_detector.cc  | 326 ++++----
  .../browser_os/browser_os_change_detector.h   | 126 ++--
- .../browser_os_snapshot_processor.cc          | 195 +++---
- .../browser_os_snapshot_processor.h           |  16 +-
- chrome/common/extensions/api/browser_os.idl   |  78 ++-
+ .../browser_os_snapshot_processor.cc          | 272 +++----
+ .../browser_os_snapshot_processor.h           |  17 +-
+ chrome/common/extensions/api/browser_os.idl   |  81 +-
  .../extension_function_histogram_value.h      |   5 +
- 13 files changed, 1203 insertions(+), 572 deletions(-)
+ 13 files changed, 1417 insertions(+), 648 deletions(-)
 
 diff --git a/chrome/browser/extensions/BUILD.gn b/chrome/browser/extensions/BUILD.gn
 index 7ca2a1a3f6f86..9d3bafb63caeb 100644
@@ -32,7 +33,7 @@ index 7ca2a1a3f6f86..9d3bafb63caeb 100644
        "//components/nacl/common:buildflags",
        "//components/navigation_interception",
 diff --git a/chrome/browser/extensions/api/browser_os/browser_os_api.cc b/chrome/browser/extensions/api/browser_os/browser_os_api.cc
-index 31d54b9d0fb58..21ce0fe26c2f0 100644
+index 31d54b9d0fb58..5242a1c3f930c 100644
 --- a/chrome/browser/extensions/api/browser_os/browser_os_api.cc
 +++ b/chrome/browser/extensions/api/browser_os/browser_os_api.cc
 @@ -11,11 +11,15 @@
@@ -174,7 +175,46 @@ index 31d54b9d0fb58..21ce0fe26c2f0 100644
  }
  
  // Implementation of BrowserOSCaptureScreenshotFunction
-@@ -791,5 +796,205 @@ void BrowserOSGetSnapshotFunction::OnContentProcessed(
+@@ -650,16 +655,31 @@ ExtensionFunction::ResponseAction BrowserOSCaptureScreenshotFunction::Run() {
+   // Get the view bounds to determine the size
+   gfx::Rect view_bounds = rwhv->GetViewBounds();
+   
+-  // Create a reasonable thumbnail size (e.g., 256x256 or proportional)
+-  const int kMaxThumbnailSize = 1024; // 512;//256;
++  // Determine max thumbnail size
++  // If thumbnailSize is provided, use minimum of it and viewport dimensions
++  // Otherwise, use viewport size (no scaling)
++  int max_dimension;
++  if (params->thumbnail_size) {
++    // Take minimum of requested size and viewport dimensions
++    int viewport_max = std::max(view_bounds.width(), view_bounds.height());
++    max_dimension = std::min(static_cast<int>(*params->thumbnail_size), viewport_max);
++    LOG(INFO) << "[browseros] CaptureScreenshot: Using thumbnail size: " << max_dimension 
++              << " (requested: " << *params->thumbnail_size 
++              << ", viewport max: " << viewport_max << ")";
++  } else {
++    // No thumbnail size specified, use viewport dimensions
++    max_dimension = std::max(view_bounds.width(), view_bounds.height());
++    LOG(INFO) << "[browseros] CaptureScreenshot: Using viewport size: " << max_dimension;
++  }
++  
+   gfx::Size thumbnail_size = view_bounds.size();
+   
+-  // Scale down proportionally
+-  if (thumbnail_size.width() > kMaxThumbnailSize || 
+-      thumbnail_size.height() > kMaxThumbnailSize) {
++  // Scale down proportionally if needed
++  if (thumbnail_size.width() > max_dimension || 
++      thumbnail_size.height() > max_dimension) {
+     float scale = std::min(
+-        static_cast<float>(kMaxThumbnailSize) / thumbnail_size.width(),
+-        static_cast<float>(kMaxThumbnailSize) / thumbnail_size.height());
++        static_cast<float>(max_dimension) / thumbnail_size.width(),
++        static_cast<float>(max_dimension) / thumbnail_size.height());
+     thumbnail_size = gfx::ScaleToFlooredSize(thumbnail_size, scale);
+   }
+   
+@@ -791,5 +811,205 @@ void BrowserOSGetSnapshotFunction::OnContentProcessed(
        browser_os::GetSnapshot::Results::Create(result.snapshot)));
  }
  
@@ -458,7 +498,7 @@ index 6090d2fbeb6a4..27721d9b0b9a0 100644
  }  // namespace extensions
  
 diff --git a/chrome/browser/extensions/api/browser_os/browser_os_api_helpers.cc b/chrome/browser/extensions/api/browser_os/browser_os_api_helpers.cc
-index 2e2c9a875dd09..716630689b088 100644
+index 2e2c9a875dd09..18d6aa50233a7 100644
 --- a/chrome/browser/extensions/api/browser_os/browser_os_api_helpers.cc
 +++ b/chrome/browser/extensions/api/browser_os/browser_os_api_helpers.cc
 @@ -14,11 +14,14 @@
@@ -476,7 +516,13 @@ index 2e2c9a875dd09..716630689b088 100644
  #include "ui/base/ime/ime_text_span.h"
  #include "ui/events/base_event_utils.h"
  #include "ui/events/keycodes/dom/dom_code.h"
-@@ -30,6 +33,211 @@
+@@ -26,10 +29,217 @@
+ #include "ui/events/keycodes/keyboard_codes.h"
+ #include "ui/gfx/geometry/point_f.h"
+ #include "ui/gfx/range/range.h"
++#include "ui/accessibility/ax_action_data.h"
++#include "ui/accessibility/ax_enums.mojom.h"
+ 
  namespace extensions {
  namespace api {
  
@@ -688,7 +734,7 @@ index 2e2c9a875dd09..716630689b088 100644
  // Helper to create and dispatch mouse events for clicking
  void PointClick(content::WebContents* web_contents, 
                    const gfx::PointF& point) {
-@@ -45,12 +253,14 @@ void PointClick(content::WebContents* web_contents,
+@@ -45,12 +255,14 @@ void PointClick(content::WebContents* web_contents,
    if (!rwhv)
      return;
  
@@ -709,7 +755,7 @@ index 2e2c9a875dd09..716630689b088 100644
  
    // Create mouse down event
    blink::WebMouseEvent mouse_down;
-@@ -58,8 +268,9 @@ void PointClick(content::WebContents* web_contents,
+@@ -58,8 +270,9 @@ void PointClick(content::WebContents* web_contents,
    mouse_down.button = blink::WebPointerProperties::Button::kLeft;
    mouse_down.click_count = 1;
    mouse_down.SetPositionInWidget(widget_point.x(), widget_point.y());
@@ -721,7 +767,7 @@ index 2e2c9a875dd09..716630689b088 100644
    mouse_down.SetTimeStamp(ui::EventTimeForNow());
    mouse_down.SetModifiers(blink::WebInputEvent::kLeftButtonDown);
    
-@@ -69,8 +280,7 @@ void PointClick(content::WebContents* web_contents,
+@@ -69,8 +282,7 @@ void PointClick(content::WebContents* web_contents,
    mouse_up.button = blink::WebPointerProperties::Button::kLeft;
    mouse_up.click_count = 1;
    mouse_up.SetPositionInWidget(widget_point.x(), widget_point.y());
@@ -731,7 +777,7 @@ index 2e2c9a875dd09..716630689b088 100644
    mouse_up.SetTimeStamp(ui::EventTimeForNow());
    
    // Send the events
-@@ -142,6 +352,73 @@ void HtmlClick(content::WebContents* web_contents,
+@@ -142,6 +354,73 @@ void HtmlClick(content::WebContents* web_contents,
        /*honor_js_content_settings=*/false);
  }
  
@@ -805,7 +851,7 @@ index 2e2c9a875dd09..716630689b088 100644
  // Helper to perform scroll actions using mouse wheel events
  void Scroll(content::WebContents* web_contents,
                     int delta_x,
-@@ -325,9 +602,9 @@ void KeyPress(content::WebContents* web_contents,
+@@ -325,9 +604,9 @@ void KeyPress(content::WebContents* web_contents,
    }
  }
  
@@ -818,7 +864,7 @@ index 2e2c9a875dd09..716630689b088 100644
    content::RenderFrameHost* rfh = web_contents->GetPrimaryMainFrame();
    if (!rfh)
      return;
-@@ -339,70 +616,203 @@ void Type(content::WebContents* web_contents,
+@@ -339,70 +618,357 @@ void Type(content::WebContents* web_contents,
    // Convert text to UTF16
    std::u16string text16 = base::UTF8ToUTF16(text);
    
@@ -965,52 +1011,206 @@ index 2e2c9a875dd09..716630689b088 100644
 +      /*honor_js_content_settings=*/false);
 +}
 +
-+// Helper to perform a click with change detection and retrying
-+bool ClickWithDetection(content::WebContents* web_contents,
-+                        const NodeInfo& node_info) {
-+  // First try coordinate-based click with change detection
-+  gfx::PointF click_point = GetNodeCenterPoint(web_contents, node_info);
-+  
-+  bool changed = BrowserOSChangeDetector::ExecuteWithDetection(
-+      web_contents,
-+      [&]() { PointClick(web_contents, click_point); },
-+      base::Milliseconds(300));
-+  
-+  // If no change detected, try HTML click as fallback
-+  if (!changed) {
-+    LOG(INFO) << "[browseros] No change from coordinate click, trying HTML click";
-+    changed = BrowserOSChangeDetector::ExecuteWithDetection(
-+        web_contents,
-+        [&]() { HtmlClick(web_contents, node_info); },
-+        base::Milliseconds(200));
++// Helper to perform accessibility action: DoDefault (click)
++bool AccessibilityDoDefault(content::WebContents* web_contents,
++                            const NodeInfo& node_info) {
++  content::RenderFrameHost* rfh = web_contents->GetPrimaryMainFrame();
++  if (!rfh) {
++    LOG(WARNING) << "[browseros] No RenderFrameHost for AccessibilityDoDefault";
++    return false;
    }
    
 -  return change_result;
++  ui::AXActionData action_data;
++  action_data.action = ax::mojom::Action::kDoDefault;
++  action_data.target_node_id = node_info.ax_node_id;
++  action_data.target_tree_id = node_info.ax_tree_id;
++  
++  LOG(INFO) << "[browseros] Performing AccessibilityDoDefault on node " 
++            << node_info.ax_node_id;
++  
++  rfh->AccessibilityPerformAction(action_data);
++  return true;
++}
++
++// Helper to perform accessibility action: Focus
++bool AccessibilityFocus(content::WebContents* web_contents,
++                       const NodeInfo& node_info) {
++  content::RenderFrameHost* rfh = web_contents->GetPrimaryMainFrame();
++  if (!rfh) {
++    LOG(WARNING) << "[browseros] No RenderFrameHost for AccessibilityFocus";
++    return false;
++  }
++  
++  ui::AXActionData action_data;
++  action_data.action = ax::mojom::Action::kFocus;
++  action_data.target_node_id = node_info.ax_node_id;
++  action_data.target_tree_id = node_info.ax_tree_id;
++  
++  LOG(INFO) << "[browseros] Performing AccessibilityFocus on node " 
++            << node_info.ax_node_id;
++  
++  rfh->AccessibilityPerformAction(action_data);
++  return true;
++}
++
++// Helper to perform accessibility action: ScrollToMakeVisible
++bool AccessibilityScrollToMakeVisible(content::WebContents* web_contents,
++                                      const NodeInfo& node_info,
++                                      bool center_in_viewport) {
++  content::RenderFrameHost* rfh = web_contents->GetPrimaryMainFrame();
++  if (!rfh) {
++    LOG(WARNING) << "[browseros] No RenderFrameHost for AccessibilityScrollToMakeVisible";
++    return false;
++  }
++  
++  ui::AXActionData action_data;
++  action_data.action = ax::mojom::Action::kScrollToMakeVisible;
++  action_data.target_node_id = node_info.ax_node_id;
++  action_data.target_tree_id = node_info.ax_tree_id;
++  
++  // Center the element in viewport for better visibility
++  if (center_in_viewport) {
++    action_data.horizontal_scroll_alignment = ax::mojom::ScrollAlignment::kScrollAlignmentCenter;
++    action_data.vertical_scroll_alignment = ax::mojom::ScrollAlignment::kScrollAlignmentCenter;
++  } else {
++    action_data.horizontal_scroll_alignment = ax::mojom::ScrollAlignment::kScrollAlignmentClosestEdge;
++    action_data.vertical_scroll_alignment = ax::mojom::ScrollAlignment::kScrollAlignmentClosestEdge;
++  }
++  
++  // Use kScrollIfVisible to only scroll if needed
++  action_data.scroll_behavior = ax::mojom::ScrollBehavior::kScrollIfVisible;
++  
++  LOG(INFO) << "[browseros] Performing AccessibilityScrollToMakeVisible on node " 
++            << node_info.ax_node_id;
++  
++  rfh->AccessibilityPerformAction(action_data);
++  return true;
++}
++
++// Helper to perform a click with change detection and retrying
++bool ClickWithDetection(content::WebContents* web_contents,
++                        const NodeInfo& node_info) {
++  // Check if node is out of viewport and needs scrolling
++  auto viewport_it = node_info.attributes.find("in_viewport");
++  bool is_out_of_viewport = (viewport_it != node_info.attributes.end() && 
++                              viewport_it->second == "false");
++  
++  if (is_out_of_viewport) {
++    LOG(INFO) << "[browseros] Node is out of viewport, scrolling to make visible";
++    AccessibilityScrollToMakeVisible(web_contents, node_info, true /* center */);
++    // Wait for scroll to complete
++    base::PlatformThread::Sleep(base::Milliseconds(300));
++  }
++  
++  // First try accessibility action kDoDefault (most reliable click method)
++  LOG(INFO) << "[browseros] Trying AccessibilityDoDefault click";
++  bool changed = BrowserOSChangeDetector::ExecuteWithDetection(
++      web_contents,
++      [&]() { AccessibilityDoDefault(web_contents, node_info); },
++      base::Milliseconds(300));
++  
++  if (!changed) {
++    if (is_out_of_viewport) {
++      // Node was out of viewport - coordinates are unreliable even after scroll
++      // Skip coordinate click and go straight to HTML click
++      LOG(INFO) << "[browseros] Node was out of viewport, skipping coordinate click, trying HTML click";
++      changed = BrowserOSChangeDetector::ExecuteWithDetection(
++          web_contents,
++          [&]() { HtmlClick(web_contents, node_info); },
++          base::Milliseconds(200));
++    } else {
++      // Node is in viewport - coordinates are valid, try coordinate click
++      LOG(INFO) << "[browseros] No change from accessibility click, trying coordinate click";
++      gfx::PointF click_point = GetNodeCenterPoint(web_contents, node_info);
++      
++      changed = BrowserOSChangeDetector::ExecuteWithDetection(
++          web_contents,
++          [&]() { PointClick(web_contents, click_point); },
++          base::Milliseconds(300));
++      
++      // If coordinate click failed, try HTML click as final fallback
++      if (!changed) {
++        LOG(INFO) << "[browseros] No change from coordinate click, trying HTML click";
++        changed = BrowserOSChangeDetector::ExecuteWithDetection(
++            web_contents,
++            [&]() { HtmlClick(web_contents, node_info); },
++            base::Milliseconds(200));
++      }
++    }
++  }
++  
 +  LOG(INFO) << "[browseros] Click result: " << (changed ? "changed" : "no change");
 +  return changed;
++}
++
++// Helper to perform accessibility action: SetValue
++bool AccessibilitySetValue(content::WebContents* web_contents,
++                           const NodeInfo& node_info,
++                           const std::string& text) {
++  content::RenderFrameHost* rfh = web_contents->GetPrimaryMainFrame();
++  if (!rfh) {
++    LOG(WARNING) << "[browseros] No RenderFrameHost for AccessibilitySetValue";
++    return false;
++  }
++  
++  ui::AXActionData action_data;
++  action_data.action = ax::mojom::Action::kSetValue;
++  action_data.target_node_id = node_info.ax_node_id;
++  action_data.target_tree_id = node_info.ax_tree_id;
++  action_data.value = text;
++  
++  LOG(INFO) << "[browseros] Performing AccessibilitySetValue on node " 
++            << node_info.ax_node_id << " with text: " << text;
++  
++  rfh->AccessibilityPerformAction(action_data);
++  return true;
 +}
 +
 +// Helper to perform typing with change detection
 +bool TypeWithDetection(content::WebContents* web_contents,
 +                      const NodeInfo& node_info,
 +                      const std::string& text) {
-+  // Get center point for visualization and clicking
-+  gfx::PointF click_point = GetNodeCenterPoint(web_contents, node_info);
++  // Check if node is out of viewport and needs scrolling
++  auto viewport_it = node_info.attributes.find("in_viewport");
++  bool is_out_of_viewport = (viewport_it != node_info.attributes.end() && 
++                              viewport_it->second == "false");
 +  
-+  // Try native typing first (more natural interaction)
++  if (is_out_of_viewport) {
++    LOG(INFO) << "[browseros] Node is out of viewport for typing, scrolling to make visible";
++    AccessibilityScrollToMakeVisible(web_contents, node_info, true /* center */);
++    // Wait for scroll to complete
++    base::PlatformThread::Sleep(base::Milliseconds(300));
++  }
++  
++  // First try accessibility actions: Focus then SetValue (most reliable)
++  LOG(INFO) << "[browseros] Trying accessibility Focus + SetValue for typing";
 +  bool changed = BrowserOSChangeDetector::ExecuteWithDetection(
 +      web_contents,
 +      [&]() {
 +        // Focus the element first
-+        HtmlFocus(web_contents, node_info);
-+        // Click to ensure activation
-+        PointClick(web_contents, click_point);
-+        // Then type using native IME
-+        NativeType(web_contents, text);
++        AccessibilityFocus(web_contents, node_info);
++        // Small delay to ensure focus is set
++        base::PlatformThread::Sleep(base::Milliseconds(50));
++        // Then set the value
++        AccessibilitySetValue(web_contents, node_info, text);
 +      },
 +      base::Milliseconds(300));
 +  
-+  // If no change, try JavaScript typing as fallback
++  // If no change detected, try native typing as fallback
++  if (!changed) {
++    LOG(INFO) << "[browseros] No change from accessibility SetValue, trying native typing";
++    changed = BrowserOSChangeDetector::ExecuteWithDetection(
++        web_contents,
++        [&]() {
++          // Element should already be focused from AccessibilityFocus
++          // Just type using native IME
++          NativeType(web_contents, text);
++        },
++        base::Milliseconds(300));
++  }
++  
++  // If still no change, try JavaScript typing as final fallback
 +  if (!changed) {
 +    LOG(INFO) << "[browseros] No change from native type, trying JavaScript";
 +    changed = BrowserOSChangeDetector::ExecuteWithDetection(
@@ -1082,7 +1282,7 @@ index 2e2c9a875dd09..716630689b088 100644
  
  }  // namespace api
 diff --git a/chrome/browser/extensions/api/browser_os/browser_os_api_helpers.h b/chrome/browser/extensions/api/browser_os/browser_os_api_helpers.h
-index ab8eb164a11c3..6bbf3d9fc33d0 100644
+index ab8eb164a11c3..b5fd204753973 100644
 --- a/chrome/browser/extensions/api/browser_os/browser_os_api_helpers.h
 +++ b/chrome/browser/extensions/api/browser_os/browser_os_api_helpers.h
 @@ -8,11 +8,11 @@
@@ -1118,7 +1318,7 @@ index ab8eb164a11c3..6bbf3d9fc33d0 100644
  // Helper to create and dispatch mouse events for clicking
  void PointClick(content::WebContents* web_contents, 
                    const gfx::PointF& point);
-@@ -28,6 +41,10 @@ void PointClick(content::WebContents* web_contents,
+@@ -28,6 +41,34 @@ void PointClick(content::WebContents* web_contents,
  void HtmlClick(content::WebContents* web_contents,
                        const NodeInfo& node_info);
  
@@ -1126,10 +1326,34 @@ index ab8eb164a11c3..6bbf3d9fc33d0 100644
 +void HtmlFocus(content::WebContents* web_contents,
 +                      const NodeInfo& node_info);
 +
++// Helper to perform accessibility action: DoDefault (click)
++// Returns true if action was sent successfully
++bool AccessibilityDoDefault(content::WebContents* web_contents,
++                            const NodeInfo& node_info);
++
++// Helper to perform accessibility action: Focus
++// Returns true if action was sent successfully
++bool AccessibilityFocus(content::WebContents* web_contents,
++                       const NodeInfo& node_info);
++
++// Helper to perform accessibility action: ScrollToMakeVisible
++// center_in_viewport: if true, centers element in viewport; otherwise uses closest edge
++// Returns true if action was sent successfully
++bool AccessibilityScrollToMakeVisible(content::WebContents* web_contents,
++                                      const NodeInfo& node_info,
++                                      bool center_in_viewport = true);
++
++// Helper to perform accessibility action: SetValue
++// Sets the value of an input field or editable element
++// Returns true if action was sent successfully
++bool AccessibilitySetValue(content::WebContents* web_contents,
++                           const NodeInfo& node_info,
++                           const std::string& text);
++
  // Helper to perform scroll actions using mouse wheel events
  void Scroll(content::WebContents* web_contents,
                     int delta_x,
-@@ -38,14 +55,44 @@ void Scroll(content::WebContents* web_contents,
+@@ -38,14 +79,44 @@ void Scroll(content::WebContents* web_contents,
  void KeyPress(content::WebContents* web_contents,
                      const std::string& key);
  
@@ -1836,7 +2060,7 @@ index f4a902e1b4970..b3287913fd5ac 100644
    base::WeakPtrFactory<BrowserOSChangeDetector> weak_factory_{this};
  };
 diff --git a/chrome/browser/extensions/api/browser_os/browser_os_snapshot_processor.cc b/chrome/browser/extensions/api/browser_os/browser_os_snapshot_processor.cc
-index ee9da99ed9bc7..90fa3d17874fc 100644
+index ee9da99ed9bc7..8dfc0cce77512 100644
 --- a/chrome/browser/extensions/api/browser_os/browser_os_snapshot_processor.cc
 +++ b/chrome/browser/extensions/api/browser_os/browser_os_snapshot_processor.cc
 @@ -23,8 +23,13 @@
@@ -1853,7 +2077,7 @@ index ee9da99ed9bc7..90fa3d17874fc 100644
  #include "ui/accessibility/ax_tree_id.h"
  #include "ui/accessibility/ax_tree_update.h"
  #include "ui/gfx/geometry/rect.h"
-@@ -35,77 +40,39 @@
+@@ -35,77 +40,45 @@
  namespace extensions {
  namespace api {
  
@@ -1869,30 +2093,35 @@ index ee9da99ed9bc7..90fa3d17874fc 100644
 -    if (cache_it != bounds_cache->end()) {
 -      return cache_it->second;
 -    }
--  }
--  // Compute absolute bounds by walking up the tree
--  gfx::RectF absolute_bounds = node_data.relative_bounds.bounds;
--  gfx::Transform accumulated_transform;
--  
--  // Apply this node's transform if it has one
--  if (node_data.relative_bounds.transform) {
--    accumulated_transform = *node_data.relative_bounds.transform;
 +// Static method to compute bounds for a node using AXTree
 +// This implements the same logic as BrowserAccessibility::GetBoundsRect
 +gfx::Rect SnapshotProcessor::GetNodeBounds(
 +    ui::AXTree* tree,
 +    const ui::AXNode* node,
 +    const ui::AXCoordinateSystem coordinate_system,
-+    const ui::AXClippingBehavior clipping_behavior) {
++    const ui::AXClippingBehavior clipping_behavior,
++    bool* out_offscreen) {
 +  if (!tree || !node) {
 +    return gfx::Rect();
    }
+-  // Compute absolute bounds by walking up the tree
+-  gfx::RectF absolute_bounds = node_data.relative_bounds.bounds;
+-  gfx::Transform accumulated_transform;
+   
+-  // Apply this node's transform if it has one
+-  if (node_data.relative_bounds.transform) {
+-    accumulated_transform = *node_data.relative_bounds.transform;
+-  }
++  // Start with empty bounds (same as GetBoundsRect does)
++  gfx::RectF bounds;
    
 -  // Walk up the tree to compute absolute position
 -  int32_t current_container_id = node_data.relative_bounds.offset_container_id;
 -  int walk_depth = 0;
-+  // Start with empty bounds (same as GetBoundsRect does)
-+  gfx::RectF bounds;
++  // Apply RelativeToTreeBounds to get absolute bounds
++  const bool clip_bounds = clipping_behavior == ui::AXClippingBehavior::kClipped;
++  bool offscreen = false;
++  bounds = tree->RelativeToTreeBounds(node, bounds, &offscreen, clip_bounds);
    
 -  while (current_container_id >= 0 && walk_depth < 100) {  // Prevent infinite loops
 -    auto container_it = node_map.find(current_container_id);
@@ -1924,11 +2153,10 @@ index ee9da99ed9bc7..90fa3d17874fc 100644
 -    // Move to next container
 -    current_container_id = container.relative_bounds.offset_container_id;
 -    walk_depth++;
--  }
-+  // Apply RelativeToTreeBounds to get absolute bounds
-+  const bool clip_bounds = clipping_behavior == ui::AXClippingBehavior::kClipped;
-+  bool offscreen = false;
-+  bounds = tree->RelativeToTreeBounds(node, bounds, &offscreen, clip_bounds);
++  // Return offscreen status to caller
++  if (out_offscreen) {
++    *out_offscreen = offscreen;
+   }
    
 -  // Apply accumulated transform
 -  if (!accumulated_transform.IsIdentity()) {
@@ -1955,7 +2183,85 @@ index ee9da99ed9bc7..90fa3d17874fc 100644
  // ProcessedNode implementation
  SnapshotProcessor::ProcessedNode::ProcessedNode()
      : node_data(nullptr), node_id(0) {}
-@@ -234,13 +201,13 @@ struct SnapshotProcessor::ProcessingContext
+@@ -121,77 +94,6 @@ SnapshotProcessor::ProcessedNode::~ProcessedNode() = default;
+ 
+ namespace {
+ 
+-// Check if a node should create a section (container roles)
+-[[maybe_unused]]
+-bool IsContainer(ax::mojom::Role role) {
+-  return role == ax::mojom::Role::kMain ||
+-         role == ax::mojom::Role::kArticle ||
+-         role == ax::mojom::Role::kSection ||
+-         role == ax::mojom::Role::kNavigation ||
+-         role == ax::mojom::Role::kForm ||
+-         role == ax::mojom::Role::kDialog ||
+-         role == ax::mojom::Role::kSearch ||
+-         role == ax::mojom::Role::kRegion ||
+-         role == ax::mojom::Role::kBanner ||      // header
+-         role == ax::mojom::Role::kContentInfo || // footer
+-         role == ax::mojom::Role::kComplementary || // aside
+-         role == ax::mojom::Role::kHeading ||
+-         role == ax::mojom::Role::kList ||
+-         role == ax::mojom::Role::kListItem ||    // product cards
+-         role == ax::mojom::Role::kGrid ||
+-         role == ax::mojom::Role::kTable;
+-}
+-
+-// Get a readable name for the section
+-[[maybe_unused]]
+-std::string GetSectionName(const ui::AXNodeData& node) {
+-  std::string name;
+-  if (node.HasStringAttribute(ax::mojom::StringAttribute::kName)) {
+-    name = node.GetStringAttribute(ax::mojom::StringAttribute::kName);
+-  }
+-  
+-  // Add role description
+-  std::string role_desc;
+-  switch (node.role) {
+-    case ax::mojom::Role::kNavigation:
+-      role_desc = "navigation";
+-      break;
+-    case ax::mojom::Role::kMain:
+-      role_desc = "main";
+-      break;
+-    case ax::mojom::Role::kBanner:
+-      role_desc = "header";
+-      break;
+-    case ax::mojom::Role::kContentInfo:
+-      role_desc = "footer";
+-      break;
+-    case ax::mojom::Role::kForm:
+-      role_desc = "form";
+-      break;
+-    case ax::mojom::Role::kList:
+-      role_desc = "list";
+-      break;
+-    case ax::mojom::Role::kListItem:
+-      role_desc = "listitem";
+-      break;
+-    case ax::mojom::Role::kHeading:
+-      role_desc = "heading";
+-      break;
+-    default:
+-      role_desc = "section";  // Generic fallback
+-  }
+-  
+-  if (!name.empty()) {
+-    return name + " (" + role_desc + ")";
+-  } else {
+-    // Capitalize first letter
+-    if (!role_desc.empty()) {
+-      role_desc[0] = std::toupper(role_desc[0]);
+-    }
+-    return role_desc;
+-  }
+-}
+-
+ // Helper to sanitize strings to ensure valid UTF-8 by keeping only printable ASCII
+ std::string SanitizeStringForOutput(const std::string& input) {
+   std::string output;
+@@ -234,13 +136,13 @@ struct SnapshotProcessor::ProcessingContext
    std::unordered_map<int32_t, ui::AXNodeData> node_map;
    std::unordered_map<int32_t, int32_t> parent_map;  // child_id -> parent_id  
    std::unordered_map<int32_t, std::vector<int32_t>> children_map;  // parent_id -> child_ids
@@ -1970,7 +2276,7 @@ index ee9da99ed9bc7..90fa3d17874fc 100644
    base::OnceCallback<void(SnapshotProcessingResult)> callback;
    
   private:
-@@ -414,15 +381,11 @@ void PopulateNodeAttributes(
+@@ -414,15 +316,11 @@ void PopulateNodeAttributes(
  std::vector<SnapshotProcessor::ProcessedNode> SnapshotProcessor::ProcessNodeBatch(
      const std::vector<ui::AXNodeData>& nodes_to_process,
      const std::unordered_map<int32_t, ui::AXNodeData>& node_map,
@@ -1988,7 +2294,7 @@ index ee9da99ed9bc7..90fa3d17874fc 100644
    uint32_t current_node_id = start_node_id;
    
    for (const auto& node_data : nodes_to_process) {
-@@ -450,9 +413,32 @@ std::vector<SnapshotProcessor::ProcessedNode> SnapshotProcessor::ProcessNodeBatc
+@@ -450,9 +348,35 @@ std::vector<SnapshotProcessor::ProcessedNode> SnapshotProcessor::ProcessNodeBatc
        data.name = SanitizeStringForOutput(name);
      }
  
@@ -1996,6 +2302,7 @@ index ee9da99ed9bc7..90fa3d17874fc 100644
 -    data.absolute_bounds = ComputeAbsoluteBoundsFromRelative(
 -        node_data, node_map, &bounds_cache);
 +    // Compute bounds using AXTree
++    bool is_offscreen = false;
 +    if (ax_tree) {
 +      ui::AXNode* ax_node = ax_tree->GetFromId(node_data.id);
 +      if (ax_node) {
@@ -2007,11 +2314,13 @@ index ee9da99ed9bc7..90fa3d17874fc 100644
 +            // Use clipped bounds so the center lies within the visible area of
 +            // scrolled/clip containers. This matches how clicks should target
 +            // on-screen rects.
-+            ui::AXClippingBehavior::kClipped);
++            ui::AXClippingBehavior::kClipped,
++            &is_offscreen);
 +        data.absolute_bounds = gfx::RectF(bounds);
 +        
 +        VLOG(3) << "[browseros] Node " << node_data.id 
-+                << " computed bounds: " << bounds.ToString();
++                << " computed bounds: " << bounds.ToString()
++                << " offscreen: " << is_offscreen;
 +      } else {
 +        // Node not found in AXTree, skip bounds computation
 +        VLOG(3) << "[browseros] Node " << node_data.id 
@@ -2024,7 +2333,7 @@ index ee9da99ed9bc7..90fa3d17874fc 100644
      
      // Populate all attributes using helper function
      PopulateNodeAttributes(node_data, data.attributes);
-@@ -473,15 +459,9 @@ std::vector<SnapshotProcessor::ProcessedNode> SnapshotProcessor::ProcessNodeBatc
+@@ -473,15 +397,10 @@ std::vector<SnapshotProcessor::ProcessedNode> SnapshotProcessor::ProcessNodeBatc
      }
      data.attributes["depth"] = std::to_string(depth);
      
@@ -2037,13 +2346,14 @@ index ee9da99ed9bc7..90fa3d17874fc 100644
 -      in_viewport = doc_viewport_bounds.Intersects(node_rect);
 -    }
 -    data.attributes["in_viewport"] = in_viewport ? "true" : "false";
-+    // TODO: Fix viewport detection logic
-+    // For now, mark all nodes as potentially in viewport
-+    data.attributes["in_viewport"] = "unknown";
++    // Set viewport status based on offscreen flag
++    // Note: offscreen=false means the node IS in viewport (at least partially visible)
++    // offscreen=true means the node is NOT in viewport (completely hidden)
++    data.attributes["in_viewport"] = is_offscreen ? "false" : "true";
      
      results.push_back(std::move(data));
    }
-@@ -594,6 +574,24 @@ void SnapshotProcessor::ProcessAccessibilityTree(
+@@ -594,6 +513,24 @@ void SnapshotProcessor::ProcessAccessibilityTree(
      }
    }
    
@@ -2068,7 +2378,7 @@ index ee9da99ed9bc7..90fa3d17874fc 100644
    // Prepare processing context using RefCounted
    auto context = base::MakeRefCounted<ProcessingContext>();
    context->snapshot.snapshot_id = snapshot_id;
-@@ -602,6 +600,7 @@ void SnapshotProcessor::ProcessAccessibilityTree(
+@@ -602,6 +539,7 @@ void SnapshotProcessor::ProcessAccessibilityTree(
    context->node_map = std::move(node_map);
    context->parent_map = std::move(parent_map); 
    context->children_map = std::move(children_map);
@@ -2076,7 +2386,7 @@ index ee9da99ed9bc7..90fa3d17874fc 100644
    context->start_time = start_time;
    
    // Store the tree ID for change detection
-@@ -609,35 +608,11 @@ void SnapshotProcessor::ProcessAccessibilityTree(
+@@ -609,35 +547,11 @@ void SnapshotProcessor::ProcessAccessibilityTree(
      context->tree_id = tree_update.tree_data.tree_id;
    }
    
@@ -2114,7 +2424,7 @@ index ee9da99ed9bc7..90fa3d17874fc 100644
    // Collect all nodes to process and filter
    std::vector<ui::AXNodeData> nodes_to_process;
    for (const auto& node : tree_update.nodes) {
-@@ -681,9 +656,9 @@ void SnapshotProcessor::ProcessAccessibilityTree(
+@@ -681,9 +595,9 @@ void SnapshotProcessor::ProcessAccessibilityTree(
          {base::TaskPriority::USER_VISIBLE},
          base::BindOnce(&SnapshotProcessor::ProcessNodeBatch, 
                         std::move(batch), 
@@ -2128,7 +2438,7 @@ index ee9da99ed9bc7..90fa3d17874fc 100644
                         context));
    }
 diff --git a/chrome/browser/extensions/api/browser_os/browser_os_snapshot_processor.h b/chrome/browser/extensions/api/browser_os/browser_os_snapshot_processor.h
-index 5e1114c40fe89..c78655b6ae515 100644
+index 5e1114c40fe89..2c14673b4d1c1 100644
 --- a/chrome/browser/extensions/api/browser_os/browser_os_snapshot_processor.h
 +++ b/chrome/browser/extensions/api/browser_os/browser_os_snapshot_processor.h
 @@ -16,8 +16,12 @@
@@ -2144,7 +2454,7 @@ index 5e1114c40fe89..c78655b6ae515 100644
  }  // namespace ui
  
  namespace extensions {
-@@ -65,16 +69,24 @@ class SnapshotProcessor {
+@@ -65,16 +69,25 @@ class SnapshotProcessor {
        base::OnceCallback<void(SnapshotProcessingResult)> callback);
  
    // Process a batch of nodes (exposed for testing)
@@ -2166,13 +2476,14 @@ index 5e1114c40fe89..c78655b6ae515 100644
 +  static gfx::Rect GetNodeBounds(ui::AXTree* tree, 
 +                                  const ui::AXNode* node,
 +                                  const ui::AXCoordinateSystem coordinate_system,
-+                                  const ui::AXClippingBehavior clipping_behavior);
++                                  const ui::AXClippingBehavior clipping_behavior,
++                                  bool* out_offscreen = nullptr);
 +  
    // Batch processing callback
    static void OnBatchProcessed(scoped_refptr<ProcessingContext> context,
                                 std::vector<ProcessedNode> batch_results);
 diff --git a/chrome/common/extensions/api/browser_os.idl b/chrome/common/extensions/api/browser_os.idl
-index 6934ee144987d..3f07a6c29a373 100644
+index 6934ee144987d..a8cbf0250d19a 100644
 --- a/chrome/common/extensions/api/browser_os.idl
 +++ b/chrome/common/extensions/api/browser_os.idl
 @@ -72,25 +72,17 @@ namespace browserOS {
@@ -2256,7 +2567,7 @@ index 6934ee144987d..3f07a6c29a373 100644
  
      // Gets the page load status for a tab
      // |tabId|: The tab to check. Defaults to active tab.
-@@ -265,7 +275,7 @@ namespace browserOS {
+@@ -265,13 +275,16 @@ namespace browserOS {
      static void sendKeys(
          optional long tabId,
          DOMString key,
@@ -2265,7 +2576,16 @@ index 6934ee144987d..3f07a6c29a373 100644
          
      // Captures a screenshot of the tab as a thumbnail
      // |tabId|: The tab to capture. Defaults to active tab.
-@@ -284,6 +294,44 @@ namespace browserOS {
++    // |thumbnailSize|: Optional max dimension for the thumbnail. If not provided, uses viewport size.
++    //                  The actual size will be the minimum of this value and the viewport dimensions.
+     // |callback|: Called with the screenshot as a data URL.
+     static void captureScreenshot(
+         optional long tabId,
++        optional long thumbnailSize,
+         CaptureScreenshotCallback callback);
+ 
+     // Gets a content snapshot of the specified type from the page
+@@ -284,6 +297,44 @@ namespace browserOS {
          SnapshotType type,
          optional SnapshotOptions options,
          GetSnapshotCallback callback);
