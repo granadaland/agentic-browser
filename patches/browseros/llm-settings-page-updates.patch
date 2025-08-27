@@ -1,4 +1,4 @@
-From e0b0324ca429c0c70bd641af4a22c327b30dc44e Mon Sep 17 00:00:00 2001
+From 68099aba7baceaf76faebb634a5e86658fdf1b28 Mon Sep 17 00:00:00 2001
 From: Nikhil Sonti <nikhilsv92@gmail.com>
 Date: Thu, 21 Aug 2025 11:42:22 -0700
 Subject: [PATCH] llm settings page: updates
@@ -6,10 +6,10 @@ Subject: [PATCH] llm settings page: updates
 ---
  chrome/browser/resources/settings/BUILD.gn    |   1 +
  .../settings/nxtscape_page/models_data.html   |   0
- .../settings/nxtscape_page/models_data.ts     | 279 ++++++++++
- .../settings/nxtscape_page/nxtscape_page.html | 370 ++++++++++++-
- .../settings/nxtscape_page/nxtscape_page.ts   | 505 +++++++++++++++++-
- 5 files changed, 1130 insertions(+), 25 deletions(-)
+ .../settings/nxtscape_page/models_data.ts     | 279 +++++++++
+ .../settings/nxtscape_page/nxtscape_page.html | 370 +++++++++++-
+ .../settings/nxtscape_page/nxtscape_page.ts   | 543 +++++++++++++++++-
+ 5 files changed, 1164 insertions(+), 29 deletions(-)
  create mode 100644 chrome/browser/resources/settings/nxtscape_page/models_data.html
  create mode 100644 chrome/browser/resources/settings/nxtscape_page/models_data.ts
 
@@ -779,7 +779,7 @@ index 9a429f31f43a0..6680e841cbb1e 100644
                          on-click="onEditProvider_"
                          data-provider-id$="[[item.id]]">
 diff --git a/chrome/browser/resources/settings/nxtscape_page/nxtscape_page.ts b/chrome/browser/resources/settings/nxtscape_page/nxtscape_page.ts
-index f33e0463b1bfa..23c81a3b71814 100644
+index f33e0463b1bfa..99c366e7c4e44 100644
 --- a/chrome/browser/resources/settings/nxtscape_page/nxtscape_page.ts
 +++ b/chrome/browser/resources/settings/nxtscape_page/nxtscape_page.ts
 @@ -21,11 +21,13 @@ import {PrefsMixin} from '/shared/settings/prefs/prefs_mixin.js';
@@ -910,7 +910,7 @@ index f33e0463b1bfa..23c81a3b71814 100644
 +  {
 +    name: 'LM Studio',
 +    type: ProviderType.OPENAI_COMPATIBLE,
-+    baseUrl: 'http://localhost:1234/v1',
++    baseUrl: 'http://localhost:1234/v1/',
 +    modelId: 'openai/gpt-oss-20b',
 +    capabilities: { supportsImages: false },
 +    modelConfig: { contextWindow: 131072, temperature: 0.7 },
@@ -958,7 +958,7 @@ index f33e0463b1bfa..23c81a3b71814 100644
      };
    }
  
-@@ -200,6 +306,11 @@ export class SettingsNxtscapePageElement extends SettingsNxtscapePageElementBase
+@@ -200,10 +306,16 @@ export class SettingsNxtscapePageElement extends SettingsNxtscapePageElementBase
    private declare dialogContextWindow_: number;
    private declare dialogTemperature_: number;
    private declare isTestingConnection_: boolean;
@@ -970,7 +970,25 @@ index f33e0463b1bfa..23c81a3b71814 100644
  
    override ready() {
      super.ready();
-@@ -225,6 +336,11 @@ export class SettingsNxtscapePageElement extends SettingsNxtscapePageElementBase
+-    this.loadProviders_();
++    // Don't load providers immediately - wait for prefs to be available
++    // The onPrefsChanged_ observer will handle initial load
+   }
+ 
+   private onPrefsChanged_() {
+@@ -214,8 +326,9 @@ export class SettingsNxtscapePageElement extends SettingsNxtscapePageElementBase
+ 
+   private loadProviders_() {
+     // Load from preferences or initialize with BrowserOS
+-    if (!this.prefs || !this.prefs.browseros) {
+-      this.initializeDefaultProviders_();
++    if (!this.prefs || !this.prefs.browseros || !this.prefs.browseros.providers) {
++      // Prefs not ready yet, initialize defaults locally only
++      this.initializeDefaultProvidersLocally_();
+       return;
+     }
+     
+@@ -225,6 +338,11 @@ export class SettingsNxtscapePageElement extends SettingsNxtscapePageElementBase
          const data = JSON.parse(stored.value) as AIProviderPreferences;
          this.providers_ = data.providers;
          this.defaultProviderId_ = data.defaultProviderId;
@@ -982,9 +1000,29 @@ index f33e0463b1bfa..23c81a3b71814 100644
        } catch (e) {
          this.initializeDefaultProviders_();
        }
-@@ -234,14 +350,16 @@ export class SettingsNxtscapePageElement extends SettingsNxtscapePageElementBase
+@@ -233,23 +351,54 @@ export class SettingsNxtscapePageElement extends SettingsNxtscapePageElementBase
+     }
    }
  
++  private initializeDefaultProvidersLocally_() {
++    // Initialize providers locally without saving to prefs (prefs not ready)
++    const now = new Date().toISOString();
++    
++    const browseros: ProviderConfig = {
++      id: 'browseros',
++      name: 'BrowserOS',
++      type: ProviderType.BROWSEROS,
++      isDefault: true,
++      isBuiltIn: true,
++      createdAt: now,
++      updatedAt: now,
++    };
++    
++    this.providers_ = [browseros];
++    this.defaultProviderId_ = 'browseros';
++    // Don't save yet - prefs aren't ready
++  }
++
    private initializeDefaultProviders_() {
 +    const now = new Date().toISOString();
 +    
@@ -1001,7 +1039,26 @@ index f33e0463b1bfa..23c81a3b71814 100644
      };
      
      this.providers_ = [browseros];
-@@ -273,7 +391,7 @@ export class SettingsNxtscapePageElement extends SettingsNxtscapePageElementBase
+     this.defaultProviderId_ = 'browseros';
+-    this.saveProviders_();
++    
++    // Only save if prefs are ready
++    if (this.prefs && this.prefs.browseros && this.prefs.browseros.providers !== undefined) {
++      this.saveProviders_();
++    }
+   }
+ 
+   private saveProviders_() {
++    // Safety check: don't save if prefs aren't ready
++    if (!this.prefs || !this.prefs.browseros || this.prefs.browseros.providers === undefined) {
++      console.warn('browseros: Cannot save providers - prefs not ready');
++      return;
++    }
++    
+     const data: AIProviderPreferences = {
+       defaultProviderId: this.defaultProviderId_,
+       providers: this.providers_,
+@@ -273,7 +422,7 @@ export class SettingsNxtscapePageElement extends SettingsNxtscapePageElementBase
      
      if (this.showProviderForm_) {
        this.set('editingProvider_', null);
@@ -1010,7 +1067,7 @@ index f33e0463b1bfa..23c81a3b71814 100644
        this.set('dialogProviderName_', '');
        this.set('dialogBaseUrl_', '');
        this.set('dialogApiKey_', '');
-@@ -282,8 +400,16 @@ export class SettingsNxtscapePageElement extends SettingsNxtscapePageElementBase
+@@ -282,8 +431,16 @@ export class SettingsNxtscapePageElement extends SettingsNxtscapePageElementBase
        this.set('dialogContextWindow_', 128000);
        this.set('dialogTemperature_', 0.7);
        
@@ -1028,7 +1085,7 @@ index f33e0463b1bfa..23c81a3b71814 100644
      }
      
      console.log('browseros: Form visibility:', this.showProviderForm_);
-@@ -306,7 +432,15 @@ export class SettingsNxtscapePageElement extends SettingsNxtscapePageElementBase
+@@ -306,7 +463,15 @@ export class SettingsNxtscapePageElement extends SettingsNxtscapePageElementBase
      this.set('dialogContextWindow_', provider.modelConfig?.contextWindow || 128000);
      this.set('dialogTemperature_', provider.modelConfig?.temperature || 0.7);
      
@@ -1044,7 +1101,7 @@ index f33e0463b1bfa..23c81a3b71814 100644
    }
  
    private onDeleteProvider_(e: Event) {
-@@ -317,6 +451,7 @@ export class SettingsNxtscapePageElement extends SettingsNxtscapePageElementBase
+@@ -317,6 +482,7 @@ export class SettingsNxtscapePageElement extends SettingsNxtscapePageElementBase
      
      console.log('browseros: Delete provider clicked:', providerId, provider);
      
@@ -1052,7 +1109,7 @@ index f33e0463b1bfa..23c81a3b71814 100644
      if (!provider || provider.isBuiltIn) return;
      
      // Delete immediately without confirmation
-@@ -357,6 +492,252 @@ export class SettingsNxtscapePageElement extends SettingsNxtscapePageElementBase
+@@ -357,6 +523,252 @@ export class SettingsNxtscapePageElement extends SettingsNxtscapePageElementBase
        this.set('dialogContextWindow_', defaults.modelConfig?.contextWindow || 128000);
        this.set('dialogTemperature_', defaults.modelConfig?.temperature || 0.7);
      }
@@ -1305,7 +1362,7 @@ index f33e0463b1bfa..23c81a3b71814 100644
    }
  
    private async testConnection_() {
-@@ -396,6 +777,7 @@ export class SettingsNxtscapePageElement extends SettingsNxtscapePageElementBase
+@@ -396,6 +808,7 @@ export class SettingsNxtscapePageElement extends SettingsNxtscapePageElementBase
            },
            updatedAt: now,
          };
@@ -1313,7 +1370,7 @@ index f33e0463b1bfa..23c81a3b71814 100644
          this.set(`providers_.${index}`, updated);
        }
      } else {
-@@ -465,6 +847,51 @@ export class SettingsNxtscapePageElement extends SettingsNxtscapePageElementBase
+@@ -465,6 +878,51 @@ export class SettingsNxtscapePageElement extends SettingsNxtscapePageElementBase
      this.set('showProviderForm_', false);
      this.editingProvider_ = null;
    }
@@ -1365,7 +1422,7 @@ index f33e0463b1bfa..23c81a3b71814 100644
  
    private onDefaultProviderChange_(e: Event) {
      const select = e.target as HTMLSelectElement;
-@@ -503,6 +930,7 @@ export class SettingsNxtscapePageElement extends SettingsNxtscapePageElementBase
+@@ -503,6 +961,7 @@ export class SettingsNxtscapePageElement extends SettingsNxtscapePageElementBase
    private getProviderIcon_(type: ProviderType): string {
      const icons: Record<ProviderType, string> = {
        [ProviderType.BROWSEROS]: 'B',
@@ -1373,7 +1430,7 @@ index f33e0463b1bfa..23c81a3b71814 100644
        [ProviderType.OPENAI_COMPATIBLE]: 'O',
        [ProviderType.ANTHROPIC]: 'A',
        [ProviderType.GOOGLE_GEMINI]: 'G',
-@@ -523,6 +951,59 @@ export class SettingsNxtscapePageElement extends SettingsNxtscapePageElementBase
+@@ -523,6 +982,58 @@ export class SettingsNxtscapePageElement extends SettingsNxtscapePageElementBase
      }
      return classes;
    }
@@ -1411,8 +1468,7 @@ index f33e0463b1bfa..23c81a3b71814 100644
 +    this.set('dialogContextWindow_', template.modelConfig.contextWindow);
 +    this.set('dialogTemperature_', template.modelConfig.temperature);
 +    
-+    // Update model suggestions
-+    this.onProviderTypeChange_();
++    // Update model suggestions (but don't call onProviderTypeChange_ as it would overwrite template values)
 +    this.updateModelSuggestions_();
 +    
 +    // Reset dropdown state
@@ -1433,7 +1489,7 @@ index f33e0463b1bfa..23c81a3b71814 100644
  
    private getProviderSubtitle_(provider: ProviderConfig): string {
      if (provider.type === ProviderType.BROWSEROS) {
-@@ -554,6 +1035,10 @@ export class SettingsNxtscapePageElement extends SettingsNxtscapePageElementBase
+@@ -554,6 +1065,10 @@ export class SettingsNxtscapePageElement extends SettingsNxtscapePageElementBase
    private getFormCardClass_(show: boolean): string {
      return show ? 'show' : '';
    }
