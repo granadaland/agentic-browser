@@ -622,7 +622,7 @@ export class BrowserAgent {
     const observationPrompt = getReactObservationPrompt(screenshot, browserState, state.currentFocus);
     
     // Trim prompt if needed to fit token limits
-    const trimmedPrompt = trimToMaxTokens(observationPrompt, this.executionContext, 1000);
+    const trimmedPrompt = trimToMaxTokens(observationPrompt, this.executionContext);  // Uses default 20% reserve
     const explanation = await llm.invoke(trimmedPrompt);
     
     const observation: Observation = {
@@ -651,7 +651,7 @@ export class BrowserAgent {
     const prompt = getReactThinkingPrompt(context, observation.explanation, toolNames);
     
     // Trim prompt if needed to fit token limits
-    const trimmedPrompt = trimToMaxTokens(prompt, this.executionContext, 1000);
+    const trimmedPrompt = trimToMaxTokens(prompt, this.executionContext);  // Uses default 20% reserve
     
     // Define schema for structured thinking
     const ThoughtSchema = z.object({
@@ -737,7 +737,7 @@ Use the ${thought.toolName} tool to accomplish this.`;
     );
     
     // Trim prompt if needed to fit token limits
-    const trimmedPrompt = trimToMaxTokens(prompt, this.executionContext, 500);
+    const trimmedPrompt = trimToMaxTokens(prompt, this.executionContext, 0.125);  // 12.5% reserve
     
     const response = await llm.invoke(trimmedPrompt);
     return response.content as string;
