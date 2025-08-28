@@ -1,10 +1,8 @@
 <div align="center">
-
-# 
 <img src="https://pub-b52e24a001bd463a848cb2d8c8667f63.r2.dev/browseros-banner.png" alt="backed-by-yc" >
 
 ### Your browser, with AI superpowers 🚀
-
+<br></br>
 [![Discord](https://img.shields.io/badge/Discord-Join%20us-blue)](https://discord.gg/YKwjt5vuKr)
 [![Twitter](https://img.shields.io/twitter/follow/browserOS_ai?style=social)](https://twitter.com/browseros_ai)
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)
@@ -24,6 +22,7 @@
 
 </div>
 
+## 
 🌐 BrowserOS is an open-source chromium based browser that runs AI agents locally. **Your privacy-first alternative to Perplexity Comet**.
 
 🔒 Privacy first - use your own API keys or run local models with Ollama. Your data stays on your computer.
