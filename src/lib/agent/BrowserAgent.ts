@@ -84,6 +84,7 @@ import { HumanInputResponse } from '@/lib/pubsub/types';
 import { Logging } from '@/lib/utils/Logging';
 import { z } from 'zod';
 import { trimToMaxTokens } from '@/lib/utils/llmUtils';
+import { jsonParseToolOutput } from '@/lib/utils/utils';
 import { 
   Observation, 
   Thought, 
@@ -331,10 +332,10 @@ export class BrowserAgent {
     try {
       // Tool start notification not needed in new pub-sub system
       const result = await classificationTool.func(args);
-      const parsedResult = JSON.parse(result);
+      const parsedResult = jsonParseToolOutput(result);
       
       if (parsedResult.ok) {
-        const classification = JSON.parse(parsedResult.output);
+        const classification = parsedResult.output;
         // Tool end notification not needed in new pub-sub system
         return { 
           is_simple_task: classification.is_simple_task,
@@ -432,7 +433,7 @@ export class BrowserAgent {
       let currentTodos = '';
       if (todoTool) {
         const result = await todoTool.func({ action: 'get' });
-        const parsedResult = JSON.parse(result);
+        const parsedResult = jsonParseToolOutput(result);
         currentTodos = parsedResult.output || '';
         this.pubsub.publishMessage(PubSub.createMessage(currentTodos, 'thinking'));
       }
@@ -492,7 +493,7 @@ export class BrowserAgent {
         // Update currentTodos for the next iteration
         if (todoTool) {
           const result = await todoTool.func({ action: 'get' });
-          const parsedResult = JSON.parse(result);
+          const parsedResult = jsonParseToolOutput(result);
           currentTodos = parsedResult.output || '';
         }
       }
@@ -594,7 +595,7 @@ export class BrowserAgent {
     
     try {
       const screenshotResult = await screenshotTool.func({});
-      const parsedScreenshot = JSON.parse(screenshotResult);
+      const parsedScreenshot = jsonParseToolOutput(screenshotResult);
       if (parsedScreenshot.ok) {
         screenshot = parsedScreenshot.output?.screenshot || '';  // Base64 encoded
       }
@@ -604,11 +605,11 @@ export class BrowserAgent {
     
     // Get browser state using refresh_state tool (every cycle as requested)
     let browserState: any = {};
-    const refreshTool = this.toolManager.get('refresh_state_tool');
+    const refreshTool = this.toolManager.get('refresh_browser_state_tool');
     if (refreshTool) {
       try {
         const stateResult = await refreshTool.func({});
-        const parsedState = JSON.parse(stateResult);
+        const parsedState = jsonParseToolOutput(stateResult);
         if (parsedState.ok) {
           browserState = parsedState.output || {};
         }
@@ -696,7 +697,10 @@ export class BrowserAgent {
     
 Use the ${thought.toolName} tool to accomplish this.`;
     
-    const response = await llmWithTools.invoke(actionPrompt);
+    // Trim prompt if needed to fit token limits
+    const trimmedPrompt = trimToMaxTokens(actionPrompt, this.executionContext, 0.15);  // 15% reserve for tool binding
+    
+    const response = await llmWithTools.invoke(trimmedPrompt);
     
     // Process the tool calls if any were generated
     if (response.tool_calls && response.tool_calls.length > 0) {
@@ -858,7 +862,7 @@ Use the ${thought.toolName} tool to accomplish this.`;
       await this._maybeStartGlowAnimation(toolName);
 
       const toolResult = await tool.func(args);
-      const parsedResult = JSON.parse(toolResult);
+      const parsedResult = jsonParseToolOutput(toolResult);
       
 
       // Add the result back to the message history for context
@@ -908,7 +912,7 @@ Use the ${thought.toolName} tool to accomplish this.`;
 
     // Tool start for planner - not needed
     const result = await plannerTool.func(args);
-    const parsedResult = JSON.parse(result);
+    const parsedResult = jsonParseToolOutput(result);
     
     // Check for errors first
     if (!parsedResult.ok) {
@@ -944,18 +948,18 @@ Use the ${thought.toolName} tool to accomplish this.`;
     try {
       // Tool start for validator - not needed
       const result = await validatorTool.func(args);
-      const parsedResult = JSON.parse(result);
+      const parsedResult = jsonParseToolOutput(result);
       
       // Publish validator result
       if (parsedResult.ok) {
-        const validationData = JSON.parse(parsedResult.output);
+        const validationData = parsedResult.output;
         const status = validationData.isComplete ? 'Complete' : 'Incomplete';
         this.pubsub.publishMessage(PubSub.createMessage(`Task validation: ${status}`, 'thinking'));
       }
       
       if (parsedResult.ok) {
-        // Parse the validation data from output
-        const validationData = JSON.parse(parsedResult.output);
+        // Use the validation data from output
+        const validationData = parsedResult.output;
         return {
           isComplete: validationData.isComplete,
           reasoning: validationData.reasoning,
@@ -986,7 +990,7 @@ Use the ${thought.toolName} tool to accomplish this.`;
     try {
       const args = { task };
       const result = await resultTool.func(args);
-      const parsedResult = JSON.parse(result);
+      const parsedResult = jsonParseToolOutput(result);
       
       if (parsedResult.ok && parsedResult.output) {
         const { message } = parsedResult.output;

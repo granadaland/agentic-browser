@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { createValidatorTool } from './ValidatorTool'
 import { MessageManager } from '@/lib/runtime/MessageManager'
+import { jsonParseToolOutput } from '@/lib/utils/utils'
 
 describe('ValidatorTool-unit-test', () => {
   let mockExecutionContext: any
@@ -73,7 +74,7 @@ describe('ValidatorTool-unit-test', () => {
     
     const tool = createValidatorTool(mockExecutionContext)
     const result = await tool.func({ task: 'Submit the form' })
-    const parsedResult = JSON.parse(result)
+    const parsedResult = jsonParseToolOutput(result)
     
     expect(parsedResult.ok).toBe(false)
     expect(parsedResult.output).toContain('LLM service unavailable')
@@ -82,11 +83,11 @@ describe('ValidatorTool-unit-test', () => {
   it('tests that the tool returns isComplete field in output', async () => {
     const tool = createValidatorTool(mockExecutionContext)
     const result = await tool.func({ task: 'Submit the form' })
-    const parsedResult = JSON.parse(result)
+    const parsedResult = jsonParseToolOutput(result)
     
     expect(parsedResult.ok).toBe(true)
     
-    const validationData = JSON.parse(parsedResult.output)
+    const validationData = parsedResult.output
     expect(validationData).toHaveProperty('isComplete')
     expect(validationData.isComplete).toBe(true)  // Based on our mock
     expect(validationData).toHaveProperty('reasoning')
@@ -142,7 +143,7 @@ describe('ValidatorTool-unit-test', () => {
     
     const tool = createValidatorTool(mockExecutionContext)
     const result = await tool.func({ task: 'Navigate to checkout page' })
-    const parsedResult = JSON.parse(result)
+    const parsedResult = jsonParseToolOutput(result)
     
     // Should still succeed even if screenshot fails
     expect(parsedResult.ok).toBe(true)
@@ -175,7 +176,7 @@ describe('ValidatorTool-unit-test', () => {
     
     const tool = createValidatorTool(mockExecutionContext)
     const result = await tool.func({ task: 'Navigate to checkout page' })
-    const parsedResult = JSON.parse(result)
+    const parsedResult = jsonParseToolOutput(result)
     
     // Should still succeed even if no current page
     expect(parsedResult.ok).toBe(true)
@@ -303,10 +304,10 @@ Typeable elements:
         task: 'Order toothpaste from Amazon'
       })
       
-      const parsedResult = JSON.parse(result)
+      const parsedResult = jsonParseToolOutput(result)
       expect(parsedResult.ok).toBe(true)
       
-      const validationData = JSON.parse(parsedResult.output)
+      const validationData = parsedResult.output
       
       // Should NOT be complete - item is in cart but not ordered
       expect(validationData.isComplete).toBe(false)

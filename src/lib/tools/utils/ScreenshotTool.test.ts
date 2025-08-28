@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { createScreenshotTool } from './ScreenshotTool'
+import { jsonParseToolOutput } from '@/lib/utils/utils'
 
 describe('ScreenshotTool-unit-test', () => {
   // Test 1: Tool creation
@@ -55,9 +56,9 @@ describe('ScreenshotTool-unit-test', () => {
     expect(mockPage.takeScreenshot).toHaveBeenCalled()
 
     // Verify result structure
-    const parsed = JSON.parse(result)
+    const parsed = jsonParseToolOutput(result)
     expect(parsed.ok).toBe(true)
-    const outputData = JSON.parse(parsed.output)
+    const outputData = parsed.output
     expect(outputData.message).toBe('Captured screenshot of the page.')
     expect(outputData.screenshot).toBe('data:image/jpeg;base64,base64imagedata123')
   })
