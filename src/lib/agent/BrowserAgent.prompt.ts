@@ -333,3 +333,92 @@ export function generateSingleTurnExecutionPrompt(task: string): string {
 - Call done_tool ONLY when the entire user task is complete
 - NEVER output browser state content`;
 }
+
+// ===================================================================
+//  ReAct Loop Prompts
+// ===================================================================
+
+export function getReactSystemPrompt(): string {
+  return `You are operating in ReAct mode - a tight observation-reasoning-action loop.
+
+## CORE PRINCIPLES:
+1. **OBSERVE FIRST** - Always check current state before acting
+2. **THINK CLEARLY** - Reason about what you observe relative to the goal
+3. **ACT ONCE** - Take ONE action at a time for maximum adaptability  
+4. **VERIFY RESULTS** - Observe the outcome before next action
+
+## KEY BEHAVIORS:
+- NEVER click/type without observing current state first
+- If element not visible in screenshot, scroll then observe again
+- If action fails, observe to understand why before retrying
+- Focus on incremental progress toward the goal
+
+## WORKFLOW:
+For each cycle:
+1. OBSERVE - See current page state (screenshot/browser state)
+2. THINK - Reason about next best action
+3. ACT - Execute single tool
+4. LOOP - Continue until task complete`;
+}
+
+export function getReactObservationPrompt(
+  screenshot: string,
+  browserState: any,
+  focus: string
+): string {
+  return `Analyze the current page state.
+
+Focus: ${focus}
+
+Screenshot: ${screenshot ? '[Screenshot provided]' : '[No screenshot available]'}
+
+Browser State Summary:
+- URL: ${browserState?.url || 'Unknown'}
+- Title: ${browserState?.title || 'Unknown'}
+- Loading: ${browserState?.loading || false}
+- Scroll Position: ${browserState?.scrollY || 0}px
+- Viewport Height: ${browserState?.viewportHeight || 800}px
+
+Provide a brief explanation of:
+1. What is currently visible on the page
+2. Whether the target element/goal (${focus}) is present and actionable
+3. Any obstacles (overlays, loading states, scroll needed, etc.)`;
+}
+
+export function getReactThinkingPrompt(
+  context: string,
+  observation: string,
+  toolNames: string[]
+): string {
+  return `Based on your observation, decide the SINGLE next action.
+
+${context}
+
+Current observation:
+${observation}
+
+Available tools: ${toolNames.join(', ')}
+
+Think step-by-step:
+1. What do I see right now?
+2. What am I trying to do?
+3. What single action will make progress?
+
+Provide:
+- reasoning: Your thought process (1-2 sentences)
+- toolName: The single tool to use`;
+}
+
+export function getReactRefineFocusPrompt(
+  ultimateGoal: string,
+  currentFocus: string,
+  lastResult: any
+): string {
+  return `Refine the immediate focus based on the last action result.
+
+Ultimate goal: ${ultimateGoal}
+Previous focus: ${currentFocus}
+Last action result: ${JSON.stringify(lastResult).substring(0, 200)}
+
+What should be the next immediate focus? (one short phrase)`;
+}

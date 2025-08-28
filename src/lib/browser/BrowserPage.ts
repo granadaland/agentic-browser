@@ -630,10 +630,8 @@ export class BrowserPage {
 
   async takeScreenshot(): Promise<string | null> {
     try {
-      const dataUrl = await this._browserOS.captureScreenshot(this._tabId);
-      // Extract base64 data from data URL (remove the data:image/jpeg;base64, prefix)
-      const base64Data = dataUrl.split(',')[1] || dataUrl;
-      return base64Data;
+      // Return the full data URL directly from BrowserOS
+      return await this._browserOS.captureScreenshot(this._tabId);
     } catch (error) {
       Logging.log('BrowserPage', `Failed to take screenshot: ${error}`, 'error');
       return null;

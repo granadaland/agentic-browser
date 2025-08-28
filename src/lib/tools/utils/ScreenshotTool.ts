@@ -48,32 +48,31 @@ Screenshots help you see what's on the page and make better decisions.`,
         // TODO(nithin): Add support for multiple screenshot sizes (256x256, 512x512)
         // Currently only supports 1024x1024. Smaller sizes would use less tokens.
         
-        // Emit status message
         executionContext.getPubSub().publishMessage(PubSub.createMessage(`Capturing screenshot of current page`, 'thinking'))
 
-        // Get the current page from execution context
         const page = await executionContext.browserContext.getCurrentPage()
-        
         if (!page) {
           const error = 'No active page found to take screenshot'
           Logging.log('ScreenshotTool', error, 'error')
           return JSON.stringify(toolError(error))
         }
 
-        // Take the screenshot
-        const base64Data = await page.takeScreenshot()
-        
-        if (!base64Data) {
+        const screenshotDataUrl = await page.takeScreenshot()
+        if (!screenshotDataUrl) {
           const error = 'Failed to capture screenshot - no data returned'
           Logging.log('ScreenshotTool', error, 'error')
           return JSON.stringify(toolError(error))
         }
         
-        Logging.log('ScreenshotTool', `Screenshot captured successfully (${base64Data.length} bytes)`, 'info')
+        Logging.log('ScreenshotTool', `Screenshot captured successfully (${screenshotDataUrl.length} bytes)`, 'info')
         
-        
-        // Return success with the base64 data in the output message
-        return JSON.stringify(toolSuccess(`Captured screenshot of the page.`))
+        // Return success with the actual screenshot data so LLM can see it
+        // Include the screenshot in the output as a JSON object
+        const result = {
+          message: 'Captured screenshot of the page.',
+          screenshot: screenshotDataUrl
+        }
+        return JSON.stringify(toolSuccess(JSON.stringify(result)))
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error)
         Logging.log('ScreenshotTool', `Error capturing screenshot: ${errorMessage}`, 'error')

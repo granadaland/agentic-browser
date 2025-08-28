@@ -66,7 +66,14 @@ import { createResultTool } from '@/lib/tools/result/ResultTool';
 import { createHumanInputTool } from '@/lib/tools/utils/HumanInputTool';
 import { createDateTool } from '@/lib/tools/utility/DateTool';
 import { createMCPTool } from '@/lib/tools/mcp/MCPTool';
-import { generateSystemPrompt, generateSingleTurnExecutionPrompt } from './BrowserAgent.prompt';
+import { 
+  generateSystemPrompt, 
+  generateSingleTurnExecutionPrompt,
+  getReactSystemPrompt,
+  getReactObservationPrompt,
+  getReactThinkingPrompt,
+  getReactRefineFocusPrompt
+} from './BrowserAgent.prompt';
 import { AIMessage, AIMessageChunk } from '@langchain/core/messages';
 import { PLANNING_CONFIG } from '@/lib/tools/planning/PlannerTool.config';
 import { AbortError } from '@/lib/utils/Abortable';
@@ -75,6 +82,16 @@ import { NarratorService } from '@/lib/services/NarratorService';
 import { PubSub } from '@/lib/pubsub'; // For static helper methods
 import { HumanInputResponse } from '@/lib/pubsub/types';
 import { Logging } from '@/lib/utils/Logging';
+import { z } from 'zod';
+import { trimToMaxTokens } from '@/lib/utils/llmUtils';
+import { jsonParseToolOutput } from '@/lib/utils/utils';
+import { 
+  Observation, 
+  Thought, 
+  ReactState, 
+  ReactStateImpl,
+  REACT_CONFIG 
+} from './ReactLoopImpl';
 
 // Type Definitions
 interface Plan {
@@ -95,6 +112,7 @@ interface SingleTurnResult {
   doneToolCalled: boolean;
   requirePlanningCalled: boolean;
   requiresHumanInput: boolean;
+  success?: boolean;  // Add for React loop
 }
 
 export class BrowserAgent {
@@ -222,7 +240,8 @@ export class BrowserAgent {
       if (classification.is_simple_task) {
         await this._executeSimpleTaskStrategy(task);
       } else {
-        await this._executeMultiStepStrategy(task);
+        // Use ReAct strategy instead of multi-step for complex tasks
+        await this._executeReactStrategy(task);
       }
 
       // 5. FINALISE: Generate final result
@@ -313,10 +332,10 @@ export class BrowserAgent {
     try {
       // Tool start notification not needed in new pub-sub system
       const result = await classificationTool.func(args);
-      const parsedResult = JSON.parse(result);
+      const parsedResult = jsonParseToolOutput(result);
       
       if (parsedResult.ok) {
-        const classification = JSON.parse(parsedResult.output);
+        const classification = parsedResult.output;
         // Tool end notification not needed in new pub-sub system
         return { 
           is_simple_task: classification.is_simple_task,
@@ -414,7 +433,7 @@ export class BrowserAgent {
       let currentTodos = '';
       if (todoTool) {
         const result = await todoTool.func({ action: 'get' });
-        const parsedResult = JSON.parse(result);
+        const parsedResult = jsonParseToolOutput(result);
         currentTodos = parsedResult.output || '';
         this.pubsub.publishMessage(PubSub.createMessage(currentTodos, 'thinking'));
       }
@@ -474,7 +493,7 @@ export class BrowserAgent {
         // Update currentTodos for the next iteration
         if (todoTool) {
           const result = await todoTool.func({ action: 'get' });
-          const parsedResult = JSON.parse(result);
+          const parsedResult = jsonParseToolOutput(result);
           currentTodos = parsedResult.output || '';
         }
       }
@@ -495,6 +514,237 @@ export class BrowserAgent {
     }
 
     throw new Error(`Task did not complete within ${BrowserAgent.MAX_STEPS_OUTER_LOOP} planning cycles.`);
+  }
+
+  // ===================================================================
+  //  Execution Strategy 3: ReAct Loop (Observation → Thinking → Action)
+  // ===================================================================
+  private async _executeReactStrategy(task: string): Promise<void> {
+    // Add React-specific system message
+    this.messageManager.addSystem(getReactSystemPrompt());
+    this.pubsub.publishMessage(PubSub.createMessage('Starting ReAct execution loop...', 'thinking'));
+    
+    // Outer validation loop
+    for (let validationAttempt = 0; validationAttempt < REACT_CONFIG.MAX_VALIDATION_ATTEMPTS; validationAttempt++) {
+      this.checkIfAborted();
+      
+      // Initialize state for this validation attempt
+      const state = new ReactStateImpl(task);
+      
+      // Inner React loop
+      for (let cycle = 0; cycle < REACT_CONFIG.MAX_REACT_CYCLES; cycle++) {
+        this.checkIfAborted();
+        
+        // Check for loops
+        if (this._detectLoop()) {
+          console.warn('Detected repetitive behavior. Breaking to re-validate.');
+          break;  // Break inner loop to trigger validation
+        }
+        
+        // 1. OBSERVE - See current state
+        const observation = await this._observe(state);
+        
+        // 2. THINK - Decide next action based on observation
+        const thought = await this._think(state, observation);
+        
+        // 3. ACT - Execute the action
+        const actionResult = await this._act(thought);
+        
+        // 4. UPDATE - Record this cycle
+        state.addCycle(observation, thought, actionResult);
+        
+        // 5. CHECK - See if we're done
+        if (actionResult.doneToolCalled) {
+          return;  // Task complete, exit entire strategy
+        }
+        
+        // Update focus based on result
+        if (actionResult.requirePlanningCalled || !actionResult.success) {
+          state.currentFocus = await this._refineFocus(state, actionResult);
+        }
+      }
+      
+      // After inner loop, validate if task is complete
+      const validationResult = await this._validateTaskCompletion(task);
+      if (validationResult.isComplete) {
+        return;  // Task validated as complete
+      }
+      
+      // Add validation feedback for next attempt
+      if (validationResult.suggestions.length > 0) {
+        const validationMessage = `Validation result: ${validationResult.reasoning}\nSuggestions for next attempt: ${validationResult.suggestions.join(', ')}`;
+        this.messageManager.addAI(validationMessage);
+        this.pubsub.publishMessage(PubSub.createMessage(`Validation: Task incomplete. Retrying with adjustments...`, 'thinking'));
+      }
+    }
+    
+    throw new Error(`Task incomplete after ${REACT_CONFIG.MAX_VALIDATION_ATTEMPTS} validation attempts`);
+  }
+
+  /**
+   * Observe the current state using screenshot and browser state tools
+   */
+  private async _observe(state: ReactState): Promise<Observation> {
+    // Take a screenshot using existing tool
+    const screenshotTool = this.toolManager.get('screenshot_tool');
+    if (!screenshotTool) {
+      throw new Error('Screenshot tool not available');
+    }
+    
+    let screenshot = '';
+    
+    try {
+      const screenshotResult = await screenshotTool.func({});
+      const parsedScreenshot = jsonParseToolOutput(screenshotResult);
+      if (parsedScreenshot.ok) {
+        screenshot = parsedScreenshot.output?.screenshot || '';  // Base64 encoded
+      }
+    } catch (error) {
+      console.warn('Failed to capture screenshot:', error);
+    }
+    
+    // Get browser state using refresh_state tool (every cycle as requested)
+    let browserState: any = {};
+    const refreshTool = this.toolManager.get('refresh_browser_state_tool');
+    if (refreshTool) {
+      try {
+        const stateResult = await refreshTool.func({});
+        const parsedState = jsonParseToolOutput(stateResult);
+        if (parsedState.ok) {
+          browserState = parsedState.output || {};
+        }
+      } catch (error) {
+        console.warn('Failed to get browser state:', error);
+      }
+    }
+    
+    // Get observation explanation from LLM
+    const llm = await this.executionContext.getLLM();
+    const observationPrompt = getReactObservationPrompt(screenshot, browserState, state.currentFocus);
+    
+    // Trim prompt if needed to fit token limits
+    const trimmedPrompt = trimToMaxTokens(observationPrompt, this.executionContext);  // Uses default 20% reserve
+    const explanation = await llm.invoke(trimmedPrompt);
+    
+    const observation: Observation = {
+      screenshot: screenshot,
+      browserState: browserState,
+      explanation: explanation.content as string
+    };
+    
+    // Publish observation
+    this.pubsub.publishMessage(
+      PubSub.createMessage(`Observing: ${observation.explanation.substring(0, 150)}...`, 'thinking')
+    );
+    
+    return observation;
+  }
+
+  /**
+   * Think about the next action based on observation
+   */
+  private async _think(state: ReactState, observation: Observation): Promise<Thought> {
+    const llm = await this.executionContext.getLLM();
+    
+    // Build context and get thinking prompt
+    const context = state.getContext();
+    const toolNames = this.toolManager.getAll().map(tool => tool.name);
+    const prompt = getReactThinkingPrompt(context, observation.explanation, toolNames);
+    
+    // Trim prompt if needed to fit token limits
+    const trimmedPrompt = trimToMaxTokens(prompt, this.executionContext);  // Uses default 20% reserve
+    
+    // Define schema for structured thinking
+    const ThoughtSchema = z.object({
+      reasoning: z.string().describe('Your thought process (1-2 sentences)'),
+      toolName: z.string().describe('The single tool to use')
+    });
+    
+    // Get structured thought from LLM
+    const structuredLLM = llm.withStructuredOutput(ThoughtSchema);
+    const result = await structuredLLM.invoke(trimmedPrompt);
+    
+    // Cast to Thought type
+    const thought: Thought = {
+      reasoning: result.reasoning,
+      toolName: result.toolName
+    };
+    
+    // Publish thinking
+    this.pubsub.publishMessage(
+      PubSub.createMessage(`Thinking: ${thought.reasoning}`, 'thinking')
+    );
+    
+    return thought;
+  }
+
+  /**
+   * Execute action using the existing tool processing infrastructure
+   */
+  private async _act(thought: Thought): Promise<SingleTurnResult> {
+    // Publish action intent
+    this.pubsub.publishMessage(
+      PubSub.createMessage(`Acting: ${thought.toolName}`, 'assistant')
+    );
+    
+    // Generate proper tool call using LLM with tool binding
+    const llm = await this.executionContext.getLLM();
+    if (!llm.bindTools || typeof llm.bindTools !== 'function') {
+      throw new Error('This LLM does not support tool binding');
+    }
+    const llmWithTools = llm.bindTools(this.toolManager.getAll());
+    const actionPrompt = `Execute this action: ${thought.reasoning}
+    
+Use the ${thought.toolName} tool to accomplish this.`;
+    
+    // Trim prompt if needed to fit token limits
+    const trimmedPrompt = trimToMaxTokens(actionPrompt, this.executionContext, 0.15);  // 15% reserve for tool binding
+    
+    const response = await llmWithTools.invoke(trimmedPrompt);
+    
+    // Process the tool calls if any were generated
+    if (response.tool_calls && response.tool_calls.length > 0) {
+      // Add the AIMessage with tool_calls to maintain proper history
+      this.messageManager.add(response);
+      const result = await this._processToolCalls(response.tool_calls);
+      
+      return {
+        ...result,
+        success: !result.requirePlanningCalled  // Success if no replanning needed
+      };
+    }
+    
+    // If no tool calls were generated, return failure
+    return {
+      doneToolCalled: false,
+      requirePlanningCalled: true,
+      requiresHumanInput: false,
+      success: false
+    };
+  }
+
+  /**
+   * Refine focus based on last action result
+   */
+  private async _refineFocus(state: ReactState, result: SingleTurnResult): Promise<string> {
+    // Simple focus refinement based on last action result
+    if (!result.success) {
+      return `Retry: ${state.currentFocus}`;
+    }
+    
+    // Ask LLM for next focus area
+    const llm = await this.executionContext.getLLM();
+    const prompt = getReactRefineFocusPrompt(
+      state.ultimateGoal,
+      state.currentFocus,
+      result
+    );
+    
+    // Trim prompt if needed to fit token limits
+    const trimmedPrompt = trimToMaxTokens(prompt, this.executionContext, 0.125);  // 12.5% reserve
+    
+    const response = await llm.invoke(trimmedPrompt);
+    return response.content as string;
   }
 
   // ===================================================================
@@ -612,7 +862,7 @@ export class BrowserAgent {
       await this._maybeStartGlowAnimation(toolName);
 
       const toolResult = await tool.func(args);
-      const parsedResult = JSON.parse(toolResult);
+      const parsedResult = jsonParseToolOutput(toolResult);
       
 
       // Add the result back to the message history for context
@@ -662,7 +912,7 @@ export class BrowserAgent {
 
     // Tool start for planner - not needed
     const result = await plannerTool.func(args);
-    const parsedResult = JSON.parse(result);
+    const parsedResult = jsonParseToolOutput(result);
     
     // Check for errors first
     if (!parsedResult.ok) {
@@ -698,18 +948,18 @@ export class BrowserAgent {
     try {
       // Tool start for validator - not needed
       const result = await validatorTool.func(args);
-      const parsedResult = JSON.parse(result);
+      const parsedResult = jsonParseToolOutput(result);
       
       // Publish validator result
       if (parsedResult.ok) {
-        const validationData = JSON.parse(parsedResult.output);
+        const validationData = parsedResult.output;
         const status = validationData.isComplete ? 'Complete' : 'Incomplete';
         this.pubsub.publishMessage(PubSub.createMessage(`Task validation: ${status}`, 'thinking'));
       }
       
       if (parsedResult.ok) {
-        // Parse the validation data from output
-        const validationData = JSON.parse(parsedResult.output);
+        // Use the validation data from output
+        const validationData = parsedResult.output;
         return {
           isComplete: validationData.isComplete,
           reasoning: validationData.reasoning,
@@ -740,7 +990,7 @@ export class BrowserAgent {
     try {
       const args = { task };
       const result = await resultTool.func(args);
-      const parsedResult = JSON.parse(result);
+      const parsedResult = jsonParseToolOutput(result);
       
       if (parsedResult.ok && parsedResult.output) {
         const { message } = parsedResult.output;
