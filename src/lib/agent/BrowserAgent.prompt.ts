@@ -368,16 +368,11 @@ export function getReactObservationPrompt(
 ): string {
   return `Analyze the current page state.
 
-Focus: ${focus}
+currentFocus: ${focus}
 
-Screenshot: ${screenshot ? '[Screenshot provided]' : '[No screenshot available]'}
+Here is the screenshot of the page encoded as base64: ${screenshot ? screenshot : 'No screenshot available'}
 
-Browser State Summary:
-- URL: ${browserState?.url || 'Unknown'}
-- Title: ${browserState?.title || 'Unknown'}
-- Loading: ${browserState?.loading || false}
-- Scroll Position: ${browserState?.scrollY || 0}px
-- Viewport Height: ${browserState?.viewportHeight || 800}px
+Here is the browser state of the current page we are on: ${browserState}
 
 Provide a brief explanation of:
 1. What is currently visible on the page
