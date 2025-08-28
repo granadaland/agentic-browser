@@ -125,9 +125,9 @@ export function createValidatorTool(executionContext: ExecutionContext): Dynamic
           try {
             const currentPage = await executionContext.browserContext.getCurrentPage()
             if (currentPage) {
-              const screenshotBase64 = await currentPage.takeScreenshot()
-              if (screenshotBase64) {
-                screenshot = `data:image/jpeg;base64,${screenshotBase64}`
+              const screenshotDataUrl = await currentPage.takeScreenshot()
+              if (screenshotDataUrl) {
+                screenshot = screenshotDataUrl  // Already a complete data URL
               }
             }
           } catch (error) {
