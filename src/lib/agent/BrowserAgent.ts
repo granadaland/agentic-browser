@@ -76,6 +76,7 @@ import { PubSub } from '@/lib/pubsub'; // For static helper methods
 import { PubSubChannel } from '@/lib/pubsub/PubSubChannel';
 import { HumanInputResponse, PubSubEvent } from '@/lib/pubsub/types';
 import { Logging } from '@/lib/utils/Logging';
+import { jsonParseToolOutput } from '@/lib/utils/utils';
 
 // Type Definitions
 interface Plan {
