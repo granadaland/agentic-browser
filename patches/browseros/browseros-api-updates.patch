@@ -1,4 +1,4 @@
-From 222f305971a2ba2290785cc6bd9f3d704e835f3e Mon Sep 17 00:00:00 2001
+From 96da30fbba8a0a68bfc7b7a3e600cdb03757d8b6 Mon Sep 17 00:00:00 2001
 From: Nikhil Sonti <nikhilsv92@gmail.com>
 Date: Tue, 5 Aug 2025 15:22:49 -0700
 Subject: [PATCH] browseros api updates: version, metric, click, prefs,
@@ -8,7 +8,7 @@ Subject: [PATCH] browseros api updates: version, metric, click, prefs,
  chrome/browser/extensions/BUILD.gn            |   1 +
  .../api/browser_os/browser_os_api.cc          | 316 ++++++--
  .../api/browser_os/browser_os_api.h           |  66 ++
- .../api/browser_os/browser_os_api_helpers.cc  | 710 ++++++++++++++++--
+ .../api/browser_os/browser_os_api_helpers.cc  | 708 ++++++++++++++++--
  .../api/browser_os/browser_os_api_helpers.h   |  85 ++-
  .../api/browser_os/browser_os_api_utils.cc    |  54 --
  .../api/browser_os/browser_os_api_utils.h     |   6 -
@@ -18,7 +18,7 @@ Subject: [PATCH] browseros api updates: version, metric, click, prefs,
  .../browser_os_snapshot_processor.h           |  17 +-
  chrome/common/extensions/api/browser_os.idl   |  81 +-
  .../extension_function_histogram_value.h      |   5 +
- 13 files changed, 1417 insertions(+), 648 deletions(-)
+ 13 files changed, 1416 insertions(+), 647 deletions(-)
 
 diff --git a/chrome/browser/extensions/BUILD.gn b/chrome/browser/extensions/BUILD.gn
 index 7ca2a1a3f6f86..9d3bafb63caeb 100644
@@ -498,7 +498,7 @@ index 6090d2fbeb6a4..27721d9b0b9a0 100644
  }  // namespace extensions
  
 diff --git a/chrome/browser/extensions/api/browser_os/browser_os_api_helpers.cc b/chrome/browser/extensions/api/browser_os/browser_os_api_helpers.cc
-index 2e2c9a875dd09..18d6aa50233a7 100644
+index 2e2c9a875dd09..d05a75dd626e9 100644
 --- a/chrome/browser/extensions/api/browser_os/browser_os_api_helpers.cc
 +++ b/chrome/browser/extensions/api/browser_os/browser_os_api_helpers.cc
 @@ -14,11 +14,14 @@
@@ -916,29 +916,8 @@ index 2e2c9a875dd09..18d6aa50233a7 100644
 +                      std::vector<ui::ImeTextSpan>(),
 +                      gfx::Range::InvalidRange(),
 +                      0);  // relative_cursor_pos = 0 means after the text
- }
- 
--// Helper to perform a click with change detection and retrying
--ChangeDetectionResult Click(content::WebContents* web_contents,
--                           const NodeInfo& node_info) {
--  // Create change detector and start monitoring
--  auto change_detector = std::make_unique<BrowserOSChangeDetector>(web_contents);
--  change_detector->StartMonitoring(node_info.ax_tree_id);
--  
--  // Perform the click action using coordinate-based click
--  gfx::PointF click_point(
--      node_info.bounds.x() + node_info.bounds.width() / 2.0f,
--      node_info.bounds.y() + node_info.bounds.height() / 2.0f);
--  PointClick(web_contents, click_point);
--  
--  // Wait for changes with timeout
--  ChangeDetectionResult change_result = 
--      change_detector->WaitForChanges(base::Milliseconds(500));
--  
--  // If no change detected via coordinate click, try HTML click as fallback
--  if (!change_result.detected) {
--    VLOG(1) << "No change detected with coordinate click, trying HTML click";
--    HtmlClick(web_contents, node_info);
++}
++
 +// Helper to set text value using JavaScript
 +void JavaScriptType(content::WebContents* web_contents,
 +                    const NodeInfo& node_info,
@@ -984,9 +963,7 @@ index 2e2c9a875dd09..18d6aa50233a7 100644
 +        class_selector[i] = '.';
 +      }
 +    }
-     
--    // Wait again for changes
--    change_result = change_detector->WaitForChanges(base::Milliseconds(300));
++    
 +    js_code += u"  var elements = document.querySelectorAll('" + 
 +               base::UTF8ToUTF16(tag_it->second + class_selector) + u"');";
 +    js_code += u"  if (elements.length > 0) {";
@@ -1018,9 +995,8 @@ index 2e2c9a875dd09..18d6aa50233a7 100644
 +  if (!rfh) {
 +    LOG(WARNING) << "[browseros] No RenderFrameHost for AccessibilityDoDefault";
 +    return false;
-   }
-   
--  return change_result;
++  }
++  
 +  ui::AXActionData action_data;
 +  action_data.action = ax::mojom::Action::kDoDefault;
 +  action_data.target_node_id = node_info.ax_node_id;
@@ -1086,9 +1062,29 @@ index 2e2c9a875dd09..18d6aa50233a7 100644
 +  
 +  rfh->AccessibilityPerformAction(action_data);
 +  return true;
-+}
-+
-+// Helper to perform a click with change detection and retrying
+ }
+ 
+ // Helper to perform a click with change detection and retrying
+-ChangeDetectionResult Click(content::WebContents* web_contents,
+-                           const NodeInfo& node_info) {
+-  // Create change detector and start monitoring
+-  auto change_detector = std::make_unique<BrowserOSChangeDetector>(web_contents);
+-  change_detector->StartMonitoring(node_info.ax_tree_id);
+-  
+-  // Perform the click action using coordinate-based click
+-  gfx::PointF click_point(
+-      node_info.bounds.x() + node_info.bounds.width() / 2.0f,
+-      node_info.bounds.y() + node_info.bounds.height() / 2.0f);
+-  PointClick(web_contents, click_point);
+-  
+-  // Wait for changes with timeout
+-  ChangeDetectionResult change_result = 
+-      change_detector->WaitForChanges(base::Milliseconds(500));
+-  
+-  // If no change detected via coordinate click, try HTML click as fallback
+-  if (!change_result.detected) {
+-    VLOG(1) << "No change detected with coordinate click, trying HTML click";
+-    HtmlClick(web_contents, node_info);
 +bool ClickWithDetection(content::WebContents* web_contents,
 +                        const NodeInfo& node_info) {
 +  // Check if node is out of viewport and needs scrolling
@@ -1101,45 +1097,49 @@ index 2e2c9a875dd09..18d6aa50233a7 100644
 +    AccessibilityScrollToMakeVisible(web_contents, node_info, true /* center */);
 +    // Wait for scroll to complete
 +    base::PlatformThread::Sleep(base::Milliseconds(300));
-+  }
-+  
-+  // First try accessibility action kDoDefault (most reliable click method)
-+  LOG(INFO) << "[browseros] Trying AccessibilityDoDefault click";
-+  bool changed = BrowserOSChangeDetector::ExecuteWithDetection(
-+      web_contents,
-+      [&]() { AccessibilityDoDefault(web_contents, node_info); },
-+      base::Milliseconds(300));
-+  
-+  if (!changed) {
-+    if (is_out_of_viewport) {
-+      // Node was out of viewport - coordinates are unreliable even after scroll
-+      // Skip coordinate click and go straight to HTML click
-+      LOG(INFO) << "[browseros] Node was out of viewport, skipping coordinate click, trying HTML click";
++    
++    // For out-of-viewport nodes, use AccessibilityDoDefault first (most reliable after scroll)
++    LOG(INFO) << "[browseros] Node was out of viewport, trying AccessibilityDoDefault click first";
++    bool changed = BrowserOSChangeDetector::ExecuteWithDetection(
++        web_contents,
++        [&]() { AccessibilityDoDefault(web_contents, node_info); },
++        base::Milliseconds(300));
+     
+-    // Wait again for changes
+-    change_result = change_detector->WaitForChanges(base::Milliseconds(300));
++    if (!changed) {
++      // Skip coordinate click for out-of-viewport nodes (coordinates unreliable)
++      // Go straight to HTML click
++      LOG(INFO) << "[browseros] No change from accessibility click, trying HTML click";
 +      changed = BrowserOSChangeDetector::ExecuteWithDetection(
 +          web_contents,
 +          [&]() { HtmlClick(web_contents, node_info); },
 +          base::Milliseconds(200));
-+    } else {
-+      // Node is in viewport - coordinates are valid, try coordinate click
-+      LOG(INFO) << "[browseros] No change from accessibility click, trying coordinate click";
-+      gfx::PointF click_point = GetNodeCenterPoint(web_contents, node_info);
-+      
-+      changed = BrowserOSChangeDetector::ExecuteWithDetection(
-+          web_contents,
-+          [&]() { PointClick(web_contents, click_point); },
-+          base::Milliseconds(300));
-+      
-+      // If coordinate click failed, try HTML click as final fallback
-+      if (!changed) {
-+        LOG(INFO) << "[browseros] No change from coordinate click, trying HTML click";
-+        changed = BrowserOSChangeDetector::ExecuteWithDetection(
-+            web_contents,
-+            [&]() { HtmlClick(web_contents, node_info); },
-+            base::Milliseconds(200));
-+      }
 +    }
++    
++    LOG(INFO) << "[browseros] Click result: " << (changed ? "changed" : "no change");
++    return changed;
 +  }
 +  
++  // For in-viewport nodes, try coordinate click first (most natural)
++  LOG(INFO) << "[browseros] Node is in viewport, trying coordinate click first";
++  gfx::PointF click_point = GetNodeCenterPoint(web_contents, node_info);
++  
++  bool changed = BrowserOSChangeDetector::ExecuteWithDetection(
++      web_contents,
++      [&]() { PointClick(web_contents, click_point); },
++      base::Milliseconds(300));
++  
++  // If still no change, try HTML click as final fallback
++  if (!changed) {
++      LOG(INFO) << "[browseros] No change from accessibility click, trying HTML click";
++      changed = BrowserOSChangeDetector::ExecuteWithDetection(
++          web_contents,
++          [&]() { HtmlClick(web_contents, node_info); },
++          base::Milliseconds(200));
+   }
+   
+-  return change_result;
 +  LOG(INFO) << "[browseros] Click result: " << (changed ? "changed" : "no change");
 +  return changed;
 +}
@@ -1183,40 +1183,39 @@ index 2e2c9a875dd09..18d6aa50233a7 100644
 +    base::PlatformThread::Sleep(base::Milliseconds(300));
 +  }
 +  
-+  // First try accessibility actions: Focus then SetValue (most reliable)
-+  LOG(INFO) << "[browseros] Trying accessibility Focus + SetValue for typing";
++  // First ensure the element is focused using accessibility
++  LOG(INFO) << "[browseros] Focusing element for typing";
++  AccessibilityFocus(web_contents, node_info);
++  // Small delay to ensure focus is set
++  base::PlatformThread::Sleep(base::Milliseconds(50));
++  
++  // Try native typing first (most natural method)
++  LOG(INFO) << "[browseros] Trying native typing";
 +  bool changed = BrowserOSChangeDetector::ExecuteWithDetection(
 +      web_contents,
 +      [&]() {
-+        // Focus the element first
-+        AccessibilityFocus(web_contents, node_info);
-+        // Small delay to ensure focus is set
-+        base::PlatformThread::Sleep(base::Milliseconds(50));
-+        // Then set the value
-+        AccessibilitySetValue(web_contents, node_info, text);
++        NativeType(web_contents, text);
 +      },
 +      base::Milliseconds(300));
 +  
-+  // If no change detected, try native typing as fallback
++  // If no change detected, try JavaScript typing as second fallback
 +  if (!changed) {
-+    LOG(INFO) << "[browseros] No change from accessibility SetValue, trying native typing";
-+    changed = BrowserOSChangeDetector::ExecuteWithDetection(
-+        web_contents,
-+        [&]() {
-+          // Element should already be focused from AccessibilityFocus
-+          // Just type using native IME
-+          NativeType(web_contents, text);
-+        },
-+        base::Milliseconds(300));
-+  }
-+  
-+  // If still no change, try JavaScript typing as final fallback
-+  if (!changed) {
-+    LOG(INFO) << "[browseros] No change from native type, trying JavaScript";
++    LOG(INFO) << "[browseros] No change from native typing, trying JavaScript";
 +    changed = BrowserOSChangeDetector::ExecuteWithDetection(
 +        web_contents,
 +        [&]() { JavaScriptType(web_contents, node_info, text); },
 +        base::Milliseconds(200));
++  }
++  
++  // If still no change, try accessibility SetValue as final fallback
++  if (!changed) {
++    LOG(INFO) << "[browseros] No change from JavaScript, trying accessibility SetValue";
++    changed = BrowserOSChangeDetector::ExecuteWithDetection(
++        web_contents,
++        [&]() {
++          AccessibilitySetValue(web_contents, node_info, text);
++        },
++        base::Milliseconds(300));
 +  }
 +  
 +  LOG(INFO) << "[browseros] Type result: " << (changed ? "changed" : "no change");
