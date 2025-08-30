@@ -37,6 +37,8 @@ export interface PubSubMessage {
 interface ChatActions {
   // Message operations - now with upsert
   upsertMessage: (pubsubMessage: PubSubMessage) => void
+  addMessage: (message: Omit<Message, 'timestamp'>) => void
+  updateMessage: (msgId: string, updates: Partial<Message>) => void
   clearMessages: () => void
   
   // Processing state
@@ -47,16 +49,19 @@ interface ChatActions {
   
   // Plan editing
   publishPlanEditResponse: (response: { planId: string; action: 'execute' | 'cancel'; steps?: any[] }) => void
+  executedPlans: Record<string, boolean>
+  setPlanExecuted: (planId: string) => void
   
   // Reset everything
   reset: () => void
 }
 
 // Initial state
-const initialState: ChatState = {
+const initialState: ChatState & { executedPlans: Record<string, boolean> } = {
   messages: [],
   isProcessing: false,
-  error: null
+  error: null,
+  executedPlans: {}
 }
 
 // Create the store
@@ -94,6 +99,20 @@ export const useChatStore = create<ChatState & ChatActions>((set) => ({
       }
     })
   },
+
+  addMessage: (message) => {
+    set((state) => ({
+      messages: [...state.messages, { ...message, timestamp: new Date() }]
+    }))
+  },
+
+  updateMessage: (msgId, updates) => {
+    set((state) => ({
+      messages: state.messages.map(msg => 
+        msg.msgId === msgId ? { ...msg, ...updates } : msg
+      )
+    }))
+  },
   
   clearMessages: () => set({ messages: [] }),
   
@@ -108,6 +127,12 @@ export const useChatStore = create<ChatState & ChatActions>((set) => ({
     if (!success) {
       console.error('Failed to send plan edit response - port not connected')
     }
+  },
+
+  setPlanExecuted: (planId) => {
+    set((state) => ({
+      executedPlans: { ...state.executedPlans, [planId]: true }
+    }))
   },
   
   reset: () => set(initialState)

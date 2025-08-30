@@ -500,13 +500,14 @@ export const MessageItem = memo<MessageItemProps>(function MessageItem({ message
 
       case 'plan_editor':
         try {
-          const planData = JSON.parse(message.content);
+          const planData = JSON.parse(message.content)
+          
           return (
             <TaskManagerDropdown
               content={planData.steps.map((step: any) => 
                 `- [ ] ${step.action}`
               ).join('\n')}
-              isEditable={true}
+              isEditable={planData.isPreview !== false}  // Only editable if in preview mode
               onTasksChange={(tasks: any[]) => {
                 const updatedSteps = tasks.map((task: any, index: number) => ({
                   id: task.id,
@@ -522,7 +523,7 @@ export const MessageItem = memo<MessageItemProps>(function MessageItem({ message
                   action: task.content,
                   reasoning: '',
                   order: index,
-                  isEditable: true
+                  isEditable: false
                 }))
                 
                 useChatStore.getState().publishPlanEditResponse({
@@ -538,7 +539,7 @@ export const MessageItem = memo<MessageItemProps>(function MessageItem({ message
                 })
               }}
             />
-          );
+          )
         } catch (error) {
           return (
             <div className="text-red-500 text-sm">

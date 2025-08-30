@@ -1,7 +1,7 @@
-import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react'
+import React, { memo, useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import { cn } from '@/sidepanel/lib/utils'
-import { ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react'
 import { z } from 'zod'
+import { X, ChevronUp, ChevronDown, Plus, Trash2 } from 'lucide-react'
 
 // Task schema for runtime validation
 const TaskSchema = z.object({
@@ -15,12 +15,12 @@ const TaskSchema = z.object({
 type Task = z.infer<typeof TaskSchema>
 
 interface TaskManagerDropdownProps {
-  content: string
-  className?: string
-  isEditable?: boolean
-  onTasksChange?: (tasks: Task[]) => void
-  onExecute?: (tasks: Task[]) => void
-  onCancel?: () => void
+  content: string  // Markdown content with task list
+  className?: string  // Additional CSS classes
+  isEditable?: boolean  // Whether the plan can be edited
+  onTasksChange?: (tasks: Task[]) => void  // Callback when tasks are modified
+  onExecute?: (tasks: Task[]) => void  // Callback when plan is executed
+  onCancel?: () => void  // Callback when plan is cancelled
 }
 
 export function TaskManagerDropdown({ content, className, isEditable = false, onTasksChange, onExecute, onCancel }: TaskManagerDropdownProps) {
@@ -29,6 +29,7 @@ export function TaskManagerDropdown({ content, className, isEditable = false, on
   const [editText, setEditText] = useState('')
   const [localTasks, setLocalTasks] = useState<Task[]>([])
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null)
+  const [hasBeenExecuted, setHasBeenExecuted] = useState(false)  // Track if plan has been executed
   const editInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -67,32 +68,33 @@ export function TaskManagerDropdown({ content, className, isEditable = false, on
     return parsedTasks
   }, [content, isEditable])
 
-  // Use local tasks if in edit mode, otherwise use parsed tasks
-  const displayTasks = isEditable ? localTasks : tasks
+  // Determine if editing is actually allowed (both prop and execution state)
+  const isActuallyEditable = isEditable && !hasBeenExecuted
+
+  // Always use local tasks if they exist (preserves edits after execution)
+  const displayTasks = localTasks.length > 0 ? localTasks : tasks
 
   const completedCount = useMemo(() => {
     return displayTasks.filter(task => task.status === '✓').length
   }, [displayTasks])
 
+
   const startEdit = useCallback((task: Task) => {
+    if (!isActuallyEditable) return
     setEditingTaskId(task.id)
     setEditText(task.content)
-  }, [])
+  }, [isActuallyEditable])
 
   const saveEdit = useCallback(() => {
-    if (!editingTaskId) return
-
-    const updatedTasks = localTasks.map(task =>
-      task.id === editingTaskId
-        ? { ...task, content: editText.trim() }
-        : task
-    )
-    setLocalTasks(updatedTasks)
+    if (editingTaskId && editText.trim()) {
+      const updatedTasks = localTasks.map(task => 
+        task.id === editingTaskId ? { ...task, content: editText.trim() } : task
+      )
+      setLocalTasks(updatedTasks)
+      onTasksChange?.(updatedTasks)
+    }
     setEditingTaskId(null)
     setEditText('')
-
-    // Notify parent of changes
-    onTasksChange?.(updatedTasks)
   }, [editingTaskId, editText, localTasks, onTasksChange])
 
   const cancelEdit = useCallback(() => {
@@ -100,8 +102,17 @@ export function TaskManagerDropdown({ content, className, isEditable = false, on
     setEditText('')
   }, [])
 
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      saveEdit()
+    } else if (e.key === 'Escape') {
+      cancelEdit()
+    }
+  }, [saveEdit, cancelEdit])
+
   // Add new task at the end of the list
   const addTask = useCallback(() => {
+    if (!isActuallyEditable) return
     const newTask = {
       id: `task-${Date.now()}`,
       status: '○',
@@ -112,27 +123,22 @@ export function TaskManagerDropdown({ content, className, isEditable = false, on
     const updatedTasks = [...localTasks, newTask]
     setLocalTasks(updatedTasks)
     onTasksChange?.(updatedTasks)
-    
-    // Start editing immediately for better UX
     setTimeout(() => startEdit(newTask), 50)
-  }, [localTasks, onTasksChange, startEdit])
+  }, [localTasks, onTasksChange, startEdit, isActuallyEditable])
 
   const deleteTask = useCallback((taskId: string) => {
+    if (!isActuallyEditable) return
     const updatedTasks = localTasks.filter(task => task.id !== taskId)
-      .map((task, index) => ({ ...task, order: index }))
     setLocalTasks(updatedTasks)
     onTasksChange?.(updatedTasks)
-  }, [localTasks, onTasksChange])
+  }, [localTasks, onTasksChange, isActuallyEditable])
 
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      e.preventDefault()
-      saveEdit()
-    } else if (e.key === 'Escape') {
-      e.preventDefault()
-      cancelEdit()
-    }
-  }, [saveEdit, cancelEdit])
+  // Handle execution - disable editing permanently
+  const handleExecute = useCallback(() => {
+    setHasBeenExecuted(true)  // Mark as executed to disable editing
+    setEditingTaskId(null)  // Cancel any ongoing edits
+    onExecute?.(localTasks)
+  }, [localTasks, onExecute])
 
   // Handle drag start for reordering tasks
   const handleDragStart = useCallback((e: React.DragEvent, taskId: string) => {
@@ -165,52 +171,29 @@ export function TaskManagerDropdown({ content, className, isEditable = false, on
   }, [draggedTaskId, localTasks, onTasksChange])
 
   const isTaskCompleted = (task: Task) => task.status === '✓'
-  const MAX_VISIBLE_TASKS = isEditable ? 20 : 6
+  const MAX_VISIBLE_TASKS = isActuallyEditable ? 20 : 6
   const visibleTasks = displayTasks.slice(0, MAX_VISIBLE_TASKS)
   const hasMoreTasks = displayTasks.length > MAX_VISIBLE_TASKS
 
-  if (displayTasks.length === 0 && !isEditable) {
-    return (
-      <div className={cn("my-1", className)}>
-        <div className="flex items-center gap-2">
-          <span className="font-medium text-sm text-foreground">Task Manager</span>
-        </div>
-        <div className="mt-1 text-xs text-muted-foreground">No tasks available</div>
-      </div>
-    )
+  if (displayTasks.length === 0 && !isActuallyEditable) {
+    return null
   }
 
   return (
     <div className={cn("my-1", className)}>
-      {/* Header */}
-      {!isEditable && (
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-2">
-            <span className="font-medium text-sm text-foreground">Task Manager</span>
-          </div>
-          <button
-            onClick={() => setIsExpanded(!isExpanded)}
-            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors ml-4"
-            aria-label={isExpanded ? 'Collapse task list' : 'Expand task list'}
-          >
-            <span>{completedCount}/{displayTasks.length} completed</span>
-            {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-          </button>
-        </div>
-      )}
 
-      {/* Expanded Task List */}
+      {/* Task List */}
       {isExpanded && (
-        <div className="space-y-0 max-h-64 overflow-y-auto pb-4">
+        <div className="space-y-0.5">
           {visibleTasks.map((task, index) => (
             <div key={task.id} className="group/step">
               <div
                 className={cn(
                   "flex items-center gap-2 py-1.5 px-1 text-xs",
-                  isEditable && "hover:bg-muted/20",
+                  isActuallyEditable && "hover:bg-muted/20",
                   draggedTaskId === task.id && "opacity-50"
                 )}
-                draggable={isEditable && editingTaskId !== task.id}
+                draggable={isActuallyEditable && editingTaskId !== task.id}
                 onDragStart={(e) => handleDragStart(e, task.id)}
                 onDragOver={handleDragOver}
                 onDrop={(e) => handleDrop(e, task.id)}
@@ -236,9 +219,9 @@ export function TaskManagerDropdown({ content, className, isEditable = false, on
                     <div
                       className={cn(
                         "truncate text-foreground",
-                        isEditable && "cursor-pointer"
+                        isActuallyEditable && "cursor-pointer"
                       )}
-                      onClick={isEditable ? () => startEdit(task) : undefined}
+                      onClick={isActuallyEditable ? () => startEdit(task) : undefined}
                       title={task.content}
                     >
                       {task.content}
@@ -247,24 +230,24 @@ export function TaskManagerDropdown({ content, className, isEditable = false, on
                 </div>
 
                 {/* Delete button */}
-                {isEditable && editingTaskId !== task.id && (
+                {isActuallyEditable && editingTaskId !== task.id && (
                   <button
                     onClick={() => deleteTask(task.id)}
                     className="opacity-0 group-hover/step:opacity-100 p-0.5 hover:bg-red-50 text-red-400 hover:text-red-600 rounded transition-all"
                     title="Delete step"
                   >
-                    <Trash2 className="w-3 h-3" />
+                    <X className="w-3 h-3" />
                   </button>
                 )}
               </div>
               
               {/* Add step line below each step on hover */}
-              {isEditable && (
+              {isActuallyEditable && (
                 <div className="group/add-line relative opacity-0 group-hover/step:opacity-100 transition-opacity">
                   <div className="h-px bg-border mx-4" />
                   <button
                     onClick={() => {
-                      const newTask = {
+                      const newTask: Task = {
                         id: `task-${Date.now()}`,
                         status: '○',
                         content: 'New step',
@@ -273,15 +256,19 @@ export function TaskManagerDropdown({ content, className, isEditable = false, on
                       }
                       const updatedTasks = [...localTasks]
                       updatedTasks.splice(index + 1, 0, newTask)
-                      updatedTasks.forEach((t, i) => t.order = i)
-                      setLocalTasks(updatedTasks)
-                      onTasksChange?.(updatedTasks)
+                      
+                      // Reorder remaining tasks
+                      const reorderedTasks = updatedTasks.map((t, i) => ({ ...t, order: i }))
+                      setLocalTasks(reorderedTasks)
+                      onTasksChange?.(reorderedTasks)
+                      
+                      // Start editing the new task after a brief delay
                       setTimeout(() => startEdit(newTask), 50)
                     }}
-                    className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-background border border-border rounded-full p-1 hover:bg-muted transition-all text-muted-foreground hover:text-foreground"
+                    className="absolute -top-2 left-1/2 transform -translate-x-1/2 w-6 h-4 bg-brand text-white text-xs rounded hover:bg-brand/90 flex items-center justify-center transition-colors"
                     title="Add step below"
                   >
-                    <Plus className="w-2.5 h-2.5" />
+                    +
                   </button>
                 </div>
               )}
@@ -289,32 +276,33 @@ export function TaskManagerDropdown({ content, className, isEditable = false, on
           ))}
 
           {hasMoreTasks && (
-            <div className="text-xs text-muted-foreground text-center py-2">
+            <div className="text-xs text-muted-foreground pl-1 py-1">
               ... and {displayTasks.length - MAX_VISIBLE_TASKS} more steps
             </div>
           )}
 
           {/* Add first step when no steps exist */}
-          {isEditable && visibleTasks.length === 0 && (
+          {isActuallyEditable && visibleTasks.length === 0 && (
             <div className="group/empty relative py-2">
               <div className="h-px bg-border mx-4" />
               <button
                 onClick={addTask}
-                className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-background border border-border rounded-full p-1 hover:bg-muted transition-all text-muted-foreground hover:text-foreground"
+                className="absolute -top-2 left-1/2 transform -translate-x-1/2 w-6 h-4 bg-brand text-white text-xs rounded hover:bg-brand/90 flex items-center justify-center transition-colors"
                 title="Add first step"
               >
-                <Plus className="w-2.5 h-2.5" />
+                +
               </button>
             </div>
           )}
         </div>
       )}
 
+
       {/* Action buttons */}
-      {isEditable && (
+      {isActuallyEditable && (
         <div className="flex gap-2 pt-2">
           <button
-            onClick={() => onExecute?.(localTasks)}
+            onClick={handleExecute}
             className="px-3 py-1 bg-brand text-white text-xs rounded hover:bg-brand/90 transition-colors"
           >
             Run Agent
