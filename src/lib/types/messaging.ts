@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 /**
- * Message types for extension communication
+ * Message types for extension communication between background, content, and sidepanel
  */
 export enum MessageType {
   NAVIGATE = 'NAVIGATE',
@@ -34,6 +34,7 @@ export enum MessageType {
   MCP_GET_INSTALLED_SERVERS = 'MCP_GET_INSTALLED_SERVERS',
   MCP_DELETE_SERVER = 'MCP_DELETE_SERVER',
   HUMAN_INPUT_RESPONSE = 'HUMAN_INPUT_RESPONSE',
+  PLAN_EDIT_RESPONSE = 'PLAN_EDIT_RESPONSE',
   GENERATE_PLAN = 'GENERATE_PLAN',
   REFINE_PLAN = 'REFINE_PLAN',
   PLAN_GENERATION_UPDATE = 'PLAN_GENERATION_UPDATE'
