@@ -23,7 +23,7 @@
 </div>
 
 ## 
-🌐 BrowserOS is an open-source chromium based browser that runs AI agents locally. **Your privacy-first alternative to Perplexity Comet**.
+🌐 BrowserOS is an open-source chromium based browser that runs AI agents locally. **Your privacy-first alternative to Arc, Dia**.
 
 🔒 Privacy first - use your own API keys or run local models with Ollama. Your data stays on your computer.
 
