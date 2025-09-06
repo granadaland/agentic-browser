@@ -48,7 +48,7 @@ fi
 
 # Do the subtree pull (NO --squash)
 echo ">>> Pulling subtree into '$PREFIX' from $UPSTREAM_REF (full history)"
-git subtree pull --prefix="$PREFIX" "$REMOTE_NAME" "$REF" -m "subtree(sync): $PREFIX -> $UPSTREAM_SHA"
+git subtree pull --prefix="$PREFIX" "$REMOTE_NAME" "$REF" -m "Update BrowserOS-agent: $PREFIX -> $UPSTREAM_SHA"
 
 # Show a concise changelog range if we have a previous SHA
 echo ">>> Changelog upstream ($([[ -n "$PREV_SHA" ]] && echo "$PREV_SHA.." )$UPSTREAM_SHA):"
