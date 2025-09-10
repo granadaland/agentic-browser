@@ -6,6 +6,7 @@ import { ExecutionContext } from "@/lib/runtime/ExecutionContext";
 import { MessageManager } from "@/lib/runtime/MessageManager";
 import { profileStart, profileEnd, profileAsync } from "@/lib/utils/profiler";
 import { BrowserAgent } from "@/lib/agent/BrowserAgent";
+import { ChatAgent } from "@/lib/agent/ChatAgent";
 import { langChainProvider } from "@/lib/llm/LangChainProvider";
 
 // Import evals2 components
@@ -63,6 +64,7 @@ export class NxtScape {
   private executionContext!: ExecutionContext; // Will be initialized in initialize()
   private messageManager!: MessageManager; // Will be initialized in initialize()
   private browserAgent: BrowserAgent | null = null; // The browser agent for task execution
+  private chatAgent: ChatAgent | null = null; // The chat agent for Q&A mode
 
   private currentQuery: string | null = null; // Track current query for better cancellation messages
   
@@ -124,6 +126,7 @@ export class NxtScape {
         
         // Initialize the browser agent with execution context
         this.browserAgent = new BrowserAgent(this.executionContext);
+        this.chatAgent = new ChatAgent(this.executionContext);
         
         // Note: Telemetry session initialization is deferred until first task execution
         // This prevents creating empty sessions when extension is just opened/closed
@@ -144,6 +147,7 @@ export class NxtScape {
         // Clean up partial initialization
         this.browserContext = null as any;
         this.browserAgent = null;
+        this.chatAgent = null;
 
         throw new Error(`NxtScape initialization failed: ${errorMessage}`);
       }
@@ -155,7 +159,7 @@ export class NxtScape {
    * @returns True if initialized, false otherwise
    */
   public isInitialized(): boolean {
-    return this.browserContext !== null && this.browserAgent !== null;
+    return this.browserContext !== null && this.browserAgent !== null && this.chatAgent !== null;
   }
 
   /**
@@ -239,9 +243,12 @@ export class NxtScape {
    * @private
    */
   private async _executeAgent(query: string, mode: 'chat' | 'browse', metadata?: any, tabIds?: number[]): Promise<void> {
-    // Chat mode is not currently implemented, always use browse mode
     if (mode === 'chat') {
-      throw new Error('Chat mode is not currently implemented');
+      if (!this.chatAgent) {
+        throw new Error('Chat agent not initialized');
+      }
+      await this.chatAgent.execute(query);
+      return;
     }
     this.currentQuery = query;
     
@@ -526,9 +533,21 @@ export class NxtScape {
     // reset the execution context
     this.executionContext.reset();
 
-    // forces initalize of nextscape again
-    // this would pick-up new mew message mangaer context length, etc
-    this.browserAgent = null;
+    // Clean up existing agents (call cleanup to unsubscribe)
+    if (this.browserAgent) {
+      this.browserAgent.cleanup();
+      this.browserAgent = null;
+    }
+    if (this.chatAgent) {
+      this.chatAgent.cleanup();
+      this.chatAgent = null;
+    }
+    
+    // Recreate agents with fresh state (they will subscribe themselves)
+    if (this.executionContext) {
+      this.browserAgent = new BrowserAgent(this.executionContext);
+      this.chatAgent = new ChatAgent(this.executionContext);
+    }
 
     Logging.log(
       "NxtScape",
