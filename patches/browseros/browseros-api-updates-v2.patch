@@ -1,24 +1,24 @@
-From 7e4a8c40e5f2342abd3d4261196014aedfe63003 Mon Sep 17 00:00:00 2001
+From 6dba6670743ee9f55c029870a0561d1e4de05ad2 Mon Sep 17 00:00:00 2001
 From: Nikhil Sonti <nikhilsv92@gmail.com>
 Date: Fri, 5 Sep 2025 10:33:27 -0700
 Subject: [PATCH] browseros api updates v2: execute javascript, highlights,
  screenshot with dimension
 
 ---
- .../api/browser_os/browser_os_api.cc          | 188 +++++++++--
- .../api/browser_os/browser_os_api.h           |  33 +-
- .../api/browser_os/browser_os_api_helpers.cc  | 296 +++++++++++++++++-
- .../api/browser_os/browser_os_api_helpers.h   |  16 +
+ .../api/browser_os/browser_os_api.cc          | 307 ++++++++++++++++--
+ .../api/browser_os/browser_os_api.h           |  59 +++-
+ .../api/browser_os/browser_os_api_helpers.cc  | 270 ++++++++++++++-
+ .../api/browser_os/browser_os_api_helpers.h   |  21 ++
  .../api/browser_os/browser_os_api_utils.cc    |   2 +-
  .../api/browser_os/browser_os_api_utils.h     |   2 +
  .../browser_os_snapshot_processor.cc          |   4 +
  .../chrome_extensions_browser_api_provider.cc |   1 +
- chrome/common/extensions/api/browser_os.idl   |  19 ++
- .../extension_function_histogram_value.h      |   1 +
- 10 files changed, 530 insertions(+), 32 deletions(-)
+ chrome/common/extensions/api/browser_os.idl   |  43 +++
+ .../extension_function_histogram_value.h      |   3 +
+ 10 files changed, 680 insertions(+), 32 deletions(-)
 
 diff --git a/chrome/browser/extensions/api/browser_os/browser_os_api.cc b/chrome/browser/extensions/api/browser_os/browser_os_api.cc
-index 5242a1c3f930c..80acf561fc040 100644
+index 5242a1c3f930c..789218f333a04 100644
 --- a/chrome/browser/extensions/api/browser_os/browser_os_api.cc
 +++ b/chrome/browser/extensions/api/browser_os/browser_os_api.cc
 @@ -11,6 +11,7 @@
@@ -37,7 +37,64 @@ index 5242a1c3f930c..80acf561fc040 100644
    
    // Note: We don't need to get scale factors here!
    // The accessibility tree provides bounds in CSS pixels (logical pixels),
-@@ -620,10 +622,16 @@ ExtensionFunction::ResponseAction BrowserOSSendKeysFunction::Run() {
+@@ -194,6 +196,18 @@ ExtensionFunction::ResponseAction BrowserOSGetInteractiveSnapshotFunction::Run()
+     LOG(INFO) << "Viewport size: " << viewport_size_.ToString();
+   }
+ 
++  // Check frame stability before requesting snapshot
++  content::RenderFrameHost* rfh = web_contents->GetPrimaryMainFrame();
++  if (!rfh || !rfh->IsRenderFrameLive() || !rfh->IsActive()) {
++    LOG(WARNING) << "[browseros] Frame not stable for AX snapshot - skipping";
++    browser_os::InteractiveSnapshot empty_snapshot;
++    empty_snapshot.snapshot_id = next_snapshot_id_++;
++    empty_snapshot.timestamp = base::Time::Now().InMillisecondsFSinceUnixEpoch();
++    empty_snapshot.processing_time_ms = 0;
++    return RespondNow(ArgumentList(
++        browser_os::GetInteractiveSnapshot::Results::Create(empty_snapshot)));
++  }
++  
+   // Request accessibility tree snapshot
+   web_contents->RequestAXTreeSnapshot(
+       base::BindOnce(
+@@ -204,12 +218,37 @@ ExtensionFunction::ResponseAction BrowserOSGetInteractiveSnapshotFunction::Run()
+       /* max_nodes= */ 0,  // No limit
+       /* timeout= */ base::TimeDelta(),
+       content::WebContents::AXTreeSnapshotPolicy::kAll);
++      // content::WebContents::AXTreeSnapshotPolicy::kSameOriginDirectDescendants);
+ 
+   return RespondLater();
+ }
+ 
+ void BrowserOSGetInteractiveSnapshotFunction::OnAccessibilityTreeReceived(
+     ui::AXTreeUpdate& tree_update) {
++  // Double-check frame is still valid before processing
++  if (!web_contents_) {
++    LOG(WARNING) << "[browseros] WebContents gone during AX snapshot callback";
++    browser_os::InteractiveSnapshot empty_snapshot;
++    empty_snapshot.snapshot_id = next_snapshot_id_++;
++    empty_snapshot.timestamp = base::Time::Now().InMillisecondsFSinceUnixEpoch();
++    empty_snapshot.processing_time_ms = 0;
++    Respond(ArgumentList(
++        browser_os::GetInteractiveSnapshot::Results::Create(empty_snapshot)));
++    return;
++  }
++  
++  content::RenderFrameHost* rfh = web_contents_->GetPrimaryMainFrame();
++  if (!rfh || !rfh->IsRenderFrameLive()) {
++    LOG(WARNING) << "[browseros] Frame became unstable during AX snapshot callback";
++    browser_os::InteractiveSnapshot empty_snapshot;
++    empty_snapshot.snapshot_id = next_snapshot_id_++;
++    empty_snapshot.timestamp = base::Time::Now().InMillisecondsFSinceUnixEpoch();
++    empty_snapshot.processing_time_ms = 0;
++    Respond(ArgumentList(
++        browser_os::GetInteractiveSnapshot::Results::Create(empty_snapshot)));
++    return;
++  }
++  
+   // Simple API layer - just delegates to the processor
+   SnapshotProcessor::ProcessAccessibilityTree(
+       tree_update,
+@@ -620,10 +659,16 @@ ExtensionFunction::ResponseAction BrowserOSSendKeysFunction::Run() {
  
  // Implementation of BrowserOSCaptureScreenshotFunction
  
@@ -54,7 +111,7 @@ index 5242a1c3f930c..80acf561fc040 100644
  
    // Get the target tab
    std::string error_message;
-@@ -635,6 +643,8 @@ ExtensionFunction::ResponseAction BrowserOSCaptureScreenshotFunction::Run() {
+@@ -635,6 +680,8 @@ ExtensionFunction::ResponseAction BrowserOSCaptureScreenshotFunction::Run() {
    }
    
    content::WebContents* web_contents = tab_info->web_contents;
@@ -63,7 +120,7 @@ index 5242a1c3f930c..80acf561fc040 100644
    
    // Get the render widget host view
    content::RenderFrameHost* rfh = web_contents->GetPrimaryMainFrame();
-@@ -655,51 +665,120 @@ ExtensionFunction::ResponseAction BrowserOSCaptureScreenshotFunction::Run() {
+@@ -655,51 +702,120 @@ ExtensionFunction::ResponseAction BrowserOSCaptureScreenshotFunction::Run() {
    // Get the view bounds to determine the size
    gfx::Rect view_bounds = rwhv->GetViewBounds();
    
@@ -122,18 +179,10 @@ index 5242a1c3f930c..80acf561fc040 100644
 +    }
 +    
 +    target_size_ = thumbnail_size;
-   }
-   
--  gfx::Size thumbnail_size = view_bounds.size();
++  }
++  
 +  // Store target size for later use
-   
--  // Scale down proportionally if needed
--  if (thumbnail_size.width() > max_dimension || 
--      thumbnail_size.height() > max_dimension) {
--    float scale = std::min(
--        static_cast<float>(max_dimension) / thumbnail_size.width(),
--        static_cast<float>(max_dimension) / thumbnail_size.height());
--    thumbnail_size = gfx::ScaleToFlooredSize(thumbnail_size, scale);
++  
 +  // Draw highlights first, then capture after a short delay
 +  DrawHighlightsAndCapture();
 +  
@@ -171,14 +220,22 @@ index 5242a1c3f930c..80acf561fc040 100644
 +  if (!web_contents_) {
 +    Respond(Error("Web contents destroyed"));
 +    return;
-+  }
-+  
+   }
+   
+-  gfx::Size thumbnail_size = view_bounds.size();
 +  content::RenderFrameHost* rfh = web_contents_->GetPrimaryMainFrame();
 +  if (!rfh) {
 +    Respond(Error("No render frame"));
 +    return;
 +  }
-+  
+   
+-  // Scale down proportionally if needed
+-  if (thumbnail_size.width() > max_dimension || 
+-      thumbnail_size.height() > max_dimension) {
+-    float scale = std::min(
+-        static_cast<float>(max_dimension) / thumbnail_size.width(),
+-        static_cast<float>(max_dimension) / thumbnail_size.height());
+-    thumbnail_size = gfx::ScaleToFlooredSize(thumbnail_size, scale);
 +  content::RenderWidgetHost* rwh = rfh->GetRenderWidgetHost();
 +  if (!rwh) {
 +    Respond(Error("No render widget host"));
@@ -212,7 +269,7 @@ index 5242a1c3f930c..80acf561fc040 100644
    if (bitmap.empty()) {
      Respond(Error("Failed to capture screenshot"));
      return;
-@@ -1011,5 +1090,58 @@ ExtensionFunction::ResponseAction BrowserOSGetVersionNumberFunction::Run() {
+@@ -1011,5 +1127,140 @@ ExtensionFunction::ResponseAction BrowserOSGetVersionNumberFunction::Run() {
        browser_os::GetVersionNumber::Results::Create(version)));
  }
  
@@ -269,10 +326,92 @@ index 5242a1c3f930c..80acf561fc040 100644
 +      browser_os::ExecuteJavaScript::Results::Create(result)));
 +}
 +
++// Implementation of BrowserOSClickCoordinatesFunction
++ExtensionFunction::ResponseAction BrowserOSClickCoordinatesFunction::Run() {
++  std::optional<browser_os::ClickCoordinates::Params> params =
++      browser_os::ClickCoordinates::Params::Create(args());
++  EXTENSION_FUNCTION_VALIDATE(params);
++
++  // Get the target tab
++  std::string error_message;
++  auto tab_info = GetTabFromOptionalId(params->tab_id, browser_context(),
++                                       include_incognito_information(),
++                                       &error_message);
++  if (!tab_info) {
++    LOG(ERROR) << "[browseros] ClickCoordinates: " << error_message;
++    browser_os::InteractionResponse response;
++    response.success = false;
++    return RespondNow(ArgumentList(
++        browser_os::ClickCoordinates::Results::Create(response)));
++  }
++  
++  content::WebContents* web_contents = tab_info->web_contents;
++  
++  // Create the click point from the coordinates
++  gfx::PointF click_point(params->x, params->y);
++  
++  LOG(INFO) << "[browseros] ClickCoordinates: Clicking at (" 
++            << params->x << ", " << params->y << ")";
++  
++  // Perform the click with change detection
++  bool success = ClickCoordinatesWithDetection(web_contents, click_point);
++  
++  // Prepare the response
++  browser_os::InteractionResponse response;
++  response.success = success;
++  
++  LOG(INFO) << "[browseros] ClickCoordinates: Result = " 
++            << (success ? "success" : "no change detected");
++  
++  return RespondNow(ArgumentList(
++      browser_os::ClickCoordinates::Results::Create(response)));
++}
++
++// Implementation of BrowserOSTypeAtCoordinatesFunction  
++ExtensionFunction::ResponseAction BrowserOSTypeAtCoordinatesFunction::Run() {
++  std::optional<browser_os::TypeAtCoordinates::Params> params =
++      browser_os::TypeAtCoordinates::Params::Create(args());
++  EXTENSION_FUNCTION_VALIDATE(params);
++
++  // Get the target tab
++  std::string error_message;
++  auto tab_info = GetTabFromOptionalId(params->tab_id, browser_context(),
++                                       include_incognito_information(),
++                                       &error_message);
++  if (!tab_info) {
++    LOG(ERROR) << "[browseros] TypeAtCoordinates: " << error_message;
++    browser_os::InteractionResponse response;
++    response.success = false;
++    return RespondNow(ArgumentList(
++        browser_os::TypeAtCoordinates::Results::Create(response)));
++  }
++  
++  content::WebContents* web_contents = tab_info->web_contents;
++  
++  // Create the click point from the coordinates
++  gfx::PointF click_point(params->x, params->y);
++  
++  LOG(INFO) << "[browseros] TypeAtCoordinates: Clicking at (" 
++            << params->x << ", " << params->y << ") and typing: " << params->text;
++  
++  // Perform the click and type operation
++  bool success = TypeAtCoordinatesWithDetection(web_contents, click_point, params->text);
++  
++  // Prepare the response
++  browser_os::InteractionResponse response;
++  response.success = success;
++  
++  LOG(INFO) << "[browseros] TypeAtCoordinates: Result = " 
++            << (success ? "success" : "failed");
++  
++  return RespondNow(ArgumentList(
++      browser_os::TypeAtCoordinates::Results::Create(response)));
++}
++
  }  // namespace api
  }  // namespace extensions
 diff --git a/chrome/browser/extensions/api/browser_os/browser_os_api.h b/chrome/browser/extensions/api/browser_os/browser_os_api.h
-index 27721d9b0b9a0..fd8ab00555678 100644
+index 27721d9b0b9a0..c267a22c45ca8 100644
 --- a/chrome/browser/extensions/api/browser_os/browser_os_api.h
 +++ b/chrome/browser/extensions/api/browser_os/browser_os_api.h
 @@ -7,6 +7,7 @@
@@ -321,7 +460,7 @@ index 27721d9b0b9a0..fd8ab00555678 100644
  };
  
  class BrowserOSGetSnapshotFunction : public ExtensionFunction {
-@@ -275,6 +288,22 @@ class BrowserOSGetVersionNumberFunction : public ExtensionFunction {
+@@ -275,6 +288,48 @@ class BrowserOSGetVersionNumberFunction : public ExtensionFunction {
    ResponseAction Run() override;
  };
  
@@ -341,11 +480,37 @@ index 27721d9b0b9a0..fd8ab00555678 100644
 +  void OnJavaScriptExecuted(base::Value result);
 +};
 +
++class BrowserOSClickCoordinatesFunction : public ExtensionFunction {
++ public:
++  DECLARE_EXTENSION_FUNCTION("browserOS.clickCoordinates", BROWSER_OS_CLICKCOORDINATES)
++
++  BrowserOSClickCoordinatesFunction() = default;
++
++ protected:
++  ~BrowserOSClickCoordinatesFunction() override = default;
++
++  // ExtensionFunction:
++  ResponseAction Run() override;
++};
++
++class BrowserOSTypeAtCoordinatesFunction : public ExtensionFunction {
++ public:
++  DECLARE_EXTENSION_FUNCTION("browserOS.typeAtCoordinates", BROWSER_OS_TYPEATCOORDINATES)
++
++  BrowserOSTypeAtCoordinatesFunction() = default;
++
++ protected:
++  ~BrowserOSTypeAtCoordinatesFunction() override = default;
++
++  // ExtensionFunction:
++  ResponseAction Run() override;
++};
++
  }  // namespace api
  }  // namespace extensions
  
 diff --git a/chrome/browser/extensions/api/browser_os/browser_os_api_helpers.cc b/chrome/browser/extensions/api/browser_os/browser_os_api_helpers.cc
-index d05a75dd626e9..0ca9405923fb2 100644
+index d05a75dd626e9..ad9b5cabf9b4e 100644
 --- a/chrome/browser/extensions/api/browser_os/browser_os_api_helpers.cc
 +++ b/chrome/browser/extensions/api/browser_os/browser_os_api_helpers.cc
 @@ -5,6 +5,7 @@
@@ -365,13 +530,10 @@ index d05a75dd626e9..0ca9405923fb2 100644
        R"(
        (function() {
          var COLOR = '#FC661A';
-@@ -971,5 +972,298 @@ bool KeyPressWithDetection(content::WebContents* web_contents,
+@@ -971,5 +972,272 @@ bool KeyPressWithDetection(content::WebContents* web_contents,
    return changed;
  }
  
-+// Forward declaration for helper function
-+std::string BuildNodesJSON(const std::unordered_map<uint32_t, NodeInfo>& nodes);
-+
 +// Helper to show highlights for clickable, typeable, and selectable elements that are in viewport
 +void ShowHighlights(
 +    content::WebContents* web_contents,
@@ -476,8 +638,8 @@ index d05a75dd626e9..0ca9405923fb2 100644
 +          top: ${node.y}px;
 +          width: ${node.width}px;
 +          height: ${node.height}px;
-+          border: 2px solid #FF6B00;
-+          background: rgba(255, 107, 0, 0.1);
++          border: 2px solid #1E40AF;
++          background: transparent;
 +          box-sizing: border-box;
 +        `;
 +  )";
@@ -488,15 +650,16 @@ index d05a75dd626e9..0ca9405923fb2 100644
 +        const label = document.createElement('div');
 +        label.style.cssText = `
 +          position: absolute;
-+          top: -20px;
++          top: -22px;
 +          left: 0;
-+          background: #FF6B00;
-+          color: white;
-+          padding: 2px 6px;
-+          font-size: 11px;
++          background: #2563EB;
++          color: #FFFFFF;
++          padding: 3px 7px;
++          font-size: 14px;
 +          font-family: monospace;
 +          border-radius: 3px;
 +          white-space: nowrap;
++          opacity: 0.9;
 +        `;
 +        label.textContent = node.id;
 +        box.appendChild(label);
@@ -519,118 +682,6 @@ index d05a75dd626e9..0ca9405923fb2 100644
 +      base::UTF8ToUTF16(js_code),
 +      base::NullCallback(),
 +      false);
-+}
-+
-+// Helper to highlight specific nodes before screenshot
-+void HighlightNodesForScreenshot(
-+    content::WebContents* web_contents,
-+    const std::vector<uint32_t>& node_ids_to_highlight,
-+    const std::unordered_map<uint32_t, NodeInfo>& all_node_mappings,
-+    const std::string& color) {
-+  
-+  content::RenderFrameHost* rfh = web_contents->GetPrimaryMainFrame();
-+  if (!rfh) return;
-+  
-+  // Build filtered map with only nodes to highlight
-+  std::unordered_map<uint32_t, NodeInfo> nodes_to_draw;
-+  for (uint32_t node_id : node_ids_to_highlight) {
-+    auto it = all_node_mappings.find(node_id);
-+    if (it != all_node_mappings.end()) {
-+      nodes_to_draw[node_id] = it->second;
-+    }
-+  }
-+  
-+  // Draw bounding boxes with custom color
-+  // Parse RGB from hex color for background
-+  int r = std::stoi(color.substr(1, 2), nullptr, 16);
-+  int g = std::stoi(color.substr(3, 2), nullptr, 16);
-+  int b = std::stoi(color.substr(5, 2), nullptr, 16);
-+  
-+  std::string js_code = base::StringPrintf(R"(
-+    (function() {
-+      // Remove existing highlights
-+      document.querySelectorAll('.browseros-highlight').forEach(e => e.remove());
-+      
-+      const container = document.createElement('div');
-+      container.className = 'browseros-highlight-container';
-+      container.style.cssText = `
-+        position: fixed;
-+        top: 0;
-+        left: 0;
-+        width: 100%%;
-+        height: 100%%;
-+        pointer-events: none;
-+        z-index: 2147483646;
-+      `;
-+      
-+      const nodes = [%s];
-+      
-+      nodes.forEach(node => {
-+        const box = document.createElement('div');
-+        box.className = 'browseros-highlight';
-+        box.style.cssText = `
-+          position: absolute;
-+          left: ${node.x}px;
-+          top: ${node.y}px;
-+          width: ${node.width}px;
-+          height: ${node.height}px;
-+          border: 3px solid %s;
-+          background: rgba(%d, %d, %d, 0.2);
-+          box-sizing: border-box;
-+        `;
-+        
-+        // Add pulsing animation
-+        box.style.animation = 'pulse 1s ease-in-out infinite';
-+        
-+        container.appendChild(box);
-+      });
-+      
-+      // Add animation styles
-+      if (!document.querySelector('#browseros-highlight-styles')) {
-+        const style = document.createElement('style');
-+        style.id = 'browseros-highlight-styles';
-+        style.textContent = `
-+          @keyframes pulse {
-+            0%%, 100%% { opacity: 1; }
-+            50%% { opacity: 0.5; }
-+          }
-+        `;
-+        document.head.appendChild(style);
-+      }
-+      
-+      document.body.appendChild(container);
-+    })();
-+  )", 
-+  BuildNodesJSON(nodes_to_draw).c_str(),
-+  color.c_str(),
-+  r, g, b);
-+  
-+  rfh->ExecuteJavaScriptForTests(
-+      base::UTF8ToUTF16(js_code),
-+      base::NullCallback(),
-+      false);
-+}
-+
-+// Helper to build JSON array of nodes
-+std::string BuildNodesJSON(const std::unordered_map<uint32_t, NodeInfo>& nodes) {
-+  std::string json = "";
-+  bool first = true;
-+  
-+  for (const auto& [node_id, info] : nodes) {
-+    if (!first) json += ",";
-+    first = false;
-+    
-+    json += base::StringPrintf(
-+        "{id:%d, x:%f, y:%f, width:%f, height:%f}",
-+        node_id,
-+        info.bounds.x(),
-+        info.bounds.y(),
-+        info.bounds.width(),
-+        info.bounds.height()
-+    );
-+  }
-+  
-+  return json;
 +}
 +
 +// Helper to remove all bounding box highlights from the page
@@ -662,13 +713,101 @@ index d05a75dd626e9..0ca9405923fb2 100644
 +      false);
 +}
 +
++// Helper to click at specific coordinates with change detection
++bool ClickCoordinatesWithDetection(content::WebContents* web_contents,
++                                   const gfx::PointF& point) {
++  LOG(INFO) << "[browseros] ClickCoordinatesWithDetection at (" 
++            << point.x() << ", " << point.y() << ")";
++  
++  // Perform coordinate click with change detection
++  bool changed = BrowserOSChangeDetector::ExecuteWithDetection(
++      web_contents,
++      [&]() { 
++        PointClick(web_contents, point);
++        // Optionally visualize the click point
++        VisualizeInteractionPoint(web_contents, point, 1500);
++      },
++      base::Milliseconds(300));
++  
++  LOG(INFO) << "[browseros] Click coordinates result: " 
++            << (changed ? "changed" : "no change");
++  return changed;
++}
++
++// Helper to type text after clicking at coordinates to focus element
++bool TypeAtCoordinatesWithDetection(content::WebContents* web_contents,
++                                    const gfx::PointF& point,
++                                    const std::string& text) {
++  LOG(INFO) << "[browseros] TypeAtCoordinatesWithDetection at (" 
++            << point.x() << ", " << point.y() << ") with text: " << text;
++  
++  // First click at the coordinates to focus the element
++  PointClick(web_contents, point);
++  
++  // Visualize the click point briefly
++  VisualizeInteractionPoint(web_contents, point, 1000);
++  
++  // Wait a moment for focus to be established
++  base::PlatformThread::Sleep(base::Milliseconds(100));
++  
++  // Now type the text with change detection
++  bool changed = BrowserOSChangeDetector::ExecuteWithDetection(
++      web_contents,
++      [&]() { 
++        NativeType(web_contents, text);
++      },
++      base::Milliseconds(300));
++  
++  // If native typing didn't work, try JavaScript injection to detect and type
++  if (!changed) {
++    LOG(INFO) << "[browseros] No change from native typing at coordinates, trying JS injection";
++    
++    // Execute JavaScript to find the focused element and set its value
++    content::RenderFrameHost* rfh = web_contents->GetPrimaryMainFrame();
++    if (rfh) {
++      std::string js_code = base::StringPrintf(R"(
++        (function() {
++          var focused = document.activeElement;
++          if (focused && (focused.tagName === 'INPUT' || 
++                         focused.tagName === 'TEXTAREA' || 
++                         focused.contentEditable === 'true')) {
++            if (focused.contentEditable === 'true') {
++              focused.textContent = '%s';
++            } else {
++              focused.value = '%s';
++            }
++            // Trigger input event
++            focused.dispatchEvent(new Event('input', { bubbles: true }));
++            focused.dispatchEvent(new Event('change', { bubbles: true }));
++            return true;
++          }
++          return false;
++        })();
++      )", text.c_str(), text.c_str());
++      
++      rfh->ExecuteJavaScriptForTests(
++          base::UTF8ToUTF16(js_code),
++          base::NullCallback(),
++          false);
++      
++      // Give it a moment to register
++      base::PlatformThread::Sleep(base::Milliseconds(50));
++      changed = true; // Assume success if we reached here
++    }
++  }
++  
++  LOG(INFO) << "[browseros] Type at coordinates result: " 
++            << (changed ? "success" : "failed");
++  return changed;
++}
++
  }  // namespace api
  }  // namespace extensions
 diff --git a/chrome/browser/extensions/api/browser_os/browser_os_api_helpers.h b/chrome/browser/extensions/api/browser_os/browser_os_api_helpers.h
-index b5fd204753973..c62820c90e2ce 100644
+index b5fd204753973..d6f632bb46258 100644
 --- a/chrome/browser/extensions/api/browser_os/browser_os_api_helpers.h
 +++ b/chrome/browser/extensions/api/browser_os/browser_os_api_helpers.h
-@@ -118,6 +118,22 @@ void VisualizeInteractionPoint(content::WebContents* web_contents,
+@@ -118,6 +118,27 @@ void VisualizeInteractionPoint(content::WebContents* web_contents,
                                 int duration_ms = 3000,
                                 float offset_range = 50.0f);
  
@@ -678,15 +817,20 @@ index b5fd204753973..c62820c90e2ce 100644
 +                                 const std::unordered_map<uint32_t, NodeInfo>& node_mappings,
 +                                 bool show_labels = true);
 +
-+// Helper to highlight specific nodes before screenshot
-+// Highlights only the specified node IDs with a custom color
-+void HighlightNodesForScreenshot(content::WebContents* web_contents,
-+                                 const std::vector<uint32_t>& node_ids_to_highlight,
-+                                 const std::unordered_map<uint32_t, NodeInfo>& all_node_mappings,
-+                                 const std::string& color = "#00FF00");
-+
 +// Helper to remove all bounding box highlights from the page
 +void RemoveHighlights(content::WebContents* web_contents);
++
++// Helper to click at specific coordinates with change detection
++// Returns true if the click caused a detectable change in the page
++bool ClickCoordinatesWithDetection(content::WebContents* web_contents,
++                                   const gfx::PointF& point);
++
++// Helper to type text after clicking at coordinates to focus element
++// First clicks at the coordinates to focus an element, then types the text
++// Returns true if the operation succeeded
++bool TypeAtCoordinatesWithDetection(content::WebContents* web_contents,
++                                    const gfx::PointF& point,
++                                    const std::string& text);
 +
  }  // namespace api
  }  // namespace extensions
@@ -745,7 +889,7 @@ index 6b3227c786686..3666bf5a0d2c8 100644
    // Generated APIs from Chrome.
    api::ChromeGeneratedFunctionRegistry::RegisterAll(registry);
 diff --git a/chrome/common/extensions/api/browser_os.idl b/chrome/common/extensions/api/browser_os.idl
-index a8cbf0250d19a..cb74fddb59f10 100644
+index a8cbf0250d19a..23de5b35d5043 100644
 --- a/chrome/common/extensions/api/browser_os.idl
 +++ b/chrome/common/extensions/api/browser_os.idl
 @@ -177,6 +177,9 @@ namespace browserOS {
@@ -758,7 +902,36 @@ index a8cbf0250d19a..cb74fddb59f10 100644
  
    interface Functions {
      // Gets the full accessibility tree for a tab
-@@ -281,10 +284,17 @@ namespace browserOS {
+@@ -276,15 +279,46 @@ namespace browserOS {
+         optional long tabId,
+         DOMString key,
+         InteractionCallback callback);
++    
++    // Clicks at specific coordinates on the page
++    // |tabId|: The tab to click in. Defaults to active tab.
++    // |x|: X coordinate in CSS pixels from viewport origin.
++    // |y|: Y coordinate in CSS pixels from viewport origin.
++    // |callback|: Called when the click is complete.
++    static void clickCoordinates(
++        optional long tabId,
++        double x,
++        double y,
++        InteractionCallback callback);
++    
++    // Types text after clicking at coordinates to focus element
++    // |tabId|: The tab to type in. Defaults to active tab.
++    // |x|: X coordinate to click for focus.
++    // |y|: Y coordinate to click for focus.
++    // |text|: Text to type after focusing.
++    // |callback|: Called when the operation is complete.
++    static void typeAtCoordinates(
++        optional long tabId,
++        double x,
++        double y,
++        DOMString text,
++        InteractionCallback callback);
+         
+     // Captures a screenshot of the tab as a thumbnail
      // |tabId|: The tab to capture. Defaults to active tab.
      // |thumbnailSize|: Optional max dimension for the thumbnail. If not provided, uses viewport size.
      //                  The actual size will be the minimum of this value and the viewport dimensions.
@@ -776,7 +949,7 @@ index a8cbf0250d19a..cb74fddb59f10 100644
          CaptureScreenshotCallback callback);
  
      // Gets a content snapshot of the specified type from the page
-@@ -335,6 +345,15 @@ namespace browserOS {
+@@ -335,6 +369,15 @@ namespace browserOS {
      // |callback|: Called with the version string.
      static void getVersionNumber(
          GetVersionNumberCallback callback);
@@ -793,14 +966,16 @@ index a8cbf0250d19a..cb74fddb59f10 100644
  };
  
 diff --git a/extensions/browser/extension_function_histogram_value.h b/extensions/browser/extension_function_histogram_value.h
-index 4ba734b8f5f0e..62bf8d0cb83b2 100644
+index 4ba734b8f5f0e..804539041fa01 100644
 --- a/extensions/browser/extension_function_histogram_value.h
 +++ b/extensions/browser/extension_function_histogram_value.h
-@@ -2015,6 +2015,7 @@ enum HistogramValue {
+@@ -2015,6 +2015,9 @@ enum HistogramValue {
    BROWSER_OS_GETALLPREFS = 1952,
    BROWSER_OS_LOGMETRIC = 1953,
    BROWSER_OS_GETVERSIONNUMBER = 1954,
 +  BROWSER_OS_EXECUTEJAVASCRIPT = 1955,
++  BROWSER_OS_CLICKCOORDINATES = 1956,
++  BROWSER_OS_TYPEATCOORDINATES = 1957,
    // Last entry: Add new entries above, then run:
    // tools/metrics/histograms/update_extension_histograms.py
    ENUM_BOUNDARY
