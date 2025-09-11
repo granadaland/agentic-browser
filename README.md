@@ -58,7 +58,7 @@
 
 ### 🤖 AI Agents in Action ([watch video](https://storage.googleapis.com/felafax-public/nxtscape/nxtscape-agent-demo.mp4))
 <div align="center">
-<img src="https://pub-b52e24a001bd463a848cb2d8c8667f63.r2.dev/nxtscape-agent.gif" alt="AI Agents in Action" width="80%">
+<img src="resources/media/nxtscape-agent.gif" alt="AI Agents in Action" width="80%">
 </div>
 
 ### 💬 Local AI Chat ([watch video](https://storage.googleapis.com/felafax-public/nxtscape/nxtscape-chat.mp4))
