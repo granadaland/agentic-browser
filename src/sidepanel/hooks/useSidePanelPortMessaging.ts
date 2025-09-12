@@ -1,14 +1,19 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { PortMessaging, PortName } from '@/lib/runtime/PortMessaging'
+import { PortMessaging } from '@/lib/runtime/PortMessaging'
 import { MessageType } from '@/lib/types/messaging'
+import { getExecutionId } from '@/lib/utils/executionUtils'
 
 /**
  * Custom hook for managing port messaging specifically for the side panel.
- * Uses SIDEPANEL_TO_BACKGROUND port name to distinguish from options page messaging.
+ * Uses tab-based executionId for consistent execution context.
  */
+// TODO: maybe use zustand here to manage state
 export function useSidePanelPortMessaging() {
   const messagingRef = useRef<PortMessaging | null>(null)
   const [connected, setConnected] = useState<boolean>(false)
+  const [triggeredTabId, setTriggeredTabId] = useState<number | null>(null)
+  const [executionId, setExecutionId] = useState<string | null>(null)
+  const [isReconnecting, setIsReconnecting] = useState<boolean>(false)
   
   // Get the global singleton instance
   if (!messagingRef.current) {
@@ -19,22 +24,52 @@ export function useSidePanelPortMessaging() {
     const messaging = messagingRef.current
     if (!messaging) return
 
-    // Set up connection listener
-    const handleConnectionChange = (isConnected: boolean) => {
-      setConnected(isConnected)
+    // Initialize connection with tab-based executionId
+    const initializeConnection = async () => {
+      try {
+        // Get the current active tab
+        const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true })
+        if (activeTab?.id) {
+          setTriggeredTabId(activeTab.id)
+          
+          // Generate execution ID from tab ID
+          const tabExecutionId = await getExecutionId(activeTab.id)
+          setExecutionId(tabExecutionId)
+          
+          // Set up connection listener
+          const handleConnectionChange = (isConnected: boolean) => {
+            setConnected(isConnected)
+          }
+
+          messaging.addConnectionListener(handleConnectionChange)
+
+          // Connect to background script using executionId (which already contains tabId)
+          const dynamicPortName = `sidepanel:${tabExecutionId}`
+          const success = messaging.connect(dynamicPortName, true)
+          
+          if (!success) {
+            console.error(`[SidePanelPortMessaging] Failed to connect with executionId: ${tabExecutionId}`)
+          } else {
+            console.log(`[SidePanelPortMessaging] Connected with executionId: ${tabExecutionId}`)
+          }
+        } else {
+          console.error('[SidePanelPortMessaging] Could not get active tab ID')
+        }
+      } catch (error) {
+        console.error('[SidePanelPortMessaging] Error getting tab info:', error)
+      }
     }
 
-    messaging.addConnectionListener(handleConnectionChange)
-
-    // Connect to background script using sidepanel port name
-    const success = messaging.connect(PortName.SIDEPANEL_TO_BACKGROUND, true)
-    if (!success) {
-      console.warn('[SidePanelPortMessaging] Failed to connect to background script')
-    }
+    initializeConnection()
 
     // Cleanup on unmount: remove listener but keep the global connection alive
     return () => {
-      messaging.removeConnectionListener(handleConnectionChange)
+      const messaging = messagingRef.current
+      if (messaging) {
+        messaging.removeConnectionListener((isConnected: boolean) => {
+          setConnected(isConnected)
+        })
+      }
     }
   }, [])
 
@@ -72,11 +107,47 @@ export function useSidePanelPortMessaging() {
   ): void => {
     messagingRef.current?.removeMessageListener(type, callback)
   }, [])
+  
+  /**
+   * Reconnect with a new executionId (used when switching context from NewTab)
+   * @param newExecutionId - The new execution ID to connect with
+   */
+  const reconnect = useCallback(async (newExecutionId: string) => {
+    const messaging = messagingRef.current
+    if (!messaging) return
+    
+    console.log(`[SidePanelPortMessaging] Reconnecting with new executionId: ${newExecutionId}`)
+    setIsReconnecting(true)
+    
+    try {
+      // Disconnect current connection if exists
+      messaging.disconnect()
+      
+      // Update state with new executionId
+      setExecutionId(newExecutionId)
+      
+      // Connect with new executionId
+      const dynamicPortName = `sidepanel:${newExecutionId}`
+      const success = messaging.connect(dynamicPortName, true)
+      
+      if (!success) {
+        console.error(`[SidePanelPortMessaging] Failed to reconnect with executionId: ${newExecutionId}`)
+      } else {
+        console.log(`[SidePanelPortMessaging] Successfully reconnected with executionId: ${newExecutionId}`)
+      }
+    } finally {
+      setIsReconnecting(false)
+    }
+  }, [])
 
   return {
     connected,
+    executionId,  // Expose executionId for components to use
+    tabId: triggeredTabId,  // Expose tabId for components to know which tab they're connected to
     sendMessage,
     addMessageListener,
-    removeMessageListener
+    removeMessageListener,
+    reconnect,  // Expose reconnect function
+    isReconnecting  // Expose reconnecting state
   }
 } 

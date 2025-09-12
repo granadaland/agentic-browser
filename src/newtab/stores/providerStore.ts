@@ -2,9 +2,10 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { z } from 'zod'
 import { MessageType } from '@/lib/types/messaging'
-import { PortName } from '@/lib/runtime/PortMessaging'
+import { PortPrefix } from '@/lib/runtime/PortMessaging'
 import { Agent } from '../stores/agentsStore'
 import { Logging } from '@/lib/utils/Logging'
+import { getExecutionId } from '@/lib/utils/executionUtils'
 
 // Provider schema
 export const ProviderSchema = z.object({
@@ -182,16 +183,14 @@ export const useProviderStore = create<ProviderState & ProviderActions>()(
               return
             }
             
-            // Open the sidepanel for the current tab
-            await chrome.sidePanel.open({ tabId: activeTab.id })
+            // Generate execution ID from tab ID
+            const executionId = await getExecutionId(activeTab.id)
             
-            // Wait a bit for sidepanel to initialize
-            await new Promise(resolve => setTimeout(resolve, 500))
+            // Connect to background and send EXECUTE_QUERY
+            // This will open sidepanel automatically since source is 'newtab'
+            const port = chrome.runtime.connect({ name: `${PortPrefix.NEWTAB}:${executionId}` })
             
-            // Connect to background script and send query
-            const port = chrome.runtime.connect({ name: PortName.NEWTAB_TO_BACKGROUND })
-            
-            // Send the query through port messaging
+            // Send the query with tab context
             port.postMessage({
               type: MessageType.EXECUTE_QUERY,
               payload: {
@@ -204,8 +203,9 @@ export const useProviderStore = create<ProviderState & ProviderActions>()(
               }
             })
             
-            // Close port after sending message
-            setTimeout(() => port.disconnect(), 100)
+            // Keep port open longer to receive response
+            // It will auto-disconnect when page unloads or after timeout
+            setTimeout(() => port.disconnect(), 5000)
           } catch (error) {
             console.error('Failed to open sidepanel with query:', error)
           }
@@ -233,16 +233,14 @@ export const useProviderStore = create<ProviderState & ProviderActions>()(
             ? ['Create new tab', ...agent.steps]
             : agent.steps
           
-          // Open the sidepanel for the current tab
-          await chrome.sidePanel.open({ tabId: activeTab.id })
+          // Generate execution ID from tab ID
+          const executionId = await getExecutionId(activeTab.id)
           
-          // Wait a bit for sidepanel to initialize
-          await new Promise(resolve => setTimeout(resolve, 500))
+          // Connect to background and send EXECUTE_QUERY
+          // This will open sidepanel automatically since source is 'newtab'
+          const port = chrome.runtime.connect({ name: `${PortPrefix.NEWTAB}:${executionId}` })
           
-          // Connect to background script and send query with agent metadata
-          const port = chrome.runtime.connect({ name: PortName.NEWTAB_TO_BACKGROUND })
-          
-          // Send the query through port messaging with predefined plan
+          // Send the query with tab context and predefined plan
           port.postMessage({
             type: MessageType.EXECUTE_QUERY,
             payload: {
@@ -261,8 +259,9 @@ export const useProviderStore = create<ProviderState & ProviderActions>()(
             }
           })
           
-          // Close port after sending message
-          setTimeout(() => port.disconnect(), 100)
+          // Keep port open longer to receive response
+          // It will auto-disconnect when page unloads or after timeout
+          setTimeout(() => port.disconnect(), 5000)
         } catch (error) {
           console.error('Failed to execute agent:', error)
         }
