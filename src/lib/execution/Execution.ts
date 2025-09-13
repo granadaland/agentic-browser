@@ -10,7 +10,7 @@ import { Logging } from "@/lib/utils/Logging";
 import { PubSubChannel } from "@/lib/pubsub/PubSubChannel";
 import { PubSub } from "@/lib/pubsub";
 import { ExecutionMetadata } from "@/lib/types/messaging";
-import { isPocMode } from "@/config";
+import { getFeatureFlags } from "@/lib/utils/featureFlags";
 
 // Execution options schema (without executionId since it's now fixed)
 export const ExecutionOptionsSchema = z.object({
@@ -88,6 +88,9 @@ export class Execution {
       const modelCapabilities = await langChainProvider.getModelCapabilities();
       this.messageManager = new MessageManager(modelCapabilities.maxTokens);
     }
+
+    // Initialize feature flags (cached after first call)
+    await getFeatureFlags().initialize();
   }
 
   /**
@@ -144,11 +147,22 @@ export class Execution {
       executionContext.setSelectedTabIds(this.options.tabIds || []);
       executionContext.startExecution(this.options.tabId || 0);
 
+      if (!getFeatureFlags().isEnabled('NEW_AGENT') && this.options.mode !== 'chat') {
+        executionContext.getPubSub().publishMessage({
+          msgId: "old_agent_notice",
+          content: `⚠️ **Note**: You are using the older version of agent.
+
+Upgrade to the latest BrowserOS version from [GitHub Releases](https://github.com/browseros-ai/BrowserOS/releases) to access the new and improved agent!`,
+          role: "assistant",
+          ts: Date.now(),
+        });
+      }
+
       // Create fresh agent
       const agent =
         this.options.mode === "chat"
           ? new ChatAgent(executionContext)
-          : isPocMode()
+          : getFeatureFlags().isEnabled('NEW_AGENT')
             ? new NewAgent(executionContext)
             : new BrowserAgent(executionContext);
 
