@@ -10,15 +10,8 @@ interface HumanInputRequest {
 
 export function useMessageHandler() {
   const { upsertMessage, setProcessing, reset } = useChatStore()
-  const { addMessageListener, removeMessageListener, executionId, sendMessage } = useSidePanelPortMessaging()
+  const { addMessageListener, removeMessageListener, sendMessage } = useSidePanelPortMessaging()
   const [humanInputRequest, setHumanInputRequest] = useState<HumanInputRequest | null>(null)
-  const reconnectCallbackRef = useRef<((executionId: string) => void) | null>(null)
-  
-  // Keep executionId in a ref to always have the current value
-  const executionIdRef = useRef<string | null>(executionId)
-  useEffect(() => {
-    executionIdRef.current = executionId
-  }, [executionId])
   
   const clearHumanInputRequest = useCallback(() => {
     setHumanInputRequest(null)
@@ -77,11 +70,7 @@ export function useMessageHandler() {
   
   // Handle workflow status for processing state
   const handleWorkflowStatus = useCallback((payload: any) => {
-    // Check if this is for our execution using ref for current value
-    if (payload?.executionId && payload.executionId !== executionIdRef.current) {
-      return // Ignore messages for other executions
-    }
-    
+    // With singleton execution, we handle all workflow status messages
     if (payload?.status === 'success' || payload?.status === 'error') {
       // Execution completed (success or error)
       setProcessing(false)
@@ -90,60 +79,39 @@ export function useMessageHandler() {
     // This avoids race conditions and provides immediate UI feedback
   }, [setProcessing])
   
+  // Set up runtime message listener for execution starting notification
+  useEffect(() => {
+    const handleRuntimeMessage = (message: any) => {
+      // Handle execution starting from newtab
+      if (message?.type === MessageType.EXECUTION_STARTING) {
+        console.log(`[SidePanel] Execution starting from ${message.source}`)
+        // Set processing state to show UI feedback
+        setProcessing(true)
+      }
+    }
+
+    chrome.runtime.onMessage.addListener(handleRuntimeMessage)
+
+    return () => {
+      chrome.runtime.onMessage.removeListener(handleRuntimeMessage)
+    }
+  }, [setProcessing])  // Only depend on setProcessing which is stable
+
+  // Set up port message listeners
   useEffect(() => {
     // Register listeners
     addMessageListener(MessageType.AGENT_STREAM_UPDATE, handleStreamUpdate)
     addMessageListener(MessageType.WORKFLOW_STATUS, handleWorkflowStatus)
-    
-    // Listen for context switch messages from background
-    const handleRuntimeMessage = (message: any) => {
-      if (message?.type === MessageType.SWITCH_EXECUTION_CONTEXT) {
-        const { executionId: newExecutionId, tabId, cancelExisting } = message.payload
-        
-        console.log(`[SidePanel] Received SWITCH_EXECUTION_CONTEXT: ${newExecutionId}, current: ${executionIdRef.current}`)
-        
-        // Only switch if it's a different execution (use ref for current value)
-        if (newExecutionId !== executionIdRef.current) {
-          // If we should cancel and reset existing
-          if (cancelExisting) {
-            // Cancel any existing task
-            sendMessage(MessageType.RESET_CONVERSATION, { 
-              reason: 'New task started from NewTab',
-              source: 'sidepanel'
-            })
-            
-            setProcessing(false)
-            reset()
-          }
-          
-          // Trigger reconnection with new executionId
-          if (reconnectCallbackRef.current) {
-            reconnectCallbackRef.current(newExecutionId)
-          }
-        } else {
-          console.log(`[SidePanel] Same executionId, no need to switch`)
-        }
-      }
-    }
-    
-    chrome.runtime.onMessage.addListener(handleRuntimeMessage)
-    
+
     // Cleanup
     return () => {
       removeMessageListener(MessageType.AGENT_STREAM_UPDATE, handleStreamUpdate)
       removeMessageListener(MessageType.WORKFLOW_STATUS, handleWorkflowStatus)
-      chrome.runtime.onMessage.removeListener(handleRuntimeMessage)
     }
-  }, [addMessageListener, removeMessageListener, handleStreamUpdate, handleWorkflowStatus, sendMessage, reset, setProcessing])
-  
-  // Set the reconnect callback that will be triggered on context switch
-  const setReconnectCallback = useCallback((callback: (executionId: string) => void) => {
-    reconnectCallbackRef.current = callback
-  }, [])
+  }, [addMessageListener, removeMessageListener, handleStreamUpdate, handleWorkflowStatus])
   
   return {
     humanInputRequest,
-    clearHumanInputRequest,
-    setReconnectCallback
+    clearHumanInputRequest
   }
 }

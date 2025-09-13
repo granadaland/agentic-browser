@@ -39,14 +39,14 @@ export class BrowserPage {
   private _title: string;
   private _browserOS = getBrowserOSAdapter();
 
-  // Cache for the latest interactive snapshot
-  private _cachedSnapshot: InteractiveSnapshot | null = null;
+  // Snapshot cache for the latest interactive snapshot
+  private _snapshotCache: InteractiveSnapshot | null = null;
   // Map from nodeId to interactive node
   private _nodeIdToNodeMap: Map<number, InteractiveNode> = new Map();
-  // Cache timestamp for expiry
-  private _cacheTimestamp: number = 0;
-  // Cache expiry duration in milliseconds (1 seconds)
-  private readonly _cacheExpiryMs = 1000;
+  // Snapshot cache timestamp for expiry
+  private _snapshotCacheTimestamp: number = 0;
+  // Snapshot cache TTL in milliseconds (1 second)
+  private readonly _snapshotCacheTTL = 1000;
 
   constructor(tabId: number, url: string, title: string) {
     this._tabId = tabId;
@@ -78,30 +78,28 @@ export class BrowserPage {
   // ============= Core BrowserOS Integration =============
 
   /**
-   * Invalidate the cached snapshot
+   * Invalidate the snapshot cache
    */
   private _invalidateCache(): void {
-    this._cachedSnapshot = null;
-    this._cacheTimestamp = 0;
+    this._snapshotCache = null;
+    this._snapshotCacheTimestamp = 0;
     this._nodeIdToNodeMap.clear();
     Logging.log(
       "BrowserPage",
-      `Cache invalidated for tab ${this._tabId}`,
+      `Snapshot cache invalidated for tab ${this._tabId}`,
       "info",
     );
   }
 
   /**
-   * Check if the cached snapshot is still valid
+   * Check if the snapshot cache is still valid
    */
   private _isCacheValid(): boolean {
-    //TODO: nikhil remove cache validation later
-    return false;
-    // return (
-    //   this._cachedSnapshot !== null &&
-    //   this._cacheTimestamp > 0 &&
-    //   Date.now() - this._cacheTimestamp < this._cacheExpiryMs
-    // );
+    return (
+      this._snapshotCache !== null &&
+      this._snapshotCacheTimestamp > 0 &&
+      Date.now() - this._snapshotCacheTimestamp < this._snapshotCacheTTL
+    );
   }
 
   /**
@@ -116,7 +114,7 @@ export class BrowserPage {
           `Using cached snapshot for tab ${this._tabId}`,
           "info",
         );
-        return this._cachedSnapshot;
+        return this._snapshotCache;
       }
 
       try {
@@ -128,8 +126,8 @@ export class BrowserPage {
         const snapshot = await this._browserOS.getInteractiveSnapshot(
           this._tabId,
         );
-        this._cachedSnapshot = snapshot;
-        this._cacheTimestamp = Date.now();
+        this._snapshotCache = snapshot;
+        this._snapshotCacheTimestamp = Date.now();
 
         // Rebuild nodeId map for interactive elements only
         this._nodeIdToNodeMap.clear();
@@ -240,7 +238,7 @@ export class BrowserPage {
    * Get element by nodeId
    */
   async getElementByIndex(nodeId: number): Promise<InteractiveNode | null> {
-    if (!this._cachedSnapshot) {
+    if (!this._snapshotCache) {
       await this._getSnapshot();
     }
     return this._nodeIdToNodeMap.get(nodeId) || null;
@@ -265,10 +263,70 @@ export class BrowserPage {
   // ============= Actions =============
 
   /**
+   * Show visual pointer for an element before performing an action
+   * @param nodeId - The node ID to show pointer for
+   * @param action - The action being performed (Click, Type, Clear)
+   * @returns Promise<void>
+   */
+  private async _showPointerForElement(
+    nodeId: number,
+    action: string,
+  ): Promise<void> {
+    try {
+      // Get the element
+      const element = await this.getElementByIndex(nodeId);
+      if (!element || !element.rect) {
+        // No element or no coordinates, skip pointer
+        return;
+      }
+
+      const rect = element.rect;
+      let x: number;
+      let y: number;
+
+      // Calculate pointer position based on action type
+      switch (action.toLowerCase()) {
+        case "click":
+          // Center of element
+          x = rect.x + rect.width / 2;
+          y = rect.y + rect.height / 2;
+          break;
+        case "type":
+        case "input":
+          // Left-center of element (where text cursor typically appears)
+          x = rect.x + 10;
+          y = rect.y + rect.height / 2;
+          break;
+        case "clear":
+          // Right side of element (near clear button if present)
+          x = rect.x + rect.width - 10;
+          y = rect.y + rect.height / 2;
+          break;
+        default:
+          // Default to center
+          x = rect.x + rect.width / 2;
+          y = rect.y + rect.height / 2;
+      }
+
+      // Show the pointer with action description
+      await this.showPointer(x, y, action);
+    } catch (error) {
+      // Log but don't fail the action if pointer fails
+      Logging.log(
+        "BrowserPage",
+        `Failed to show pointer for element ${nodeId}: ${error}`,
+        "warning",
+      );
+    }
+  }
+
+  /**
    * Click element by node ID
    */
   async clickElement(nodeId: number): Promise<void> {
     await profileAsync(`BrowserPage.clickElement[${nodeId}]`, async () => {
+      // Show pointer before clicking
+      await this._showPointerForElement(nodeId, "Click");
       await this._browserOS.click(this._tabId, nodeId);
       this._invalidateCache(); // Invalidate cache after click
       await this.waitForStability();
@@ -280,6 +338,9 @@ export class BrowserPage {
    */
   async inputText(nodeId: number, text: string): Promise<void> {
     await profileAsync(`BrowserPage.inputText[${nodeId}]`, async () => {
+      // Show pointer before typing, with preview of text
+      const displayText = text.length > 20 ? `${text.substring(0, 20)}...` : text;
+      await this._showPointerForElement(nodeId, `Type: ${displayText}`);
       await this._browserOS.clear(this._tabId, nodeId);
       await this._browserOS.inputText(this._tabId, nodeId, text);
       this._invalidateCache(); // Invalidate cache after text input
@@ -291,6 +352,8 @@ export class BrowserPage {
    * Clear element by node ID
    */
   async clearElement(nodeId: number): Promise<void> {
+    // Show pointer before clearing
+    await this._showPointerForElement(nodeId, "Clear");
     await this._browserOS.clear(this._tabId, nodeId);
     this._invalidateCache(); // Invalidate cache after clearing
     await this.waitForStability();
@@ -336,6 +399,13 @@ export class BrowserPage {
       scrollMessage = scrolled
         ? " (auto-scrolled to element)"
         : " (attempted scroll)";
+
+      // Show pointer at the element after scrolling
+      if (scrolled && element.rect) {
+        const x = element.rect.x + element.rect.width / 2;
+        const y = element.rect.y + element.rect.height / 2;
+        await this.showPointer(x, y, "Scrolled to element");
+      }
     }
 
     return {
@@ -682,11 +752,11 @@ export class BrowserPage {
         
         document.body.appendChild(pointer);
         
-        // Auto-remove after 10 seconds
+        // Auto-remove after 3 seconds
         setTimeout(() => {
           const el = document.getElementById('${pointerId}');
           if (el) el.remove();
-        }, 10000);
+        }, 3000);
       })();
     `);
   }
