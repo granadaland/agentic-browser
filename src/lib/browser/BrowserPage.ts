@@ -45,8 +45,8 @@ export class BrowserPage {
   private _nodeIdToNodeMap: Map<number, InteractiveNode> = new Map();
   // Snapshot cache timestamp for expiry
   private _snapshotCacheTimestamp: number = 0;
-  // Snapshot cache TTL in milliseconds (1 second)
-  private readonly _snapshotCacheTTL = 1000;
+  // Snapshot cache TTL in milliseconds (100ms default)
+  private readonly _snapshotCacheTTL = 100;
 
   constructor(tabId: number, url: string, title: string) {
     this._tabId = tabId;
