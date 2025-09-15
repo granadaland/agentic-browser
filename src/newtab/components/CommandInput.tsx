@@ -18,7 +18,7 @@ export function CommandInput({ onCreateAgent }: CommandInputProps = {}) {
   const [executingAgentName, setExecutingAgentName] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
   
-  const { getSelectedProvider, executeProviderAction, executeAgent } = useProviderStore()
+  const { getSelectedProvider, executeProviderAction, executeAgent, getAllProviders } = useProviderStore()
   const { agents, selectedAgentId } = useAgentsStore()
   
   const selectedProvider = getSelectedProvider()
@@ -31,22 +31,19 @@ export function CommandInput({ onCreateAgent }: CommandInputProps = {}) {
   const handleProviderSelect = async (provider: any, query: string) => {
     setShowSearchDropdown(false)
     
-    // Execute based on provider type
-    if (provider.id === 'google') {
-      window.open(`https://google.com/search?q=${encodeURIComponent(query)}`, '_blank')
-    } else if (provider.id === 'chatgpt') {
-      window.open(`https://chatgpt.com/?q=${encodeURIComponent(query)}`, '_blank')
-    } else if (provider.id === 'claude') {
-      window.open(`https://claude.ai/new?q=${encodeURIComponent(query)}`, '_blank')
-    } else if (provider.id === 'browseros') {
-      const browserosProvider = { 
-        id: 'browseros-agent', 
-        name: 'BrowserOS Agent', 
-        category: 'llm' as const,
-        actionType: 'sidepanel' as const,
-        available: true
-      }
-      await executeProviderAction(browserosProvider, query)
+    // Find the full provider configuration from the store
+    let fullProvider = getAllProviders().find(p => p.id === provider.id)
+    
+    // Handle special case for browseros dropdown option
+    if (provider.id === 'browseros') {
+      fullProvider = getAllProviders().find(p => p.id === 'browseros-agent')
+    }
+    
+    if (fullProvider) {
+      // Use centralized executeProviderAction for all providers
+      await executeProviderAction(fullProvider, query)
+    } else {
+      console.warn('Provider not found:', provider.id)
     }
     
     setValue('')

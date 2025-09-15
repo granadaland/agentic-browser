@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware'
 import { z } from 'zod'
 import { Agent } from '../stores/agentsStore'
 import { Logging } from '@/lib/utils/Logging'
+import { getBrowserOSAdapter } from '@/lib/browser/BrowserOSAdapter'
 
 // Provider schema
 export const ProviderSchema = z.object({
@@ -13,10 +14,18 @@ export const ProviderSchema = z.object({
   urlPattern: z.string().optional(),  // URL pattern for navigation (use %s for query placeholder)
   searchParam: z.string().optional(),  // Query parameter name (e.g., 'q' for ?q=query)
   available: z.boolean().default(true),  // Is provider available
-  isCustom: z.boolean().optional()  // Is this a custom provider
+  isCustom: z.boolean().optional(),  // Is this a custom provider
+  openIn: z.enum(['newTab', 'current']).optional(),  // Where to open the URL (defaults based on category)
+  autoSubmit: z.boolean().optional(),  // Whether to auto-send Enter after page loads
+  submitKey: z.string().optional(),  // Key to send for submission (default: 'Enter')
+  focusBeforeSubmit: z.boolean().optional()  // Whether to focus input before submitting
 })
 
 export type Provider = z.infer<typeof ProviderSchema>
+
+// Constants for auto-submit behavior
+const CHAT_PROVIDER_READY_TIMEOUT_MS = 8000  // Max wait time for DOM ready
+const CHAT_PROVIDER_POST_LOAD_DELAY_MS = 400  // Delay after DOM ready before sending key
 
 // Default providers list
 const DEFAULT_PROVIDERS: Provider[] = [
@@ -33,7 +42,11 @@ const DEFAULT_PROVIDERS: Provider[] = [
     category: 'llm',
     actionType: 'url',
     urlPattern: 'https://chatgpt.com/?q=%s',
-    available: true
+    available: true,
+    openIn: 'newTab',
+    autoSubmit: true,
+    submitKey: 'Enter',
+    focusBeforeSubmit: true
   },
   {
     id: 'claude',
@@ -41,7 +54,11 @@ const DEFAULT_PROVIDERS: Provider[] = [
     category: 'llm',
     actionType: 'url',
     urlPattern: 'https://claude.ai/new?q=%s',
-    available: true
+    available: true,
+    openIn: 'newTab',
+    autoSubmit: true,
+    submitKey: 'Enter',
+    focusBeforeSubmit: true
   },
   {
     id: 'grok',
@@ -163,10 +180,71 @@ export const useProviderStore = create<ProviderState & ProviderActions>()(
         if (provider.actionType === 'url' && provider.urlPattern) {
           const url = provider.urlPattern.replace('%s', encodeURIComponent(query))
           
-          // Update current tab
-          const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true })
-          if (activeTab?.id) {
-            await chrome.tabs.update(activeTab.id, { url })
+          // Determine if we should open in new tab (default for LLM category or explicit setting)
+          const openInNewTab = provider.openIn === 'newTab' || 
+                              (provider.openIn === undefined && provider.category === 'llm')
+          
+          let tabId: number | undefined
+          
+          try {
+            if (openInNewTab) {
+              // Create new tab and get tab ID
+              const tab = await chrome.tabs.create({ url })
+              tabId = tab.id
+            } else {
+              // Update current tab
+              const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true })
+              if (activeTab?.id) {
+                await chrome.tabs.update(activeTab.id, { url })
+                tabId = activeTab.id
+              }
+            }
+            
+            // Handle auto-submit if configured
+            if (provider.autoSubmit && tabId != null) {
+              // Wait for DOM to be ready
+              const browserOS = getBrowserOSAdapter()
+              const start = Date.now()
+              
+              while (Date.now() - start < CHAT_PROVIDER_READY_TIMEOUT_MS) {
+                try {
+                  const status = await browserOS.getPageLoadStatus(tabId)
+                  if (status.isDOMContentLoaded) {
+                    break
+                  }
+                } catch (error) {
+                  // Continue polling on error
+                }
+                await new Promise(resolve => setTimeout(resolve, 100))
+              }
+              
+              // Small delay to ensure handlers are bound
+              await new Promise(resolve => setTimeout(resolve, CHAT_PROVIDER_POST_LOAD_DELAY_MS))
+              
+              // Focus input if requested
+              if (provider.focusBeforeSubmit) {
+                try {
+                  await browserOS.executeJavaScript(tabId, `
+                    (function() {
+                      const el = document.querySelector('textarea, [contenteditable="true"], input[type="search"], input[type="text"]');
+                      if (el) el.focus();
+                    })()
+                  `)
+                } catch (error) {
+                  console.warn('Failed to focus input:', error)
+                }
+              }
+              
+              // Send the submit key (default to Enter)
+              const submitKey = provider.submitKey || 'Enter'
+              await browserOS.sendKeys(tabId, submitKey as chrome.browserOS.Key)
+            }
+          } catch (error) {
+            console.error(`Failed to execute provider ${provider.id}:`, error)
+            // Fallback to basic window.open if anything fails
+            if (openInNewTab) {
+              window.open(url, '_blank')
+            }
           }
         } 
         // Sidepanel provider (BrowserOS Agent)
