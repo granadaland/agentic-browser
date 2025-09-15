@@ -733,8 +733,9 @@ Based on the metrics, execution history, and current browser state, what should 
 
         // Update iteration count and metrics
         this.iterations += llmResponse.tool_calls.length;
-        for (let i = 0; i < llmResponse.tool_calls.length; i++) {
+        for (const toolCall of llmResponse.tool_calls) {
           this.executionContext.incrementMetric("toolCalls");
+          this.executionContext.incrementToolUsageMetrics(toolCall.name);
         }
 
         // Check for special outcomes
@@ -1012,6 +1013,12 @@ Based on the metrics, execution history, and current browser state, what should 
           ).toFixed(1)
         : "0";
 
+    // Convert tool frequency Map to object for logging
+    const toolFrequency: Record<string, number> = {};
+    metrics.toolFrequency.forEach((count, toolName) => {
+      toolFrequency[toolName] = count;
+    });
+
     Logging.log(
       "NewAgent",
       `Execution complete: ${this.iterations} iterations, ${metrics.toolCalls} tool calls, ` +
@@ -1020,6 +1027,15 @@ Based on the metrics, execution history, and current browser state, what should 
       "info",
     );
 
+    // Log tool frequency if any tools were called
+    if (metrics.toolCalls > 0) {
+      Logging.log(
+        "NewAgent",
+        `Tool frequency: ${JSON.stringify(toolFrequency)}`,
+        "info",
+      );
+    }
+
     Logging.logMetric("newagent.execution", {
       iterations: this.iterations,
       toolCalls: metrics.toolCalls,
@@ -1027,6 +1043,7 @@ Based on the metrics, execution history, and current browser state, what should 
       errors: metrics.errors,
       duration,
       successRate: parseFloat(successRate),
+      toolFrequency,
     });
   }
 

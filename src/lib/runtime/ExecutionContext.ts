@@ -21,6 +21,7 @@ export interface ExecutionMetrics {
   errors: number;
   startTime: number;
   endTime: number;
+  toolFrequency: Map<string, number>;  // Track frequency of each tool called
 }
 
 // ToolResult interface for parsing tool messages
@@ -79,6 +80,7 @@ export class ExecutionContext {
     errors: 0,
     startTime: Date.now(),
     endTime: 0,
+    toolFrequency: new Map<string, number>(),
   };
   
   // Tool metrics Map for evals2 lightweight tracking
@@ -233,6 +235,7 @@ export class ExecutionContext {
       errors: 0,
       startTime: Date.now(),
       endTime: 0,
+      toolFrequency: new Map<string, number>(),
     };
   }
 
@@ -373,6 +376,14 @@ export class ExecutionContext {
     metric: "toolCalls" | "observations" | "errors",
   ): void {
     this._executionMetrics[metric]++;
+  }
+
+  /**
+   * incrementing the frequency count for a specific tool
+   */
+  public incrementToolUsageMetrics(toolName: string): void {
+    const currentCount = this._executionMetrics.toolFrequency.get(toolName) || 0;
+    this._executionMetrics.toolFrequency.set(toolName, currentCount + 1);
   }
 
   /**
