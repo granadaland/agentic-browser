@@ -28,7 +28,7 @@ interface MessageListProps {
 // Example prompts - showcasing BrowserOS capabilities
 const EXAMPLES = [
   "Open amazon.com and order Sensodyne toothpaste",
-  "Find top-rated headphones under $100", 
+  "Find top-rated headphones under $200", 
   "Go to GitHub and Star BrowserOS",
   "Turn this article into a LinkedIn post",
 ]
