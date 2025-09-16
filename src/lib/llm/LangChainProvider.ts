@@ -25,7 +25,7 @@ const DEFAULT_MAX_TOKENS = 4096
 const DEFAULT_OPENAI_MODEL = "gpt-4o"
 const DEFAULT_ANTHROPIC_MODEL = 'claude-4-sonnet'
 const DEFAULT_OLLAMA_MODEL = "qwen3:4b"
-const DEFAULT_OLLAMA_BASE_URL = "http://localhost:11434"
+const DEFAULT_OLLAMA_BASE_URL = "http://127.0.0.1:11434"
 const DEFAULT_BROWSEROS_PROXY_URL = "https://llm.browseros.com/default/"
 const DEFAULT_BROWSEROS_MODEL = "default-llm"
 const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash"
@@ -447,20 +447,30 @@ export class LangChainProvider {
     temperature: number,
     maxTokens?: number
   ): ChatOllama {
+    // Ensure we use 127.0.0.1 instead of localhost for better compatibility
+    // TODO: move this to C++ patch
+    let baseUrl = provider.baseUrl || DEFAULT_OLLAMA_BASE_URL
+    if (baseUrl.includes('localhost')) {
+      baseUrl = baseUrl.replace('localhost', '127.0.0.1')
+      Logging.log('LangChainProvider',
+        'Replaced "localhost" with "127.0.0.1" in Ollama URL for better compatibility',
+        'info')
+    }
+
     const ollamaConfig: any = {
       model: provider.modelId || DEFAULT_OLLAMA_MODEL,
       temperature,
       maxRetries: 2,
-      baseUrl: provider.baseUrl || DEFAULT_OLLAMA_BASE_URL
+      baseUrl
     }
-    
+
     // Add context window if specified in provider config
     if (provider.modelConfig?.contextWindow) {
       ollamaConfig.numCtx = provider.modelConfig.contextWindow
     }
-    
+
     const model = new ChatOllama(ollamaConfig)
-    
+
     return this._patchTokenCounting(model)
   }
 }

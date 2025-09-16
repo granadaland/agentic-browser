@@ -6,6 +6,7 @@ import { type ScreenshotSizeKey } from "@/lib/browser/BrowserOSAdapter";
 import {
   AIMessage,
   AIMessageChunk,
+  BaseMessage,
   HumanMessage,
   SystemMessage,
 } from "@langchain/core/messages";
@@ -22,6 +23,7 @@ import { AbortError } from "@/lib/utils/Abortable";
 import { jsonParseToolOutput } from "@/lib/utils/utils";
 import { isDevelopmentMode } from "@/config";
 import { invokeWithRetry } from "@/lib/utils/retryable";
+import { TokenCounter } from "@/lib/utils/TokenCounter";
 import {
   generateExecutorPrompt,
   generatePlannerPrompt,
@@ -388,6 +390,26 @@ export class NewAgent {
         "info"
       );
 
+      // In limited context mode, start fresh for each planning iteration
+      if (this.executionContext.isLimitedContextMode()) {
+        // Store the system prompt and goal message before clearing
+        const messages = this.executorMessageManager.getMessages();
+        const systemMessages = messages.filter(msg => msg instanceof SystemMessage);
+        // Clear all messages
+        this.executorMessageManager.clear();
+
+        // Re-add system prompt and goal
+        if (systemMessages.length > 0) {
+          this.executorMessageManager.add(systemMessages[0], 0);
+        }
+
+        Logging.log(
+          "NewAgent",
+          "Limited context mode: Reset executor message history",
+          "info"
+        );
+      }
+
       // Build execution context with planner output
       const executionContext = this._buildPredefinedExecutionContext(plan, plan.actions);
       this.executorMessageManager.addSystemReminder(executionContext);
@@ -497,6 +519,28 @@ export class NewAgent {
         "info",
       );
 
+      // In limited context mode, start fresh for each planning iteration
+      if (this.executionContext.isLimitedContextMode()) {
+        // Store the system prompt before clearing
+        const systemMessages = this.executorMessageManager.getMessages().filter(
+          msg => msg instanceof SystemMessage
+        );
+
+        // Clear all messages
+        this.executorMessageManager.clear();
+
+        // Re-add system prompt if it exists
+        if (systemMessages.length > 0) {
+          this.executorMessageManager.add(systemMessages[0], 0);
+        }
+
+        Logging.log(
+          "NewAgent",
+          "Limited context mode: Reset executor message history",
+          "info"
+        );
+      }
+
       // Build unified execution context with planning + execution instructions
       const executionContext = this._buildDynamicExecutionContext(plan, plan.actions);
       this.executorMessageManager.addSystemReminder(executionContext);
@@ -579,23 +623,30 @@ export class NewAgent {
 
       // Get browser state message with screenshot
       const browserStateMessage = await this._getBrowserStateMessage(
-        /* includeScreenshot */ true,
+        /* includeScreenshot */ this.executionContext.supportsVision(),
         /* simplified */ true,
         /* screenshotSize */ "large"
       );
 
       // Get execution metrics for analysis
       const metrics = this.executionContext.getExecutionMetrics();
-      const errorRate = metrics.toolCalls > 0 
+      const errorRate = metrics.toolCalls > 0
         ? ((metrics.errors / metrics.toolCalls) * 100).toFixed(1)
         : "0";
       const elapsed = Date.now() - metrics.startTime;
 
-      // Get messagey history
-      const readOnlyMM = new MessageManagerReadOnly(this.executorMessageManager);
-      const fullHistory = readOnlyMM.getFilteredAsString([MessageType.SYSTEM, MessageType.SCREENSHOT, MessageType.BROWSER_STATE]);
+      // Check if we're in limited context mode
+      const isLimitedContext = this.executionContext.isLimitedContextMode();
 
-      // Get reasoning history for context
+      // Get history only if NOT in limited context mode
+      let fullHistory = "";
+      if (!isLimitedContext) {
+        // Get message history
+        const readOnlyMM = new MessageManagerReadOnly(this.executorMessageManager);
+        fullHistory = readOnlyMM.getFilteredAsString([MessageType.SYSTEM, MessageType.SCREENSHOT, MessageType.BROWSER_STATE]);
+      }
+
+      // Get reasoning history for context (always include this as it's lightweight)
       const recentReasoning = this.executionContext.getReasoningHistory(5);
 
       // Get LLM with structured output
@@ -608,38 +659,57 @@ export class NewAgent {
       // System prompt for planner
       const systemPrompt = generatePlannerPrompt();
 
-      const userPrompt = `TASK: ${task}
+      // Build user prompt incrementally
+      let userPrompt = `TASK: ${task}\n\n`;
 
-EXECUTION METRICS:
-- Tool calls: ${metrics.toolCalls} (${metrics.errors} errors, ${errorRate}% failure rate)
-- Observations taken: ${metrics.observations}
-- Time elapsed: ${(elapsed / 1000).toFixed(1)} seconds
-${parseInt(errorRate) > 30 ? "⚠️ HIGH ERROR RATE - Current approach may be failing" : ""}
-${metrics.toolCalls > 10 && metrics.errors > 5 ? "⚠️ MANY ATTEMPTS - May be stuck in a loop" : ""}
+      // Add execution metrics
+      userPrompt += `EXECUTION METRICS:\n`;
+      userPrompt += `- Tool calls: ${metrics.toolCalls} (${metrics.errors} errors, ${errorRate}% failure rate)\n`;
+      userPrompt += `- Observations taken: ${metrics.observations}\n`;
+      userPrompt += `- Time elapsed: ${(elapsed / 1000).toFixed(1)} seconds\n`;
 
-FULL EXECUTION HISTORY:
-${fullHistory || "No execution history yet"}
+      // Add warning flags if needed
+      if (parseInt(errorRate) > 30) {
+        userPrompt += `⚠️ HIGH ERROR RATE - Current approach may be failing\n`;
+      }
+      if (metrics.toolCalls > 10 && metrics.errors > 5) {
+        userPrompt += `⚠️ MANY ATTEMPTS - May be stuck in a loop\n`;
+      }
 
-${
-  recentReasoning.length > 0
-    ? `YOUR PREVIOUS REASONING (what you thought would work):
-${recentReasoning.map(r => {
-  try {
-    const parsed = JSON.parse(r);
-    return `- ${parsed.reasoning || r}`;
-  } catch {
-    return `- ${r}`;
-  }
-}).join("\n")}
+      // Add full execution history if not in limited context
+      if (!isLimitedContext && fullHistory) {
+        userPrompt += `\nFULL EXECUTION HISTORY:\n`;
+        userPrompt += `${fullHistory}\n\n`;
+      }
 
-`
-    : ""
-}ANALYZE the execution history above to understand:
-1. What the executor actually attempted (check tool calls and results)
-2. What failed and why (check error messages)
-3. Whether your previous plan was executed correctly
+      // Add reasoning history (always, as it's lightweight)
+      if (recentReasoning.length > 0) {
+        userPrompt += `YOUR PREVIOUS REASONING (what you thought would work):\n`;
+        userPrompt += recentReasoning.map(r => {
+          try {
+            const parsed = JSON.parse(r);
+            return `- ${parsed.reasoning || r}`;
+          } catch {
+            return `- ${r}`;
+          }
+        }).join("\n");
+        userPrompt += "\n\n";
+      }
 
-Based on the metrics, execution history, and current browser state, what should we do next?`;
+      // Add analysis instructions if we have history
+      if (!isLimitedContext && fullHistory) {
+        userPrompt += `ANALYZE the execution history above to understand:\n`;
+        userPrompt += `1. What the executor actually attempted (check tool calls and results)\n`;
+        userPrompt += `2. What failed and why (check error messages)\n`;
+        userPrompt += `3. Whether your previous plan was executed correctly\n\n`;
+      }
+
+      // Add final question
+      userPrompt += `Based on the `;
+      if (!isLimitedContext) {
+        userPrompt += `metrics, execution history, and `;
+      }
+      userPrompt += `current browser state, what should we do next?`;
 
       // Build messages
       const messages = [
@@ -647,6 +717,9 @@ Based on the metrics, execution history, and current browser state, what should 
         new HumanMessage(userPrompt),
         browserStateMessage, // Browser state with screenshot
       ];
+
+      // Log token counts for individual messages and total
+      this._logMessageTokens(messages, `Dynamic Planner (iteration ${this.executionContext.getExecutionMetrics().observations})`);
 
       // Get structured response from LLM with retry logic
       const result = await invokeWithRetry<PlannerOutput>(
@@ -700,7 +773,7 @@ Based on the metrics, execution history, and current browser state, what should 
       if (isFirstPass) {
         // Add current browser state without screenshot
         const browserStateMessage = await this._getBrowserStateMessage(
-          /* includeScreenshot */ true,
+          /* includeScreenshot */ this.executionContext.supportsVision(),
           /* simplified */ false,
           /* screenshotSize */ "medium"
         );
@@ -789,6 +862,9 @@ Based on the metrics, execution history, and current browser state, what should 
     ];
 
     const message_history = this.executorMessageManager.getMessages();
+
+    // Log token counts for individual messages and total
+    this._logMessageTokens(message_history, `Executor (iteration ${this.iterations + 1})`);
 
     const stream = await this.executorLlmWithTools.stream(message_history, {
       signal: this.executionContext.abortSignal,
@@ -974,6 +1050,55 @@ Based on the metrics, execution history, and current browser state, what should 
     this.pubsub.publishMessage(PubSub.createMessage(content, type as any));
   }
 
+  /**
+   * Log token counts for individual messages and total
+   * @param messages - Array of messages to log tokens for
+   * @param context - Context string for logging (e.g., "Dynamic Planner", "Executor")
+   */
+  private _logMessageTokens(messages: BaseMessage[], context: string): void {
+    // Count tokens for each message
+    const messageCounts: string[] = [];
+    let totalTokens = 0;
+
+    for (const message of messages) {
+      const tokenCount = TokenCounter.countMessage(message);
+      totalTokens += tokenCount;
+
+      // Format message type and token count
+      const messageType = message.getType();
+      if (messageType === 'human') {
+        // Check if it's a browser state message
+        const isBrowserState = (message as any).additional_kwargs?.messageType === MessageType.BROWSER_STATE;
+        if (isBrowserState) {
+          messageCounts.push(`HumanMessage (browser-state): ${TokenCounter.format(tokenCount)}`);
+        } else {
+          messageCounts.push(`HumanMessage: ${TokenCounter.format(tokenCount)}`);
+        }
+      } else if (messageType === 'system') {
+        messageCounts.push(`SystemMessage: ${TokenCounter.format(tokenCount)}`);
+      } else if (messageType === 'ai') {
+        messageCounts.push(`AIMessage: ${TokenCounter.format(tokenCount)}`);
+      } else if (messageType === 'tool') {
+        messageCounts.push(`ToolMessage: ${TokenCounter.format(tokenCount)}`);
+      } else {
+        messageCounts.push(`${messageType}: ${TokenCounter.format(tokenCount)}`);
+      }
+    }
+
+    // Log to standard logging
+    const logMessage = `${context} token usage:\n  ${messageCounts.join('\n  ')}\n  Total: ${TokenCounter.format(totalTokens)}`;
+    Logging.log("NewAgent", logMessage, "info");
+
+    // Also emit in dev mode if enabled
+    if (isDevelopmentMode()) {
+      this._emitDevModeDebug(
+        `${context} tokens`,
+        `Total: ${TokenCounter.format(totalTokens)} (${messages.length} messages)`,
+        200  // Allow longer detail for token info
+      );
+    }
+  }
+
   // Emit debug information in development mode
   private _emitDevModeDebug(action: string, details?: string, maxLength: number = 60): void {
     if (isDevelopmentMode()) {
@@ -1141,7 +1266,7 @@ Based on the metrics, execution history, and current browser state, what should 
 
       // Get browser state with screenshot
       const browserStateMessage = await this._getBrowserStateMessage(
-        /* includeScreenshot */ true,
+        /* includeScreenshot */ this.executionContext.supportsVision(),
         /* simplified */ true,
         /* screenshotSize */ "large"
       );
@@ -1153,15 +1278,21 @@ Based on the metrics, execution history, and current browser state, what should 
         : "0";
       const elapsed = Date.now() - metrics.startTime;
 
-      // Get execution history (simplified)
-      const readOnlyMM = new MessageManagerReadOnly(this.executorMessageManager);
-      const fullHistory = readOnlyMM.getFilteredAsString([
-        MessageType.SYSTEM,
-        MessageType.SCREENSHOT,
-        MessageType.BROWSER_STATE
-      ]);
+      // Check if we're in limited context mode
+      const isLimitedContext = this.executionContext.isLimitedContextMode();
 
-      // Get reasoning history for context
+      // Get execution history only if NOT in limited context mode
+      let fullHistory = "";
+      if (!isLimitedContext) {
+        const readOnlyMM = new MessageManagerReadOnly(this.executorMessageManager);
+        fullHistory = readOnlyMM.getFilteredAsString([
+          MessageType.SYSTEM,
+          MessageType.SCREENSHOT,
+          MessageType.BROWSER_STATE
+        ]);
+      }
+
+      // Get reasoning history for context (always include as it's lightweight)
       const recentReasoning = this.executionContext.getReasoningHistory(5);
 
       // Get LLM with structured output
@@ -1174,51 +1305,73 @@ Based on the metrics, execution history, and current browser state, what should 
       // Predefined planner prompt
       const systemPrompt = generatePredefinedPlannerPrompt();
 
-      const userPrompt = `Current TODO List:
-${currentTodos}
+      // Build user prompt incrementally
+      let userPrompt = `Current TODO List:\n${currentTodos}\n\n`;
 
-EXECUTION METRICS:
-- Tool calls: ${metrics.toolCalls} (${metrics.errors} errors, ${errorRate}% failure rate)
-- Observations taken: ${metrics.observations}
-- Time elapsed: ${(elapsed / 1000).toFixed(1)} seconds
-${parseInt(errorRate) > 30 ? "⚠️ HIGH ERROR RATE - Current approach may be failing" : ""}
-${metrics.toolCalls > 10 && metrics.errors > 5 ? "⚠️ MANY ATTEMPTS - May be stuck in a loop" : ""}
+      // Add execution metrics
+      userPrompt += `EXECUTION METRICS:\n`;
+      userPrompt += `- Tool calls: ${metrics.toolCalls} (${metrics.errors} errors, ${errorRate}% failure rate)\n`;
+      userPrompt += `- Observations taken: ${metrics.observations}\n`;
+      userPrompt += `- Time elapsed: ${(elapsed / 1000).toFixed(1)} seconds\n`;
 
-FULL EXECUTION HISTORY:
-${fullHistory || "No execution yet"}
+      // Add warning flags if needed
+      if (parseInt(errorRate) > 30) {
+        userPrompt += `⚠️ HIGH ERROR RATE - Current approach may be failing\n`;
+      }
+      if (metrics.toolCalls > 10 && metrics.errors > 5) {
+        userPrompt += `⚠️ MANY ATTEMPTS - May be stuck in a loop\n`;
+      }
 
-${
-  recentReasoning.length > 0
-    ? `YOUR PREVIOUS REASONING (what you thought would work):
-${recentReasoning.map(r => {
-  try {
-    const parsed = JSON.parse(r);
-    return `- ${parsed.reasoning || r}`;
-  } catch {
-    return `- ${r}`;
-  }
-}).join("\n")}
+      // Add full execution history if not in limited context
+      if (!isLimitedContext && fullHistory) {
+        userPrompt += `\nFULL EXECUTION HISTORY:\n`;
+        userPrompt += `${fullHistory || "No execution yet"}\n\n`;
+      }
 
-`
-    : ""
-}Task Goal: ${task}
+      // Add reasoning history (always, as it's lightweight)
+      if (recentReasoning.length > 0) {
+        userPrompt += `YOUR PREVIOUS REASONING (what you thought would work):\n`;
+        userPrompt += recentReasoning.map(r => {
+          try {
+            const parsed = JSON.parse(r);
+            return `- ${parsed.reasoning || r}`;
+          } catch {
+            return `- ${r}`;
+          }
+        }).join("\n");
+        userPrompt += "\n\n";
+      }
 
-ANALYZE the execution history above to understand:
-1. What the executor actually attempted (check tool calls and results)
-2. What failed and why (check error messages)
-3. Whether your previous plan was executed correctly
+      // Add task goal
+      userPrompt += `Task Goal: ${task}\n\n`;
 
-Based on the metrics, execution history, and current browser state:
-1. Update the TODO list marking completed items with [x]
-2. Identify the next uncompleted TODO to work on
-3. Provide specific actions to complete that TODO
-4. If all TODOs are complete, set allTodosComplete=true and provide a finalAnswer`;
+      // Add analysis instructions if we have history
+      if (!isLimitedContext && fullHistory) {
+        userPrompt += `ANALYZE the execution history above to understand:\n`;
+        userPrompt += `1. What the executor actually attempted (check tool calls and results)\n`;
+        userPrompt += `2. What failed and why (check error messages)\n`;
+        userPrompt += `3. Whether your previous plan was executed correctly\n\n`;
+      }
+
+      // Add final instructions
+      userPrompt += `Based on the `;
+      if (!isLimitedContext) {
+        userPrompt += `metrics, execution history, and `;
+      }
+      userPrompt += `current browser state:\n`;
+      userPrompt += `1. Update the TODO list marking completed items with [x]\n`;
+      userPrompt += `2. Identify the next uncompleted TODO to work on\n`;
+      userPrompt += `3. Provide specific actions to complete that TODO\n`;
+      userPrompt += `4. If all TODOs are complete, set allTodosComplete=true and provide a finalAnswer`;
 
       const messages = [
         new SystemMessage(systemPrompt),
         new HumanMessage(userPrompt),
         browserStateMessage,
       ];
+
+      // Log token counts for individual messages and total
+      this._logMessageTokens(messages, `Predefined Planner (iteration ${this.executionContext.getExecutionMetrics().observations})`);
 
       // Get structured response with retry
       const plan = await invokeWithRetry<PredefinedPlannerOutput>(
@@ -1277,34 +1430,60 @@ Based on the metrics, execution history, and current browser state:
     plan: PredefinedPlannerOutput,
     actions: string[]
   ): string {
+    const supportsVision = this.executionContext.supportsVision();
+
+    const analysisSection = supportsVision
+      ? `  <screenshot-analysis>
+    The screenshot shows the webpage with nodeId numbers overlaid as visual labels on elements.
+    These appear as numbers in boxes/labels (e.g., [21], [42], [156]) directly on the webpage elements.
+    YOU MUST LOOK AT THE SCREENSHOT FIRST to identify which nodeId belongs to which element.
+  </screenshot-analysis>`
+      : `  <text-only-analysis>
+    You are operating in TEXT-ONLY mode without screenshots.
+    Use the browser state text to identify elements by their nodeId, text content, and attributes.
+    Focus on element descriptions and hierarchical structure in the browser state.
+  </text-only-analysis>`;
+
+    const processSection = supportsVision
+      ? `  <visual-execution-process>
+    1. EXAMINE the screenshot - See the webpage with nodeId labels overlaid on elements
+    2. LOCATE the element you need to interact with visually
+    3. IDENTIFY its nodeId from the label shown on that element in the screenshot
+    // 4. EXECUTE using that nodeId in your tool call
+  </visual-execution-process>`
+      : `  <text-execution-process>
+    1. ANALYZE the browser state text to understand page structure
+    2. LOCATE elements by their text content, type, and attributes
+    3. IDENTIFY the correct nodeId from the browser state
+    4. EXECUTE using that nodeId in your tool call
+  </text-execution-process>`;
+
+    const guidelines = supportsVision
+      ? `    - The nodeIds are VISUALLY LABELED on the screenshot - you must look at it
+    - The text-based browser state is supplementary - the screenshot is your primary reference
+    - Batch multiple tool calls in one response when possible (reduces latency)
+    - Call 'done' when the current actions are completed`
+      : `    - Use the text-based browser state as your primary reference
+    - Match elements by their text content and attributes
+    - Batch multiple tool calls in one response when possible (reduces latency)
+    - Call 'done' when the current actions are completed`;
+
     return `<predefined-plan-context>
   <observation>${plan.observation}</observation>
   <reasoning>${plan.reasoning}</reasoning>
 </predefined-plan-context>
 
 <execution-instructions>
-  <screenshot-analysis>
-    The screenshot shows the webpage with nodeId numbers overlaid as visual labels on elements.
-    These appear as numbers in boxes/labels (e.g., [21], [42], [156]) directly on the webpage elements.
-    YOU MUST LOOK AT THE SCREENSHOT FIRST to identify which nodeId belongs to which element.
-  </screenshot-analysis>
+${analysisSection}
 
   <actions-to-execute>
 ${actions.map((action, i) => `    ${i + 1}. ${action}`).join('\n')}
   </actions-to-execute>
 
-  <visual-execution-process>
-    1. EXAMINE the screenshot - See the webpage with nodeId labels overlaid on elements
-    2. LOCATE the element you need to interact with visually
-    3. IDENTIFY its nodeId from the label shown on that element in the screenshot
-    4. EXECUTE using that nodeId in your tool call
-  </visual-execution-process>
+${processSection}
 
   <execution-guidelines>
-    - The nodeIds are VISUALLY LABELED on the screenshot - you must look at it
-    - The text-based browser state is supplementary - the screenshot is your primary reference
-    - Batch multiple tool calls in one response when possible (reduces latency)
-    - Call 'done' when the current actions are completed
+${guidelines}
   </execution-guidelines>
 </execution-instructions>`;
   }
@@ -1316,6 +1495,46 @@ ${actions.map((action, i) => `    ${i + 1}. ${action}`).join('\n')}
     plan: PlannerOutput,
     actions: string[]
   ): string {
+    const supportsVision = this.executionContext.supportsVision();
+
+    const analysisSection = supportsVision
+      ? `  <screenshot-analysis>
+    The screenshot shows the webpage with nodeId numbers overlaid as visual labels on elements.
+    These appear as numbers in boxes/labels (e.g., [21], [42], [156]) directly on the webpage elements.
+    YOU MUST LOOK AT THE SCREENSHOT FIRST to identify which nodeId belongs to which element.
+  </screenshot-analysis>`
+      : `  <text-only-analysis>
+    You are operating in TEXT-ONLY mode without screenshots.
+    Use the browser state text to identify elements by their nodeId, text content, and attributes.
+    Focus on element descriptions and hierarchical structure in the browser state.
+  </text-only-analysis>`;
+
+    const processSection = supportsVision
+      ? `  <visual-execution-process>
+    1. EXAMINE the screenshot - See the webpage with nodeId labels overlaid on elements
+    2. LOCATE the element you need to interact with visually
+    3. IDENTIFY its nodeId from the label shown on that element in the screenshot
+    4. EXECUTE using that nodeId in your tool call
+  </visual-execution-process>`
+      : `  <text-execution-process>
+    1. ANALYZE the browser state text to understand page structure
+    2. LOCATE elements by their text content, type, and attributes
+    3. IDENTIFY the correct nodeId from the browser state
+    4. EXECUTE using that nodeId in your tool call
+  </text-execution-process>`;
+
+    const guidelines = supportsVision
+      ? `    - The nodeIds are VISUALLY LABELED on the screenshot - you must look at it
+    - The text-based browser state is supplementary - the screenshot is your primary reference
+    - Batch multiple tool calls in one response when possible (reduces latency)
+    - Create a todo list to track progress if helpful
+    - Call 'done' when all actions are completed`
+      : `    - Use the text-based browser state as your primary reference
+    - Match elements by their text content and attributes
+    - Batch multiple tool calls in one response when possible (reduces latency)
+    - Create a todo list to track progress if helpful
+    - Call 'done' when all actions are completed`;
+
     return `<planning-context>
   <observation>${plan.observation}</observation>
   <challenges>${plan.challenges}</challenges>
@@ -1323,29 +1542,16 @@ ${actions.map((action, i) => `    ${i + 1}. ${action}`).join('\n')}
 </planning-context>
 
 <execution-instructions>
-  <screenshot-analysis>
-    The screenshot shows the webpage with nodeId numbers overlaid as visual labels on elements.
-    These appear as numbers in boxes/labels (e.g., [21], [42], [156]) directly on the webpage elements.
-    YOU MUST LOOK AT THE SCREENSHOT FIRST to identify which nodeId belongs to which element.
-  </screenshot-analysis>
-  
+${analysisSection}
+
   <actions-to-execute>
 ${actions.map((action, i) => `    ${i + 1}. ${action}`).join('\n')}
   </actions-to-execute>
-  
-  <visual-execution-process>
-    1. EXAMINE the screenshot - See the webpage with nodeId labels overlaid on elements
-    2. LOCATE the element you need to interact with visually
-    3. IDENTIFY its nodeId from the label shown on that element in the screenshot
-    4. EXECUTE using that nodeId in your tool call
-  </visual-execution-process>
-  
+
+${processSection}
+
   <execution-guidelines>
-    - The nodeIds are VISUALLY LABELED on the screenshot - you must look at it
-    - The text-based browser state is supplementary - the screenshot is your primary reference
-    - Batch multiple tool calls in one response when possible (reduces latency)
-    - Create a todo list to track progress if helpful
-    - Call 'done' when all actions are completed
+${guidelines}
   </execution-guidelines>
 </execution-instructions>`;
   }
