@@ -259,7 +259,7 @@ class BuildContext:
         """Get individual patches directory"""
         return join_paths(self.root_dir, "chromium_patches")
 
-    def get_chromium_files_dir(self) -> Path:
+    def get_chromium_replace_files_dir(self) -> Path:
         """Get chromium files replacement directory"""
         return join_paths(self.root_dir, "chromium_files")
 
