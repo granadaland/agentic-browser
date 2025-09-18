@@ -81,16 +81,11 @@ def create_build_context(chromium_src: Optional[Path] = None) -> Optional[BuildC
         log_error(f"Chromium source directory does not exist: {config.chromium_src}")
         return None
 
-    # Validate it's a chromium source directory
-    chromium_markers = [
-        config.chromium_src / 'BUILD.gn',
-        config.chromium_src / 'chrome',
-        config.chromium_src / 'content'
-    ]
-
-    if not any(marker.exists() for marker in chromium_markers):
-        log_error(f"Directory does not appear to be a Chromium source: {config.chromium_src}")
-        return None
+    # For dev CLI, we just need it to be a git repository
+    # Don't enforce strict Chromium structure
+    if not (config.chromium_src / '.git').exists():
+        log_warning(f"Warning: Not a git repository: {config.chromium_src}")
+        # Continue anyway - patches might still work
 
     try:
         ctx = BuildContext(
