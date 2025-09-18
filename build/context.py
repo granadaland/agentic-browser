@@ -4,19 +4,14 @@ Build context dataclass to hold all build state
 """
 
 import time
-import sys
 from pathlib import Path
 from dataclasses import dataclass
 from utils import (
-    log_info,
     log_error,
-    log_success,
     log_warning,
     get_platform,
     get_platform_arch,
     get_executable_extension,
-    get_app_extension,
-    normalize_path,
     join_paths,
     IS_WINDOWS,
     IS_MACOS,
@@ -235,20 +230,6 @@ class BuildContext:
     def get_app_base_name(self) -> str:
         """Get app base name without extension"""
         return self.NXTSCAPE_APP_BASE_NAME
-
-    # Extension names
-    def get_ai_extensions(self) -> list[str]:
-        """Get list of AI extension names"""
-        return ["ai_side_panel"]
-
-    # Bundle identifiers
-    def get_bundle_identifier(self) -> str:
-        """Get main bundle identifier"""
-        return "com.browseros.BrowserOS"
-
-    def get_base_identifier(self) -> str:
-        """Get base identifier for components"""
-        return "com.browseros"
 
     def get_dist_dir(self) -> Path:
         """Get distribution output directory with version"""
