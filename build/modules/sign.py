@@ -54,25 +54,25 @@ def check_signing_environment() -> bool:
     # Only check on macOS
     if not IS_MACOS:
         return True
-    
+
     required_vars = [
         "MACOS_CERTIFICATE_NAME",
         "PROD_MACOS_NOTARIZATION_APPLE_ID",
         "PROD_MACOS_NOTARIZATION_TEAM_ID",
-        "PROD_MACOS_NOTARIZATION_PWD"
+        "PROD_MACOS_NOTARIZATION_PWD",
     ]
-    
+
     missing = []
     for var in required_vars:
         if not os.environ.get(var):
             missing.append(var)
-    
+
     if missing:
         log_error("❌ Signing requires macOS environment variables!")
         log_error(f"Missing environment variables: {', '.join(missing)}")
         log_error("Please set all required environment variables before signing.")
         return False
-    
+
     return True
 
 
@@ -120,19 +120,26 @@ def find_components_to_sign(
 
     # Check both versioned and non-versioned paths for BrowserOS Framework
     # Handle both release and debug framework names
-    framework_names = ["BrowserOS Framework.framework", "BrowserOS Dev Framework.framework"]
+    framework_names = [
+        "BrowserOS Framework.framework",
+        "BrowserOS Dev Framework.framework",
+    ]
     nxtscape_framework_paths = []
-    
+
     for fw_name in framework_names:
         fw_path = join_paths(framework_path, fw_name)
         if fw_path.exists():
             nxtscape_framework_paths.append(fw_path)
-            
+
             # Add versioned path if context is available
             if ctx and ctx.nxtscape_chromium_version:
-                versioned_path = join_paths(fw_path, "Versions", ctx.nxtscape_chromium_version)
+                versioned_path = join_paths(
+                    fw_path, "Versions", ctx.nxtscape_chromium_version
+                )
                 if versioned_path.exists():
-                    nxtscape_framework_paths.insert(0, versioned_path)  # Prioritize versioned path
+                    nxtscape_framework_paths.insert(
+                        0, versioned_path
+                    )  # Prioritize versioned path
 
     # Find all helper apps
     for nxtscape_fw_path in nxtscape_framework_paths:
@@ -388,11 +395,13 @@ def sign_all_components(
         if exe_path.exists():
             main_exe = exe_path
             break
-    
+
     if not main_exe:
-        log_error(f"Main executable not found in {join_paths(app_path, 'Contents', 'MacOS')}")
+        log_error(
+            f"Main executable not found in {join_paths(app_path, 'Contents', 'MacOS')}"
+        )
         return False
-        
+
     if not sign_component(main_exe, certificate_name, "com.browseros.BrowserOS"):
         return False
 
@@ -417,7 +426,9 @@ def sign_all_components(
         [
             join_paths(root_dir, "entitlements"),  # Legacy location
             join_paths(root_dir, "build", "src", "chrome", "app"),
-            join_paths(app_path.parent.parent.parent, "chrome", "app"),  # Chromium source
+            join_paths(
+                app_path.parent.parent.parent, "chrome", "app"
+            ),  # Chromium source
         ]
     )
 
@@ -487,7 +498,9 @@ def notarize_app(
     log_info("\n📤 Preparing for notarization...")
 
     # Create zip for notarization
-    notarize_zip = ctx.get_notarization_zip() if ctx else join_paths(root_dir, "notarize.zip")
+    notarize_zip = (
+        ctx.get_notarization_zip() if ctx else join_paths(root_dir, "notarize.zip")
+    )
     if notarize_zip.exists():
         notarize_zip.unlink()
 
@@ -719,7 +732,9 @@ def sign_universal(contexts: List[BuildContext]) -> bool:
     universal_dir.mkdir(parents=True, exist_ok=True)
 
     # Use universalizer script to merge architectures
-    universalizer_script = join_paths(contexts[0].root_dir, "build", "universalizer_patched.py")
+    universalizer_script = join_paths(
+        contexts[0].root_dir, "build", "universalizer_patched.py"
+    )
 
     if not universalizer_script.exists():
         log_error(f"Universalizer script not found: {universalizer_script}")

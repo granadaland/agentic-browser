@@ -4,14 +4,17 @@ Build context dataclass to hold all build state
 """
 
 import time
-import sys
 from pathlib import Path
 from dataclasses import dataclass
 from utils import (
-    log_info, log_error, log_success, log_warning,
-    get_platform, get_platform_arch, get_executable_extension,
-    get_app_extension, normalize_path, join_paths,
-    IS_WINDOWS, IS_MACOS
+    log_error,
+    log_warning,
+    get_platform,
+    get_platform_arch,
+    get_executable_extension,
+    join_paths,
+    IS_WINDOWS,
+    IS_MACOS,
 )
 
 
@@ -46,18 +49,20 @@ class BuildContext:
         # Set platform-specific defaults
         if not self.architecture:
             self.architecture = get_platform_arch()
-        
+
         # Set platform-specific app names
         if IS_WINDOWS:
             self.CHROMIUM_APP_NAME = f"chrome{get_executable_extension()}"
-            self.NXTSCAPE_APP_NAME = f"{self.NXTSCAPE_APP_BASE_NAME}{get_executable_extension()}"
+            self.NXTSCAPE_APP_NAME = (
+                f"{self.NXTSCAPE_APP_BASE_NAME}{get_executable_extension()}"
+            )
         elif IS_MACOS:
             self.CHROMIUM_APP_NAME = "Chromium.app"
             self.NXTSCAPE_APP_NAME = f"{self.NXTSCAPE_APP_BASE_NAME}.app"
         else:
             self.CHROMIUM_APP_NAME = "chrome"
             self.NXTSCAPE_APP_NAME = self.NXTSCAPE_APP_BASE_NAME.lower()
-        
+
         # Set architecture-specific output directory with platform separator
         if IS_WINDOWS:
             self.out_dir = f"out\\Default_{self.architecture}"
@@ -80,7 +85,9 @@ class BuildContext:
 
         if not self.nxtscape_version:
             # Read from NXTSCAPE_VERSION file
-            version_file = join_paths(self.root_dir, "build", "config", "NXTSCAPE_VERSION")
+            version_file = join_paths(
+                self.root_dir, "build", "config", "NXTSCAPE_VERSION"
+            )
             if version_file.exists():
                 self.nxtscape_version = version_file.read_text().strip()
 
@@ -118,7 +125,9 @@ class BuildContext:
     def get_gn_flags_file(self) -> Path:
         """Get GN flags file for current build type"""
         platform = get_platform()
-        return join_paths(self.get_gn_config_dir(), f"flags.{platform}.{self.build_type}.gn")
+        return join_paths(
+            self.get_gn_config_dir(), f"flags.{platform}.{self.build_type}.gn"
+        )
 
     def get_copy_resources_config(self) -> Path:
         """Get copy resources configuration file"""
@@ -209,7 +218,7 @@ class BuildContext:
             if signed:
                 return f"{self.NXTSCAPE_APP_BASE_NAME}_{self.nxtscape_chromium_version}_{self.architecture}_signed.dmg"
             return f"{self.NXTSCAPE_APP_BASE_NAME}_{self.nxtscape_chromium_version}_{self.architecture}.dmg"
-    
+
     def get_nxtscape_chromium_version(self) -> str:
         """Get Nxtscape version string"""
         return self.nxtscape_chromium_version
@@ -217,25 +226,28 @@ class BuildContext:
     def get_nxtscape_version(self) -> str:
         """Get Nxtscape version string"""
         return self.nxtscape_version
-    
+
     def get_app_base_name(self) -> str:
         """Get app base name without extension"""
         return self.NXTSCAPE_APP_BASE_NAME
 
-    # Extension names
-    def get_ai_extensions(self) -> list[str]:
-        """Get list of AI extension names"""
-        return ["ai_side_panel"]
-
-    # Bundle identifiers
-    def get_bundle_identifier(self) -> str:
-        """Get main bundle identifier"""
-        return "com.browseros.BrowserOS"
-
-    def get_base_identifier(self) -> str:
-        """Get base identifier for components"""
-        return "com.browseros"
-    
     def get_dist_dir(self) -> Path:
         """Get distribution output directory with version"""
         return join_paths(self.root_dir, "dist", self.nxtscape_version)
+
+    # Dev CLI specific methods
+    def get_dev_patches_dir(self) -> Path:
+        """Get individual patches directory"""
+        return join_paths(self.root_dir, "chromium_patches")
+
+    def get_chromium_replace_files_dir(self) -> Path:
+        """Get chromium files replacement directory"""
+        return join_paths(self.root_dir, "chromium_files")
+
+    def get_features_yaml_path(self) -> Path:
+        """Get features.yaml file path"""
+        return join_paths(self.root_dir, "features.yaml")
+
+    def get_patch_path_for_file(self, file_path: str) -> Path:
+        """Convert a chromium file path to patch file path"""
+        return join_paths(self.get_dev_patches_dir(), file_path)

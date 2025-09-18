@@ -10,25 +10,36 @@ import click
 from pathlib import Path
 from typing import Optional
 
+
 # Load .env file if it exists
 def load_env_file():
-    env_file = Path(__file__).parent.parent / '.env'
+    env_file = Path(__file__).parent.parent / ".env"
     if env_file.exists():
-        with open(env_file, 'r') as f:
+        with open(env_file, "r") as f:
             for line in f:
                 line = line.strip()
-                if line and not line.startswith('#'):
-                    if '=' in line:
-                        key, value = line.split('=', 1)
+                if line and not line.startswith("#"):
+                    if "=" in line:
+                        key, value = line.split("=", 1)
                         os.environ[key.strip()] = value.strip()
         print(f"✓ Loaded environment from .env file")
+
 
 # Load .env file on import
 load_env_file()
 
 # Import shared components
 from context import BuildContext
-from utils import load_config, log_info, log_warning, log_error, log_success, IS_MACOS, IS_WINDOWS, IS_LINUX
+from utils import (
+    load_config,
+    log_info,
+    log_warning,
+    log_error,
+    log_success,
+    IS_MACOS,
+    IS_WINDOWS,
+    IS_LINUX,
+)
 
 # Import modules
 from modules.clean import clean
@@ -48,37 +59,52 @@ if IS_MACOS:
     from modules.package import package, package_universal
     from modules.postbuild import run_postbuild
 elif IS_WINDOWS:
-    from modules.package_windows import package, package_universal, sign_binaries as sign
+    from modules.package_windows import (
+        package,
+        package_universal,
+        sign_binaries as sign,
+    )
+
     # Windows doesn't have universal signing
     def sign_universal(contexts: list[BuildContext]) -> bool:
         log_warning("Universal signing is not supported on Windows")
         return True
+
     def run_postbuild(ctx: BuildContext) -> None:
         log_warning("Post-build tasks are not implemented for Windows yet")
+
 elif IS_LINUX:
     from modules.package_linux import package, package_universal, sign_binaries as sign
+
     # Linux doesn't have universal signing
     def sign_universal(contexts: list[BuildContext]) -> bool:
         log_warning("Universal signing is not supported on Linux")
         return True
+
     def run_postbuild(ctx: BuildContext) -> None:
         log_warning("Post-build tasks are not implemented for Linux yet")
+
 else:
     # Stub functions for other platforms
     def sign(ctx: BuildContext) -> bool:
         log_warning("Signing is not implemented for this platform")
         return True
+
     def sign_universal(contexts: list[BuildContext]) -> bool:
         log_warning("Universal signing is not implemented for this platform")
         return True
+
     def package(ctx: BuildContext) -> bool:
         log_warning("Packaging is not implemented for this platform")
         return True
+
     def package_universal(contexts: list[BuildContext]) -> bool:
         log_warning("Universal packaging is not implemented for this platform")
         return True
+
     def run_postbuild(ctx: BuildContext) -> None:
         log_warning("Post-build tasks are not implemented for this platform")
+
 
 from modules.slack import (
     notify_build_started,
@@ -109,12 +135,12 @@ def build_main(
     """Main build orchestration"""
     log_info("🚀 Nxtscape Build System")
     log_info("=" * 50)
-    
+
     # Check if sign flag is enabled and required environment variables are set
     if sign_flag and IS_MACOS:
         if not check_signing_environment():
             sys.exit(1)
-    
+
     # Set Windows-specific environment variables
     if IS_WINDOWS:
         os.environ["DEPOT_TOOLS_WIN_TOOLCHAIN"] = "0"
@@ -173,9 +199,13 @@ def build_main(
             config_chromium_src = Path(config["paths"]["chromium_src"])
             chromium_src = config_chromium_src
             log_info(f"📁 Using Chromium source from config: {chromium_src}")
-        
+
         # Get Windows signing certificate name from config
-        if IS_WINDOWS and "signing" in config and "certificate_name" in config["signing"]:
+        if (
+            IS_WINDOWS
+            and "signing" in config
+            and "certificate_name" in config["signing"]
+        ):
             certificate_name = config["signing"]["certificate_name"]
             log_info(f"🔏 Using certificate for signing: {certificate_name}")
 
@@ -202,6 +232,7 @@ def build_main(
     # If no architectures specified, use platform default
     if not architectures:
         from utils import get_platform_arch
+
         architectures = [get_platform_arch()]
         log_info(f"📍 Using platform default architecture: {architectures[0]}")
 
@@ -259,9 +290,6 @@ def build_main(
 
             # Apply patches (only once for first architecture)
             if apply_patches_flag and arch_name == architectures[0]:
-                # Inject version into manifest files
-                inject_version(ctx)
-
                 # First do chromium file replacements
                 replace_chromium_files(ctx)
 
@@ -275,12 +303,12 @@ def build_main(
                     log_info("Skipping Sparkle setup (macOS only)")
 
                 # Apply patches
-                apply_patches(ctx, interactive=patch_interactive, commit_each=patch_commit)
-
+                apply_patches(
+                    ctx, interactive=patch_interactive, commit_each=patch_commit
+                )
 
                 # Copy resources
                 copy_resources(ctx, commit_each=patch_commit)
-                
 
                 if slack_notifications:
                     notify_build_step(
@@ -316,13 +344,21 @@ def build_main(
             if package_flag:
                 log_info(f"\n📦 Packaging {ctx.architecture} build...")
                 if slack_notifications:
-                    package_type = "DMG" if IS_MACOS else "installer" if IS_WINDOWS else "AppImage"
-                    notify_build_step(f"[{ctx.architecture}] Started {package_type} creation")
+                    package_type = (
+                        "DMG" if IS_MACOS else "installer" if IS_WINDOWS else "AppImage"
+                    )
+                    notify_build_step(
+                        f"[{ctx.architecture}] Started {package_type} creation"
+                    )
                 package(ctx)
                 if slack_notifications:
-                    package_type = "DMG" if IS_MACOS else "installer" if IS_WINDOWS else "AppImage"
-                    notify_build_step(f"[{ctx.architecture}] Completed {package_type} creation")
-                
+                    package_type = (
+                        "DMG" if IS_MACOS else "installer" if IS_WINDOWS else "AppImage"
+                    )
+                    notify_build_step(
+                        f"[{ctx.architecture}] Completed {package_type} creation"
+                    )
+
                 # Upload to GCS after packaging
                 gcs_uris = []
                 if upload_gcs:
@@ -354,6 +390,7 @@ def build_main(
             if universal_dir.exists():
                 log_info("🧹 Cleaning up old universal output directory...")
                 from utils import safe_rmtree
+
                 safe_rmtree(universal_dir)
 
             # Create fresh universal output path
@@ -385,13 +422,17 @@ def build_main(
 
             if package_flag:
                 if slack_notifications:
-                    package_type = "DMG" if IS_MACOS else "installer" if IS_WINDOWS else "AppImage"
+                    package_type = (
+                        "DMG" if IS_MACOS else "installer" if IS_WINDOWS else "AppImage"
+                    )
                     notify_build_step(f"[Universal] Started {package_type} creation")
                 package_universal(built_contexts)
                 if slack_notifications:
-                    package_type = "DMG" if IS_MACOS else "installer" if IS_WINDOWS else "AppImage"
+                    package_type = (
+                        "DMG" if IS_MACOS else "installer" if IS_WINDOWS else "AppImage"
+                    )
                     notify_build_step(f"[Universal] Completed {package_type} creation")
-                
+
                 # Upload universal package to GCS
                 universal_gcs_uris = []
                 if upload_gcs:
@@ -399,9 +440,13 @@ def build_main(
                     universal_ctx = built_contexts[0]
                     original_arch = universal_ctx.architecture
                     universal_ctx.architecture = "universal"
-                    success, universal_gcs_uris = upload_package_artifacts(universal_ctx)
+                    success, universal_gcs_uris = upload_package_artifacts(
+                        universal_ctx
+                    )
                     if not success:
-                        log_warning("Failed to upload universal package artifacts to GCS")
+                        log_warning(
+                            "Failed to upload universal package artifacts to GCS"
+                        )
                     elif universal_gcs_uris and slack_notifications:
                         notify_gcs_upload("universal", universal_gcs_uris)
                         all_gcs_uris.extend(universal_gcs_uris)
@@ -465,7 +510,13 @@ def build_main(
     default="debug",
     help="Build type",
 )
-@click.option("--package", "-P", is_flag=True, default=False, help="Create package (DMG/AppImage/Installer)")
+@click.option(
+    "--package",
+    "-P",
+    is_flag=True,
+    default=False,
+    help="Create package (DMG/AppImage/Installer)",
+)
 @click.option("--build", "-b", is_flag=True, default=False, help="Build")
 @click.option(
     "--chromium-src",
