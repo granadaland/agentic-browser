@@ -29,8 +29,12 @@ def find_patch_files(patches_dir: Path) -> List[Path]:
     return sorted(
         [
             p
-            for p in patches_dir.rglob("*.patch")
-            if not p.name.endswith(".deleted") and not p.name.endswith(".binary")
+            for p in patches_dir.rglob("*")
+            if p.is_file()
+            and not p.name.endswith(".deleted")
+            and not p.name.endswith(".binary")
+            and not p.name.endswith(".rename")
+            and not p.name.startswith(".")
         ]
     )
 
@@ -127,13 +131,7 @@ def create_patch_commit(
     if feature_name:
         commit_msg = f"Apply {feature_name}: {Path(patch_identifier).name}"
     else:
-        # Remove .patch extension if present
-        patch_name = (
-            Path(patch_identifier).stem
-            if patch_identifier.endswith(".patch")
-            else patch_identifier
-        )
-        commit_msg = f"Apply patch: {patch_name}"
+        commit_msg = f"Apply patch: {patch_identifier}"
 
     result = run_git_command(["git", "commit", "-m", commit_msg], cwd=chromium_src)
 
