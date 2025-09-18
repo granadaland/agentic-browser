@@ -474,7 +474,7 @@ export const MessageItem = memo<MessageItemProps>(function MessageItem({ message
     switch (message.role) {
       case 'user':
         return (
-          <div className="whitespace-pre-wrap break-words font-medium">
+          <div className="whitespace-pre-wrap break-words font-medium text-sm">
             {message.content}
           </div>
         )
@@ -517,7 +517,7 @@ export const MessageItem = memo<MessageItemProps>(function MessageItem({ message
           <div className="space-y-3">
             <MarkdownContent
               content={message.content}
-              className="break-words font-semibold"
+              className="break-words font-medium text-sm"
               compact={false}
             />
           </div>
@@ -605,7 +605,7 @@ export const MessageItem = memo<MessageItemProps>(function MessageItem({ message
         return (
           <MarkdownContent
             content={message.content}
-            className="break-words"
+            className="break-words font-medium"
             compact={false}
           />
         )

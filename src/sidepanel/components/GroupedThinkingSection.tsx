@@ -43,7 +43,7 @@ export function GroupedThinkingSection({ messages, isLatest = false, isTaskCompl
           <Brain className="w-5 h-5 text-muted-foreground" />
           
           {/* Enhanced title with gradient */}
-          <span className="text-xs font-extrabold text-muted-foreground">
+          <span className="text-sm font-medium text-muted-foreground">
             Thinking
           </span>
         </div>
