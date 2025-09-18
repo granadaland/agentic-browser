@@ -239,3 +239,16 @@ class BuildContext:
     def get_dist_dir(self) -> Path:
         """Get distribution output directory with version"""
         return join_paths(self.root_dir, "dist", self.nxtscape_version)
+
+    # Dev CLI specific methods
+    def get_dev_patches_dir(self) -> Path:
+        """Get individual patches directory (chromium_src/)"""
+        return join_paths(self.root_dir, "chromium_src")
+
+    def get_features_yaml_path(self) -> Path:
+        """Get features.yaml file path"""
+        return join_paths(self.root_dir, "features.yaml")
+
+    def get_patch_path_for_file(self, file_path: str) -> Path:
+        """Convert a chromium file path to patch file path"""
+        return join_paths(self.get_dev_patches_dir(), f"{file_path}.patch")
