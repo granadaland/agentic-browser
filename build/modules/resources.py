@@ -21,7 +21,9 @@ def copy_resources(ctx: BuildContext, commit_each: bool = False) -> bool:
     copy_config_path = ctx.get_copy_resources_config()
     if not copy_config_path.exists():
         log_error(f"Copy configuration file not found: {copy_config_path}")
-        raise FileNotFoundError(f"Copy configuration file not found: {copy_config_path}")
+        raise FileNotFoundError(
+            f"Copy configuration file not found: {copy_config_path}"
+        )
 
     with open(copy_config_path, "r") as f:
         config = yaml.safe_load(f)
@@ -29,9 +31,11 @@ def copy_resources(ctx: BuildContext, commit_each: bool = False) -> bool:
     if "copy_operations" not in config:
         log_info("⚠️  No copy_operations defined in configuration")
         return True
-    
+
     if commit_each:
-        log_info("📝 Git commit mode enabled - will create a commit after each resource copy")
+        log_info(
+            "📝 Git commit mode enabled - will create a commit after each resource copy"
+        )
 
     # Process each copy operation
     for operation in config["copy_operations"]:
@@ -63,7 +67,9 @@ def copy_resources(ctx: BuildContext, commit_each: bool = False) -> bool:
                     shutil.copytree(src_path, dst_path, dirs_exist_ok=True)
                     log_info(f"    ✓ Copied directory: {source} → {destination}")
                     if commit_each:
-                        commit_resource_copy(name, source, destination, ctx.chromium_src)
+                        commit_resource_copy(
+                            name, source, destination, ctx.chromium_src
+                        )
                 else:
                     log_warning(f"    Source directory not found: {source}")
 
@@ -76,9 +82,13 @@ def copy_resources(ctx: BuildContext, commit_each: bool = False) -> bool:
                         file_path = Path(file_path)
                         if file_path.is_file():
                             shutil.copy2(file_path, dst_base)
-                    log_info(f"    ✓ Copied {len(files)} files: {source} → {destination}")
+                    log_info(
+                        f"    ✓ Copied {len(files)} files: {source} → {destination}"
+                    )
                     if commit_each:
-                        commit_resource_copy(name, source, destination, ctx.chromium_src)
+                        commit_resource_copy(
+                            name, source, destination, ctx.chromium_src
+                        )
                 else:
                     log_warning(f"    No files found matching: {source}")
 
@@ -89,7 +99,9 @@ def copy_resources(ctx: BuildContext, commit_each: bool = False) -> bool:
                     shutil.copy2(src_path, dst_base)
                     log_info(f"    ✓ Copied file: {source} → {destination}")
                     if commit_each:
-                        commit_resource_copy(name, source, destination, ctx.chromium_src)
+                        commit_resource_copy(
+                            name, source, destination, ctx.chromium_src
+                        )
                 else:
                     log_warning(f"    Source file not found: {source}")
 
@@ -100,25 +112,31 @@ def copy_resources(ctx: BuildContext, commit_each: bool = False) -> bool:
     return True
 
 
-def commit_resource_copy(name: str, source: str, destination: str, chromium_src: Path) -> bool:
+def commit_resource_copy(
+    name: str, source: str, destination: str, chromium_src: Path
+) -> bool:
     """Create a git commit for the copied resource"""
     try:
         # Stage all changes
-        cmd_add = ['git', 'add', '-A']
-        result = subprocess.run(cmd_add, capture_output=True, text=True, cwd=chromium_src)
+        cmd_add = ["git", "add", "-A"]
+        result = subprocess.run(
+            cmd_add, capture_output=True, text=True, cwd=chromium_src
+        )
         if result.returncode != 0:
             log_warning(f"Failed to stage changes for resource copy: {name}")
             if result.stderr:
                 log_warning(f"Error: {result.stderr}")
             return False
-        
+
         # Create commit message
         commit_message = f"resource: {name.lower()}"
-        
+
         # Create the commit
-        cmd_commit = ['git', 'commit', '-m', commit_message]
-        result = subprocess.run(cmd_commit, capture_output=True, text=True, cwd=chromium_src)
-        
+        cmd_commit = ["git", "commit", "-m", commit_message]
+        result = subprocess.run(
+            cmd_commit, capture_output=True, text=True, cwd=chromium_src
+        )
+
         if result.returncode == 0:
             log_success(f"📝 Created commit for resource: {name}")
             return True
@@ -127,8 +145,7 @@ def commit_resource_copy(name: str, source: str, destination: str, chromium_src:
             if result.stderr:
                 log_warning(f"Error: {result.stderr}")
             return False
-            
+
     except Exception as e:
         log_warning(f"Error creating commit for resource {name}: {e}")
         return False
-

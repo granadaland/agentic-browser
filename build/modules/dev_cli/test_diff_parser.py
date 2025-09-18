@@ -29,8 +29,8 @@ index abc123..def456 100644
 
     result = parse_diff_output(diff)
     assert len(result) == 1
-    assert 'file.txt' in result
-    patch = result['file.txt']
+    assert "file.txt" in result
+    patch = result["file.txt"]
     assert patch.operation == FileOperation.MODIFY
     assert not patch.is_binary
     assert patch.patch_content is not None
@@ -51,8 +51,8 @@ index 0000000..abc123
 
     result = parse_diff_output(diff)
     assert len(result) == 1
-    assert 'newfile.txt' in result
-    patch = result['newfile.txt']
+    assert "newfile.txt" in result
+    patch = result["newfile.txt"]
     assert patch.operation == FileOperation.ADD
     assert patch.patch_content is not None
     print("✓ New file test passed")
@@ -72,8 +72,8 @@ index abc123..0000000
 
     result = parse_diff_output(diff)
     assert len(result) == 1
-    assert 'deleted.txt' in result
-    patch = result['deleted.txt']
+    assert "deleted.txt" in result
+    patch = result["deleted.txt"]
     assert patch.operation == FileOperation.DELETE
     print("✓ Deleted file test passed")
 
@@ -87,10 +87,10 @@ rename to new_name.txt"""
 
     result = parse_diff_output(diff)
     assert len(result) == 1
-    assert 'new_name.txt' in result
-    patch = result['new_name.txt']
+    assert "new_name.txt" in result
+    patch = result["new_name.txt"]
     assert patch.operation == FileOperation.RENAME
-    assert patch.old_path == 'old_name.txt'
+    assert patch.old_path == "old_name.txt"
     assert patch.similarity == 100
     print("✓ Renamed file test passed")
 
@@ -113,10 +113,10 @@ index abc123..def456 100644
 
     result = parse_diff_output(diff)
     assert len(result) == 1
-    assert 'new_name.txt' in result
-    patch = result['new_name.txt']
+    assert "new_name.txt" in result
+    patch = result["new_name.txt"]
     assert patch.operation == FileOperation.RENAME
-    assert patch.old_path == 'old_name.txt'
+    assert patch.old_path == "old_name.txt"
     assert patch.similarity == 85
     assert patch.patch_content is not None
     print("✓ Renamed with changes test passed")
@@ -130,8 +130,8 @@ Binary files a/image.png and b/image.png differ"""
 
     result = parse_diff_output(diff)
     assert len(result) == 1
-    assert 'image.png' in result
-    patch = result['image.png']
+    assert "image.png" in result
+    patch = result["image.png"]
     assert patch.is_binary
     assert patch.patch_content is None  # Binary content not stored
     print("✓ Binary file test passed")
@@ -163,13 +163,13 @@ index 111111..000000
 
     result = parse_diff_output(diff)
     assert len(result) == 3
-    assert 'file1.txt' in result
-    assert 'file2.txt' in result
-    assert 'file3.txt' in result
+    assert "file1.txt" in result
+    assert "file2.txt" in result
+    assert "file3.txt" in result
 
-    assert result['file1.txt'].operation == FileOperation.MODIFY
-    assert result['file2.txt'].operation == FileOperation.ADD
-    assert result['file3.txt'].operation == FileOperation.DELETE
+    assert result["file1.txt"].operation == FileOperation.MODIFY
+    assert result["file2.txt"].operation == FileOperation.ADD
+    assert result["file3.txt"].operation == FileOperation.DELETE
     print("✓ Multiple files test passed")
 
 
@@ -187,10 +187,10 @@ index abc123..def456 100644
 
     result = parse_diff_output(diff)
     assert len(result) == 1
-    assert 'file.txt' in result
-    patch = result['file.txt']
+    assert "file.txt" in result
+    patch = result["file.txt"]
     assert patch.operation == FileOperation.MODIFY
-    assert '\\ No newline at end of file' in patch.patch_content
+    assert "\\ No newline at end of file" in patch.patch_content
     print("✓ No newline marker test passed")
 
 
@@ -209,8 +209,8 @@ index abc123..def456 100644
 
     result = parse_diff_output(diff)
     assert len(result) == 1
-    assert 'src/chrome/browser/ui/views/file.cc' in result
-    patch = result['src/chrome/browser/ui/views/file.cc']
+    assert "src/chrome/browser/ui/views/file.cc" in result
+    patch = result["src/chrome/browser/ui/views/file.cc"]
     assert patch.operation == FileOperation.MODIFY
     print("✓ Complex path test passed")
 
@@ -236,11 +236,11 @@ index abc123..abc123
 
     result = parse_diff_output(diff)
     assert len(result) == 1
-    assert 'script.sh' in result
-    patch = result['script.sh']
+    assert "script.sh" in result
+    patch = result["script.sh"]
     # Mode changes are captured in the patch content
-    assert 'old mode 100644' in patch.patch_content
-    assert 'new mode 100755' in patch.patch_content
+    assert "old mode 100644" in patch.patch_content
+    assert "new mode 100755" in patch.patch_content
     print("✓ Mode change test passed")
 
 
@@ -253,10 +253,10 @@ copy to copy.txt"""
 
     result = parse_diff_output(diff)
     assert len(result) == 1
-    assert 'copy.txt' in result
-    patch = result['copy.txt']
+    assert "copy.txt" in result
+    patch = result["copy.txt"]
     assert patch.operation == FileOperation.COPY
-    assert patch.old_path == 'original.txt'
+    assert patch.old_path == "original.txt"
     assert patch.similarity == 100
     print("✓ Copied file test passed")
 
@@ -275,7 +275,7 @@ def run_all_tests():
         test_complex_path,
         test_empty_diff,
         test_mode_change,
-        test_copied_file
+        test_copied_file,
     ]
 
     print("Running diff parser tests...")
@@ -301,6 +301,6 @@ def run_all_tests():
         return True
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     success = run_all_tests()
     sys.exit(0 if success else 1)

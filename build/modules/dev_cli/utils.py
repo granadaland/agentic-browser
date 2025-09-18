@@ -20,6 +20,7 @@ from utils import log_info, log_error, log_success, log_warning
 
 class FileOperation(Enum):
     """Types of file operations in a diff"""
+
     ADD = "add"
     MODIFY = "modify"
     DELETE = "delete"
@@ -31,6 +32,7 @@ class FileOperation(Enum):
 @dataclass
 class FilePatch:
     """Represents a single file's patch information"""
+
     file_path: str
     operation: FileOperation
     old_path: Optional[str] = None  # For renames/copies
@@ -41,13 +43,18 @@ class FilePatch:
 
 class GitError(Exception):
     """Custom exception for git operations"""
+
     pass
 
 
-def run_git_command(cmd: List[str], cwd: Path,
-                   capture: bool = True, check: bool = False,
-                   timeout: Optional[int] = None,
-                   binary_output: bool = False) -> subprocess.CompletedProcess:
+def run_git_command(
+    cmd: List[str],
+    cwd: Path,
+    capture: bool = True,
+    check: bool = False,
+    timeout: Optional[int] = None,
+    binary_output: bool = False,
+) -> subprocess.CompletedProcess:
     """Run a git command and return the result
 
     Args:
@@ -67,7 +74,7 @@ def run_git_command(cmd: List[str], cwd: Path,
     try:
         # For commands that might output binary data (like git diff with binary files),
         # we need to handle them specially
-        if binary_output or ('diff' in cmd and '--binary' not in cmd):
+        if binary_output or ("diff" in cmd and "--binary" not in cmd):
             # First try with text mode
             try:
                 result = subprocess.run(
@@ -77,7 +84,7 @@ def run_git_command(cmd: List[str], cwd: Path,
                     text=True,
                     check=False,
                     timeout=timeout or 60,
-                    errors='replace'  # Replace invalid UTF-8 sequences
+                    errors="replace",  # Replace invalid UTF-8 sequences
                 )
             except UnicodeDecodeError:
                 # Fall back to binary mode
@@ -87,13 +94,13 @@ def run_git_command(cmd: List[str], cwd: Path,
                     capture_output=capture,
                     text=False,
                     check=False,
-                    timeout=timeout or 60
+                    timeout=timeout or 60,
                 )
                 # Convert to text with error handling
                 if result.stdout:
-                    result.stdout = result.stdout.decode('utf-8', errors='replace')
+                    result.stdout = result.stdout.decode("utf-8", errors="replace")
                 if result.stderr:
-                    result.stderr = result.stderr.decode('utf-8', errors='replace')
+                    result.stderr = result.stderr.decode("utf-8", errors="replace")
         else:
             result = subprocess.run(
                 cmd,
@@ -101,7 +108,7 @@ def run_git_command(cmd: List[str], cwd: Path,
                 capture_output=capture,
                 text=True,
                 check=False,
-                timeout=timeout or 60
+                timeout=timeout or 60,
             )
 
         if check and result.returncode != 0:
@@ -121,9 +128,7 @@ def validate_git_repository(path: Path) -> bool:
     """Validate that a path is a git repository"""
     try:
         result = run_git_command(
-            ['git', 'rev-parse', '--git-dir'],
-            cwd=path,
-            check=False
+            ["git", "rev-parse", "--git-dir"], cwd=path, check=False
         )
         return result.returncode == 0
     except GitError:
@@ -134,8 +139,8 @@ def validate_commit_exists(commit_hash: str, chromium_src: Path) -> bool:
     """Validate that a commit exists in the repository"""
     try:
         result = run_git_command(
-            ['git', 'rev-parse', '--verify', f'{commit_hash}^{{commit}}'],
-            cwd=chromium_src
+            ["git", "rev-parse", "--verify", f"{commit_hash}^{{commit}}"],
+            cwd=chromium_src,
         )
 
         if result.returncode != 0:
@@ -151,15 +156,15 @@ def get_commit_changed_files(commit_hash: str, chromium_src: Path) -> List[str]:
     """Get list of files changed in a commit"""
     try:
         result = run_git_command(
-            ['git', 'diff-tree', '--no-commit-id', '--name-only', '-r', commit_hash],
-            cwd=chromium_src
+            ["git", "diff-tree", "--no-commit-id", "--name-only", "-r", commit_hash],
+            cwd=chromium_src,
         )
 
         if result.returncode != 0:
             log_error(f"Failed to get changed files for commit {commit_hash}")
             return []
 
-        files = [f.strip() for f in result.stdout.strip().split('\n') if f.strip()]
+        files = [f.strip() for f in result.stdout.strip().split("\n") if f.strip()]
         return files
     except GitError as e:
         log_error(f"Error getting changed files: {e}")
@@ -197,21 +202,23 @@ def parse_diff_output(diff_output: str) -> Dict[str, FilePatch]:
         line = lines[i]
 
         # Start of a new file diff
-        if line.startswith('diff --git'):
+        if line.startswith("diff --git"):
             # Save previous patch if exists
             if current_file and current_patch_lines:
-                patch_content = '\n'.join(current_patch_lines) if not is_binary else None
+                patch_content = (
+                    "\n".join(current_patch_lines) if not is_binary else None
+                )
                 patches[current_file] = FilePatch(
                     file_path=current_file,
                     operation=current_operation,
                     old_path=old_path,
                     patch_content=patch_content,
                     is_binary=is_binary,
-                    similarity=similarity
+                    similarity=similarity,
                 )
 
             # Parse file paths from diff line
-            match = re.match(r'diff --git a/(.*) b/(.*)', line)
+            match = re.match(r"diff --git a/(.*) b/(.*)", line)
             if match:
                 old_file = match.group(1)
                 new_file = match.group(2)
@@ -231,45 +238,53 @@ def parse_diff_output(diff_output: str) -> Dict[str, FilePatch]:
 
         # Check for file metadata
         if current_file:
-            if line.startswith('deleted file'):
+            if line.startswith("deleted file"):
                 current_operation = FileOperation.DELETE
                 current_patch_lines.append(line)
-            elif line.startswith('new file'):
+            elif line.startswith("new file"):
                 current_operation = FileOperation.ADD
                 current_patch_lines.append(line)
-            elif line.startswith('similarity index'):
+            elif line.startswith("similarity index"):
                 # Extract similarity percentage for renames
-                match = re.match(r'similarity index (\d+)%', line)
+                match = re.match(r"similarity index (\d+)%", line)
                 if match:
                     similarity = int(match.group(1))
                 current_patch_lines.append(line)
-            elif line.startswith('rename from'):
+            elif line.startswith("rename from"):
                 current_operation = FileOperation.RENAME
                 old_path = line[12:].strip()  # Remove 'rename from '
                 current_patch_lines.append(line)
-            elif line.startswith('rename to'):
+            elif line.startswith("rename to"):
                 # Confirm rename operation
                 current_patch_lines.append(line)
-            elif line.startswith('copy from'):
+            elif line.startswith("copy from"):
                 current_operation = FileOperation.COPY
                 old_path = line[10:].strip()  # Remove 'copy from '
                 current_patch_lines.append(line)
-            elif line.startswith('copy to'):
+            elif line.startswith("copy to"):
                 # Confirm copy operation
                 current_patch_lines.append(line)
-            elif line == 'Binary files differ' or line.startswith('Binary files'):
+            elif line == "Binary files differ" or line.startswith("Binary files"):
                 is_binary = True
-                current_operation = FileOperation.BINARY if current_operation == FileOperation.MODIFY else current_operation
+                current_operation = (
+                    FileOperation.BINARY
+                    if current_operation == FileOperation.MODIFY
+                    else current_operation
+                )
                 current_patch_lines.append(line)
-            elif line.startswith('index ') or line.startswith('---') or line.startswith('+++'):
+            elif (
+                line.startswith("index ")
+                or line.startswith("---")
+                or line.startswith("+++")
+            ):
                 current_patch_lines.append(line)
-            elif line.startswith('@@'):
+            elif line.startswith("@@"):
                 # Hunk header
                 current_patch_lines.append(line)
-            elif line.startswith('+') or line.startswith('-') or line.startswith(' '):
+            elif line.startswith("+") or line.startswith("-") or line.startswith(" "):
                 # Actual diff content
                 current_patch_lines.append(line)
-            elif line.startswith('\\'):
+            elif line.startswith("\\"):
                 # Special markers like "\ No newline at end of file"
                 current_patch_lines.append(line)
             else:
@@ -280,14 +295,14 @@ def parse_diff_output(diff_output: str) -> Dict[str, FilePatch]:
 
     # Save last patch
     if current_file and current_patch_lines:
-        patch_content = '\n'.join(current_patch_lines) if not is_binary else None
+        patch_content = "\n".join(current_patch_lines) if not is_binary else None
         patches[current_file] = FilePatch(
             file_path=current_file,
             operation=current_operation,
             old_path=old_path,
             patch_content=patch_content,
             is_binary=is_binary,
-            similarity=similarity
+            similarity=similarity,
         )
 
     return patches
@@ -313,10 +328,10 @@ def write_patch_file(ctx: BuildContext, file_path: str, patch_content: str) -> b
 
     try:
         # Ensure patch ends with newline
-        if patch_content and not patch_content.endswith('\n'):
-            patch_content += '\n'
+        if patch_content and not patch_content.endswith("\n"):
+            patch_content += "\n"
 
-        output_path.write_text(patch_content, encoding='utf-8')
+        output_path.write_text(patch_content, encoding="utf-8")
         log_success(f"  Written: {output_path.relative_to(ctx.root_dir)}")
         return True
     except Exception as e:
@@ -336,13 +351,13 @@ def create_deletion_marker(ctx: BuildContext, file_path: str) -> bool:
         True if successful, False otherwise
     """
     marker_path = ctx.get_dev_patches_dir() / file_path
-    marker_path = marker_path.with_suffix(marker_path.suffix + '.deleted')
+    marker_path = marker_path.with_suffix(marker_path.suffix + ".deleted")
 
     marker_path.parent.mkdir(parents=True, exist_ok=True)
 
     try:
         marker_content = f"File deleted in patch\nOriginal path: {file_path}\n"
-        marker_path.write_text(marker_content, encoding='utf-8')
+        marker_path.write_text(marker_content, encoding="utf-8")
         log_warning(f"  Marked deleted: {marker_path.relative_to(ctx.root_dir)}")
         return True
     except Exception as e:
@@ -350,7 +365,9 @@ def create_deletion_marker(ctx: BuildContext, file_path: str) -> bool:
         return False
 
 
-def create_binary_marker(ctx: BuildContext, file_path: str, operation: FileOperation) -> bool:
+def create_binary_marker(
+    ctx: BuildContext, file_path: str, operation: FileOperation
+) -> bool:
     """
     Create a marker file for binary files.
 
@@ -363,13 +380,15 @@ def create_binary_marker(ctx: BuildContext, file_path: str, operation: FileOpera
         True if successful, False otherwise
     """
     marker_path = ctx.get_dev_patches_dir() / file_path
-    marker_path = marker_path.with_suffix(marker_path.suffix + '.binary')
+    marker_path = marker_path.with_suffix(marker_path.suffix + ".binary")
 
     marker_path.parent.mkdir(parents=True, exist_ok=True)
 
     try:
-        marker_content = f"Binary file\nOperation: {operation.value}\nOriginal path: {file_path}\n"
-        marker_path.write_text(marker_content, encoding='utf-8')
+        marker_content = (
+            f"Binary file\nOperation: {operation.value}\nOriginal path: {file_path}\n"
+        )
+        marker_path.write_text(marker_content, encoding="utf-8")
         log_warning(f"  Binary file marked: {marker_path.relative_to(ctx.root_dir)}")
         return True
     except Exception as e:
@@ -377,8 +396,9 @@ def create_binary_marker(ctx: BuildContext, file_path: str, operation: FileOpera
         return False
 
 
-def apply_single_patch(patch_path: Path, chromium_src: Path,
-                      interactive: bool = True) -> Tuple[bool, str]:
+def apply_single_patch(
+    patch_path: Path, chromium_src: Path, interactive: bool = True
+) -> Tuple[bool, str]:
     """
     Apply a single patch file to chromium source with multiple strategies.
 
@@ -395,7 +415,7 @@ def apply_single_patch(patch_path: Path, chromium_src: Path,
         return False, f"Patch file not found: {patch_path}"
 
     # Check if it's a deletion marker
-    if patch_path.suffix == '.deleted':
+    if patch_path.suffix == ".deleted":
         # Handle file deletion
         file_path = patch_path.stem
         target_file = chromium_src / file_path
@@ -409,22 +429,18 @@ def apply_single_patch(patch_path: Path, chromium_src: Path,
             return True, f"Already deleted: {file_path}"
 
     # Check if it's a binary marker
-    if patch_path.suffix == '.binary':
+    if patch_path.suffix == ".binary":
         return False, f"Binary file patch not supported: {patch_path.name}"
 
     # Try standard apply
-    result = run_git_command(
-        ['git', 'apply', '-p1', str(patch_path)],
-        cwd=chromium_src
-    )
+    result = run_git_command(["git", "apply", "-p1", str(patch_path)], cwd=chromium_src)
 
     if result.returncode == 0:
         return True, f"Applied: {patch_path.name}"
 
     # Try 3-way merge
     result = run_git_command(
-        ['git', 'apply', '-p1', '--3way', str(patch_path)],
-        cwd=chromium_src
+        ["git", "apply", "-p1", "--3way", str(patch_path)], cwd=chromium_src
     )
 
     if result.returncode == 0:
@@ -432,8 +448,7 @@ def apply_single_patch(patch_path: Path, chromium_src: Path,
 
     # Try with whitespace options
     result = run_git_command(
-        ['git', 'apply', '-p1', '--whitespace=fix', str(patch_path)],
-        cwd=chromium_src
+        ["git", "apply", "-p1", "--whitespace=fix", str(patch_path)], cwd=chromium_src
     )
 
     if result.returncode == 0:
@@ -446,14 +461,15 @@ def apply_single_patch(patch_path: Path, chromium_src: Path,
         return False, f"Failed: {patch_path.name} - {result.stderr}"
 
 
-def handle_patch_conflict(patch_path: Path, chromium_src: Path,
-                         error_msg: str = "") -> Tuple[bool, str]:
+def handle_patch_conflict(
+    patch_path: Path, chromium_src: Path, error_msg: str = ""
+) -> Tuple[bool, str]:
     """Handle patch conflict interactively with detailed options"""
     click.echo(f"\n{click.style('CONFLICT:', fg='red', bold=True)} {patch_path}")
 
     if error_msg:
         # Parse error message for more context
-        lines = error_msg.strip().split('\n')
+        lines = error_msg.strip().split("\n")
         for line in lines[:5]:  # Show first 5 lines of error
             click.echo(f"  {line}")
 
@@ -475,8 +491,8 @@ def handle_patch_conflict(patch_path: Path, chromium_src: Path,
         elif choice == "3":
             # Try with reduced context
             result = run_git_command(
-                ['git', 'apply', '-p1', '--unidiff-zero', str(patch_path)],
-                cwd=chromium_src
+                ["git", "apply", "-p1", "--unidiff-zero", str(patch_path)],
+                cwd=chromium_src,
             )
             if result.returncode == 0:
                 return True, f"Applied (reduced context): {patch_path.name}"
@@ -487,7 +503,7 @@ def handle_patch_conflict(patch_path: Path, chromium_src: Path,
             # Show patch content
             try:
                 content = patch_path.read_text()
-                lines = content.split('\n')
+                lines = content.split("\n")
                 # Show first 50 lines
                 click.echo("\n--- Patch Content (first 50 lines) ---")
                 for line in lines[:50]:
@@ -507,30 +523,21 @@ def handle_patch_conflict(patch_path: Path, chromium_src: Path,
 def create_git_commit(chromium_src: Path, message: str) -> bool:
     """Create a git commit with the given message"""
     # Check if there are changes to commit
-    result = run_git_command(
-        ['git', 'status', '--porcelain'],
-        cwd=chromium_src
-    )
+    result = run_git_command(["git", "status", "--porcelain"], cwd=chromium_src)
 
     if not result.stdout.strip():
         log_warning("Nothing to commit, working tree clean")
         return True
 
     # Stage all changes
-    result = run_git_command(
-        ['git', 'add', '-A'],
-        cwd=chromium_src
-    )
+    result = run_git_command(["git", "add", "-A"], cwd=chromium_src)
 
     if result.returncode != 0:
         log_error("Failed to stage changes")
         return False
 
     # Create commit
-    result = run_git_command(
-        ['git', 'commit', '-m', message],
-        cwd=chromium_src
-    )
+    result = run_git_command(["git", "commit", "-m", message], cwd=chromium_src)
 
     if result.returncode != 0:
         if "nothing to commit" in result.stdout:
@@ -548,22 +555,28 @@ def get_commit_info(commit_hash: str, chromium_src: Path) -> Optional[Dict[str, 
     try:
         # Get commit info in a structured format
         result = run_git_command(
-            ['git', 'show', '--format=%H%n%an%n%ae%n%at%n%s%n%b', '--no-patch', commit_hash],
-            cwd=chromium_src
+            [
+                "git",
+                "show",
+                "--format=%H%n%an%n%ae%n%at%n%s%n%b",
+                "--no-patch",
+                commit_hash,
+            ],
+            cwd=chromium_src,
         )
 
         if result.returncode != 0:
             return None
 
-        lines = result.stdout.strip().split('\n')
+        lines = result.stdout.strip().split("\n")
         if len(lines) >= 5:
             return {
-                'hash': lines[0],
-                'author_name': lines[1],
-                'author_email': lines[2],
-                'timestamp': lines[3],
-                'subject': lines[4],
-                'body': '\n'.join(lines[5:]) if len(lines) > 5 else ''
+                "hash": lines[0],
+                "author_name": lines[1],
+                "author_email": lines[2],
+                "timestamp": lines[3],
+                "subject": lines[4],
+                "body": "\n".join(lines[5:]) if len(lines) > 5 else "",
             }
         return None
     except GitError:
@@ -573,9 +586,10 @@ def get_commit_info(commit_hash: str, chromium_src: Path) -> Optional[Dict[str, 
 def prompt_yes_no(question: str, default: bool = False) -> bool:
     """Prompt user for yes/no question"""
     default_str = "Y/n" if default else "y/N"
-    result = click.prompt(f"{question} [{default_str}]",
-                         type=str, default="y" if default else "n")
-    return result.lower() in ('y', 'yes')
+    result = click.prompt(
+        f"{question} [{default_str}]", type=str, default="y" if default else "n"
+    )
+    return result.lower() in ("y", "yes")
 
 
 def log_extraction_summary(file_patches: Dict[str, FilePatch]):
@@ -591,7 +605,7 @@ def log_extraction_summary(file_patches: Dict[str, FilePatch]):
         if patch.is_binary:
             binary_count += 1
 
-    click.echo("\n" + click.style("Extraction Summary", fg='green', bold=True))
+    click.echo("\n" + click.style("Extraction Summary", fg="green", bold=True))
     click.echo("=" * 60)
     click.echo(f"Total files:     {total}")
     click.echo("-" * 40)
@@ -618,9 +632,12 @@ def log_apply_summary(results: List[Tuple[str, bool, str]]):
     successful = sum(1 for _, success, _ in results if success)
     failed = total - successful
 
-    click.echo("\n" + click.style("Apply Summary",
-                                 fg='green' if failed == 0 else 'yellow',
-                                 bold=True))
+    click.echo(
+        "\n"
+        + click.style(
+            "Apply Summary", fg="green" if failed == 0 else "yellow", bold=True
+        )
+    )
     click.echo("=" * 60)
     click.echo(f"Total patches:   {total}")
     click.echo(f"Successful:      {successful}")
@@ -628,7 +645,7 @@ def log_apply_summary(results: List[Tuple[str, bool, str]]):
     click.echo("=" * 60)
 
     if failed > 0:
-        click.echo("\n" + click.style("Failed patches:", fg='red', bold=True))
+        click.echo("\n" + click.style("Failed patches:", fg="red", bold=True))
         for file_path, success, message in results:
             if not success:
                 click.echo(f"  ✗ {file_path}: {message}")

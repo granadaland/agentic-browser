@@ -13,16 +13,16 @@ from modules.dev_cli.utils import get_commit_changed_files, run_git_command
 from utils import log_info, log_error, log_success, log_warning
 
 
-@click.group(name='feature')
+@click.group(name="feature")
 def feature_group():
     """Manage feature-to-file mappings"""
     pass
 
 
-@feature_group.command(name='add')
-@click.argument('feature_name')
-@click.argument('commit')
-@click.option('--description', '-d', help='Description of the feature')
+@feature_group.command(name="add")
+@click.argument("feature_name")
+@click.argument("commit")
+@click.option("--description", "-d", help="Description of the feature")
 @click.pass_context
 def add_feature(ctx, feature_name, commit, description):
     """Add files from a commit to a feature
@@ -32,9 +32,10 @@ def add_feature(ctx, feature_name, commit, description):
       dev feature add llm-chat HEAD
       dev feature add my-feature abc123 -d "My new feature"
     """
-    chromium_src = ctx.parent.obj.get('chromium_src')
+    chromium_src = ctx.parent.obj.get("chromium_src")
 
     from dev import create_build_context
+
     build_ctx = create_build_context(chromium_src)
     if not build_ctx:
         return
@@ -53,37 +54,37 @@ def add_feature(ctx, feature_name, commit, description):
         with open(features_path) as f:
             data = yaml.safe_load(f) or {}
     else:
-        data = {'version': '1.0', 'features': {}}
+        data = {"version": "1.0", "features": {}}
 
-    features = data.get('features', {})
+    features = data.get("features", {})
 
     # Add or update feature
     if feature_name in features:
-        existing_files = set(features[feature_name].get('files', []))
+        existing_files = set(features[feature_name].get("files", []))
         all_files = list(existing_files | set(changed_files))
-        features[feature_name]['files'] = sorted(all_files)
+        features[feature_name]["files"] = sorted(all_files)
         log_info(f"Updated feature '{feature_name}' ({len(all_files)} files total)")
     else:
         features[feature_name] = {
-            'description': description or f"Feature from commit {commit[:8]}",
-            'files': sorted(changed_files)
+            "description": description or f"Feature from commit {commit[:8]}",
+            "files": sorted(changed_files),
         }
         log_info(f"Created feature '{feature_name}' with {len(changed_files)} files")
 
     # Save back
-    data['features'] = features
-    with open(features_path, 'w') as f:
+    data["features"] = features
+    with open(features_path, "w") as f:
         yaml.dump(data, f, default_flow_style=False, sort_keys=False)
 
     log_success(f"Feature '{feature_name}' saved")
 
 
-@feature_group.command(name='list')
+@feature_group.command(name="list")
 @click.pass_context
 def list_features(ctx):
     """List all features"""
     # Use current directory's features.yaml
-    features_path = Path.cwd() / 'features.yaml'
+    features_path = Path.cwd() / "features.yaml"
 
     if not features_path.exists():
         log_warning("No features defined (features.yaml not found)")
@@ -92,7 +93,7 @@ def list_features(ctx):
     with open(features_path) as f:
         data = yaml.safe_load(f) or {}
 
-    features = data.get('features', {})
+    features = data.get("features", {})
 
     if not features:
         log_warning("No features defined")
@@ -100,17 +101,17 @@ def list_features(ctx):
 
     log_info("Features:")
     for name, info in features.items():
-        file_count = len(info.get('files', []))
-        description = info.get('description', 'No description')
+        file_count = len(info.get("files", []))
+        description = info.get("description", "No description")
         log_info(f"  {name} ({file_count} files) - {description}")
 
 
-@feature_group.command(name='show')
-@click.argument('feature_name')
+@feature_group.command(name="show")
+@click.argument("feature_name")
 @click.pass_context
 def show_feature(ctx, feature_name):
     """Show details of a specific feature"""
-    features_path = Path.cwd() / 'features.yaml'
+    features_path = Path.cwd() / "features.yaml"
 
     if not features_path.exists():
         log_error("No features.yaml found")
@@ -119,14 +120,14 @@ def show_feature(ctx, feature_name):
     with open(features_path) as f:
         data = yaml.safe_load(f)
 
-    features = data.get('features', {})
+    features = data.get("features", {})
 
     if feature_name not in features:
         log_error(f"Feature '{feature_name}' not found")
         ctx.exit(1)
 
     info = features[feature_name]
-    files = info.get('files', [])
+    files = info.get("files", [])
 
     log_info(f"Feature: {feature_name}")
     log_info(f"Description: {info.get('description', 'No description')}")
@@ -136,9 +137,9 @@ def show_feature(ctx, feature_name):
         log_info(f"  - {file_path}")
 
 
-@feature_group.command(name='generate-patch')
-@click.argument('feature_name')
-@click.option('--output', '-o', type=click.Path(), help='Output file path')
+@feature_group.command(name="generate-patch")
+@click.argument("feature_name")
+@click.option("--output", "-o", type=click.Path(), help="Output file path")
 @click.pass_context
 def generate_patch(ctx, feature_name, output):
     """Generate combined patch for a feature
@@ -149,7 +150,7 @@ def generate_patch(ctx, feature_name, output):
       dev feature generate-patch my-feature -o combined.patch
     """
     # Load feature
-    features_path = Path.cwd() / 'features.yaml'
+    features_path = Path.cwd() / "features.yaml"
 
     if not features_path.exists():
         log_error("No features.yaml found")
@@ -158,20 +159,20 @@ def generate_patch(ctx, feature_name, output):
     with open(features_path) as f:
         data = yaml.safe_load(f)
 
-    features = data.get('features', {})
+    features = data.get("features", {})
 
     if feature_name not in features:
         log_error(f"Feature '{feature_name}' not found")
         ctx.exit(1)
 
-    file_list = features[feature_name].get('files', [])
+    file_list = features[feature_name].get("files", [])
 
     if not file_list:
         log_error(f"Feature '{feature_name}' has no files")
         ctx.exit(1)
 
     # Find patches directory
-    patches_dir = Path.cwd() / 'chromium_src'
+    patches_dir = Path.cwd() / "chromium_src"
     if not patches_dir.exists():
         log_error(f"Patches directory not found: {patches_dir}")
         ctx.exit(1)
@@ -217,12 +218,12 @@ def generate_patch(ctx, feature_name, output):
         click.echo(combined)
 
 
-@feature_group.command(name='remove')
-@click.argument('feature_name')
+@feature_group.command(name="remove")
+@click.argument("feature_name")
 @click.pass_context
 def remove_feature(ctx, feature_name):
     """Remove a feature"""
-    features_path = Path.cwd() / 'features.yaml'
+    features_path = Path.cwd() / "features.yaml"
 
     if not features_path.exists():
         log_error("No features.yaml found")
@@ -231,7 +232,7 @@ def remove_feature(ctx, feature_name):
     with open(features_path) as f:
         data = yaml.safe_load(f)
 
-    features = data.get('features', {})
+    features = data.get("features", {})
 
     if feature_name not in features:
         log_error(f"Feature '{feature_name}' not found")
@@ -239,9 +240,9 @@ def remove_feature(ctx, feature_name):
 
     # Remove and save
     del features[feature_name]
-    data['features'] = features
+    data["features"] = features
 
-    with open(features_path, 'w') as f:
+    with open(features_path, "w") as f:
         yaml.dump(data, f, default_flow_style=False, sort_keys=False)
 
     log_success(f"Removed feature '{feature_name}'")

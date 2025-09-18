@@ -11,27 +11,35 @@ from pathlib import Path
 from typing import Optional, List, Dict
 from context import BuildContext
 from modules.dev_cli.utils import (
-    FilePatch, FileOperation, GitError,
-    run_git_command, validate_git_repository, validate_commit_exists,
-    parse_diff_output, write_patch_file, create_deletion_marker,
-    create_binary_marker, log_extraction_summary, get_commit_info,
-    get_commit_changed_files
+    FilePatch,
+    FileOperation,
+    GitError,
+    run_git_command,
+    validate_git_repository,
+    validate_commit_exists,
+    parse_diff_output,
+    write_patch_file,
+    create_deletion_marker,
+    create_binary_marker,
+    log_extraction_summary,
+    get_commit_info,
+    get_commit_changed_files,
 )
 from utils import log_info, log_error, log_success, log_warning
 
 
-@click.group(name='extract')
+@click.group(name="extract")
 def extract_group():
     """Extract patches from git commits"""
     pass
 
 
-@extract_group.command(name='commit')
-@click.argument('commit')
-@click.option('--verbose', '-v', is_flag=True, help='Show detailed output')
-@click.option('--force', '-f', is_flag=True, help='Overwrite existing patches')
-@click.option('--include-binary', is_flag=True, help='Include binary files')
-@click.option('--base', help='Extract full diff from base commit for files in COMMIT')
+@extract_group.command(name="commit")
+@click.argument("commit")
+@click.option("--verbose", "-v", is_flag=True, help="Show detailed output")
+@click.option("--force", "-f", is_flag=True, help="Overwrite existing patches")
+@click.option("--include-binary", is_flag=True, help="Include binary files")
+@click.option("--base", help="Extract full diff from base commit for files in COMMIT")
 @click.pass_context
 def extract_commit(ctx, commit, verbose, force, include_binary, base):
     """Extract patches from a single commit
@@ -47,10 +55,11 @@ def extract_commit(ctx, commit, verbose, force, include_binary, base):
     the full diff from base..COMMIT for those files.
     """
     # Get chromium source from parent context
-    chromium_src = ctx.parent.obj.get('chromium_src')
+    chromium_src = ctx.parent.obj.get("chromium_src")
 
     # Create build context
     from dev import create_build_context
+
     build_ctx = create_build_context(chromium_src)
 
     if not build_ctx:
@@ -87,20 +96,26 @@ def extract_commit(ctx, commit, verbose, force, include_binary, base):
         log_error(f"Unexpected error: {e}")
         if verbose:
             import traceback
+
             traceback.print_exc()
         ctx.exit(1)
 
 
-@extract_group.command(name='range')
-@click.argument('base_commit')
-@click.argument('head_commit')
-@click.option('--verbose', '-v', is_flag=True, help='Show detailed output')
-@click.option('--force', '-f', is_flag=True, help='Overwrite existing patches')
-@click.option('--include-binary', is_flag=True, help='Include binary files')
-@click.option('--squash', is_flag=True, help='Squash all commits into single patches')
-@click.option('--base', help='Use different base for diff (gets full diff from base for files in range)')
+@extract_group.command(name="range")
+@click.argument("base_commit")
+@click.argument("head_commit")
+@click.option("--verbose", "-v", is_flag=True, help="Show detailed output")
+@click.option("--force", "-f", is_flag=True, help="Overwrite existing patches")
+@click.option("--include-binary", is_flag=True, help="Include binary files")
+@click.option("--squash", is_flag=True, help="Squash all commits into single patches")
+@click.option(
+    "--base",
+    help="Use different base for diff (gets full diff from base for files in range)",
+)
 @click.pass_context
-def extract_range(ctx, base_commit, head_commit, verbose, force, include_binary, squash, base):
+def extract_range(
+    ctx, base_commit, head_commit, verbose, force, include_binary, squash, base
+):
     """Extract patches from a range of commits
 
     \b
@@ -111,10 +126,11 @@ def extract_range(ctx, base_commit, head_commit, verbose, force, include_binary,
       dev extract range HEAD~5 HEAD --base upstream/main
     """
     # Get chromium source from parent context
-    chromium_src = ctx.parent.obj.get('chromium_src')
+    chromium_src = ctx.parent.obj.get("chromium_src")
 
     # Create build context
     from dev import create_build_context
+
     build_ctx = create_build_context(chromium_src)
 
     if not build_ctx:
@@ -126,7 +142,9 @@ def extract_range(ctx, base_commit, head_commit, verbose, force, include_binary,
         ctx.exit(1)
 
     if base:
-        log_info(f"Extracting patches from range: {base_commit}..{head_commit} (with base: {base})")
+        log_info(
+            f"Extracting patches from range: {base_commit}..{head_commit} (with base: {base})"
+        )
     else:
         log_info(f"Extracting patches from range: {base_commit}..{head_commit}")
 
@@ -134,12 +152,24 @@ def extract_range(ctx, base_commit, head_commit, verbose, force, include_binary,
         if squash:
             # Extract as single cumulative diff
             extracted = extract_commit_range(
-                build_ctx, base_commit, head_commit, verbose, force, include_binary, base
+                build_ctx,
+                base_commit,
+                head_commit,
+                verbose,
+                force,
+                include_binary,
+                base,
             )
         else:
             # Extract each commit separately
             extracted = extract_commits_individually(
-                build_ctx, base_commit, head_commit, verbose, force, include_binary, base
+                build_ctx,
+                base_commit,
+                head_commit,
+                verbose,
+                force,
+                include_binary,
+                base,
             )
 
         if extracted > 0:
@@ -154,14 +184,19 @@ def extract_range(ctx, base_commit, head_commit, verbose, force, include_binary,
         log_error(f"Unexpected error: {e}")
         if verbose:
             import traceback
+
             traceback.print_exc()
         ctx.exit(1)
 
 
-def extract_single_commit(ctx: BuildContext, commit_hash: str,
-                         verbose: bool = False, force: bool = False,
-                         include_binary: bool = False,
-                         base: Optional[str] = None) -> int:
+def extract_single_commit(
+    ctx: BuildContext,
+    commit_hash: str,
+    verbose: bool = False,
+    force: bool = False,
+    include_binary: bool = False,
+    base: Optional[str] = None,
+) -> int:
     """Extract patches from a single commit
 
     Args:
@@ -182,7 +217,9 @@ def extract_single_commit(ctx: BuildContext, commit_hash: str,
     # Get commit info for logging
     commit_info = get_commit_info(commit_hash, ctx.chromium_src)
     if commit_info and verbose:
-        log_info(f"  Author: {commit_info['author_name']} <{commit_info['author_email']}>")
+        log_info(
+            f"  Author: {commit_info['author_name']} <{commit_info['author_email']}>"
+        )
         log_info(f"  Subject: {commit_info['subject']}")
 
     if base:
@@ -193,14 +230,19 @@ def extract_single_commit(ctx: BuildContext, commit_hash: str,
         return extract_normal(ctx, commit_hash, verbose, force, include_binary)
 
 
-def extract_normal(ctx: BuildContext, commit_hash: str,
-                  verbose: bool, force: bool, include_binary: bool) -> int:
+def extract_normal(
+    ctx: BuildContext,
+    commit_hash: str,
+    verbose: bool,
+    force: bool,
+    include_binary: bool,
+) -> int:
     """Extract patches normally (diff against parent)"""
 
     # Get diff against parent
-    diff_cmd = ['git', 'diff', f'{commit_hash}^..{commit_hash}']
+    diff_cmd = ["git", "diff", f"{commit_hash}^..{commit_hash}"]
     if include_binary:
-        diff_cmd.append('--binary')
+        diff_cmd.append("--binary")
 
     result = run_git_command(diff_cmd, cwd=ctx.chromium_src)
 
@@ -222,8 +264,14 @@ def extract_normal(ctx: BuildContext, commit_hash: str,
     return write_patches(ctx, file_patches, verbose, include_binary)
 
 
-def extract_with_base(ctx: BuildContext, commit_hash: str, base: str,
-                      verbose: bool, force: bool, include_binary: bool) -> int:
+def extract_with_base(
+    ctx: BuildContext,
+    commit_hash: str,
+    base: str,
+    verbose: bool,
+    force: bool,
+    include_binary: bool,
+) -> int:
     """Extract patches with custom base (full diff from base for files in commit)"""
 
     # Step 1: Get list of files changed in the commit
@@ -244,9 +292,9 @@ def extract_with_base(ctx: BuildContext, commit_hash: str, base: str,
             log_info(f"  Getting diff for: {file_path}")
 
         # Get diff for this specific file from base to commit
-        diff_cmd = ['git', 'diff', f'{base}..{commit_hash}', '--', file_path]
+        diff_cmd = ["git", "diff", f"{base}..{commit_hash}", "--", file_path]
         if include_binary:
-            diff_cmd.append('--binary')
+            diff_cmd.append("--binary")
 
         result = run_git_command(diff_cmd, cwd=ctx.chromium_src)
 
@@ -263,21 +311,27 @@ def extract_with_base(ctx: BuildContext, commit_hash: str, base: str,
         else:
             # File might have been added/deleted
             # Check if file exists in base and commit
-            base_exists = run_git_command(
-                ['git', 'cat-file', '-e', f'{base}:{file_path}'],
-                cwd=ctx.chromium_src
-            ).returncode == 0
+            base_exists = (
+                run_git_command(
+                    ["git", "cat-file", "-e", f"{base}:{file_path}"],
+                    cwd=ctx.chromium_src,
+                ).returncode
+                == 0
+            )
 
-            commit_exists = run_git_command(
-                ['git', 'cat-file', '-e', f'{commit_hash}:{file_path}'],
-                cwd=ctx.chromium_src
-            ).returncode == 0
+            commit_exists = (
+                run_git_command(
+                    ["git", "cat-file", "-e", f"{commit_hash}:{file_path}"],
+                    cwd=ctx.chromium_src,
+                ).returncode
+                == 0
+            )
 
             if not base_exists and commit_exists:
                 # File was added - get full content
-                diff_cmd = ['git', 'diff', f'{base}..{commit_hash}', '--', file_path]
+                diff_cmd = ["git", "diff", f"{base}..{commit_hash}", "--", file_path]
                 if include_binary:
-                    diff_cmd.append('--binary')
+                    diff_cmd.append("--binary")
                 result = run_git_command(diff_cmd, cwd=ctx.chromium_src)
                 if result.stdout.strip():
                     patches = parse_diff_output(result.stdout)
@@ -289,7 +343,7 @@ def extract_with_base(ctx: BuildContext, commit_hash: str, base: str,
                     file_path=file_path,
                     operation=FileOperation.DELETE,
                     patch_content=None,
-                    is_binary=False
+                    is_binary=False,
                 )
 
     if not file_patches:
@@ -328,8 +382,12 @@ def check_overwrite(ctx: BuildContext, file_patches: Dict, verbose: bool) -> boo
     return True
 
 
-def write_patches(ctx: BuildContext, file_patches: Dict[str, FilePatch],
-                 verbose: bool, include_binary: bool) -> int:
+def write_patches(
+    ctx: BuildContext,
+    file_patches: Dict[str, FilePatch],
+    verbose: bool,
+    include_binary: bool,
+) -> int:
     """Write patches to disk"""
     success_count = 0
     fail_count = 0
@@ -370,7 +428,7 @@ def write_patches(ctx: BuildContext, file_patches: Dict[str, FilePatch],
             else:
                 # Pure rename - create marker
                 marker_path = ctx.get_dev_patches_dir() / file_path
-                marker_path = marker_path.with_suffix(marker_path.suffix + '.rename')
+                marker_path = marker_path.with_suffix(marker_path.suffix + ".rename")
                 marker_path.parent.mkdir(parents=True, exist_ok=True)
                 try:
                     marker_content = f"Renamed from: {patch.old_path}\nSimilarity: {patch.similarity}%\n"
@@ -403,10 +461,15 @@ def write_patches(ctx: BuildContext, file_patches: Dict[str, FilePatch],
     return success_count
 
 
-def extract_commit_range(ctx: BuildContext, base_commit: str,
-                        head_commit: str, verbose: bool = False,
-                        force: bool = False, include_binary: bool = False,
-                        custom_base: Optional[str] = None) -> int:
+def extract_commit_range(
+    ctx: BuildContext,
+    base_commit: str,
+    head_commit: str,
+    verbose: bool = False,
+    force: bool = False,
+    include_binary: bool = False,
+    custom_base: Optional[str] = None,
+) -> int:
     """Extract patches from a commit range as a single cumulative diff
 
     Returns:
@@ -422,8 +485,8 @@ def extract_commit_range(ctx: BuildContext, base_commit: str,
 
     # Count commits in range for progress
     result = run_git_command(
-        ['git', 'rev-list', '--count', f'{base_commit}..{head_commit}'],
-        cwd=ctx.chromium_src
+        ["git", "rev-list", "--count", f"{base_commit}..{head_commit}"],
+        cwd=ctx.chromium_src,
     )
     commit_count = int(result.stdout.strip()) if result.returncode == 0 else 0
 
@@ -436,13 +499,20 @@ def extract_commit_range(ctx: BuildContext, base_commit: str,
     # Step 2: Get diff based on whether we have a custom base
     if custom_base:
         # First get list of files changed in the range
-        range_files_cmd = ['git', 'diff', '--name-only', f'{base_commit}..{head_commit}']
+        range_files_cmd = [
+            "git",
+            "diff",
+            "--name-only",
+            f"{base_commit}..{head_commit}",
+        ]
         result = run_git_command(range_files_cmd, cwd=ctx.chromium_src)
 
         if result.returncode != 0:
             raise GitError(f"Failed to get changed files: {result.stderr}")
 
-        changed_files = result.stdout.strip().split('\n') if result.stdout.strip() else []
+        changed_files = (
+            result.stdout.strip().split("\n") if result.stdout.strip() else []
+        )
 
         if not changed_files:
             log_warning("No files changed in range")
@@ -451,17 +521,17 @@ def extract_commit_range(ctx: BuildContext, base_commit: str,
         log_info(f"Found {len(changed_files)} files changed in range")
 
         # Now get diff from custom base to head for these files
-        diff_cmd = ['git', 'diff', f'{custom_base}..{head_commit}']
+        diff_cmd = ["git", "diff", f"{custom_base}..{head_commit}"]
         if include_binary:
-            diff_cmd.append('--binary')
+            diff_cmd.append("--binary")
         # Add the specific files to diff command
-        diff_cmd.append('--')
+        diff_cmd.append("--")
         diff_cmd.extend(changed_files)
     else:
         # Regular diff from base_commit to head_commit
-        diff_cmd = ['git', 'diff', f'{base_commit}..{head_commit}']
+        diff_cmd = ["git", "diff", f"{base_commit}..{head_commit}"]
         if include_binary:
-            diff_cmd.append('--binary')
+            diff_cmd.append("--binary")
 
     result = run_git_command(diff_cmd, cwd=ctx.chromium_src, timeout=120)
 
@@ -486,9 +556,9 @@ def extract_commit_range(ctx: BuildContext, base_commit: str,
     # Process with progress indicator
     with click.progressbar(
         file_patches.items(),
-        label='Extracting patches',
+        label="Extracting patches",
         show_pos=True,
-        show_percent=True
+        show_percent=True,
     ) as patches_bar:
         for file_path, patch in patches_bar:
             # Handle different operations
@@ -526,11 +596,15 @@ def extract_commit_range(ctx: BuildContext, base_commit: str,
     return success_count
 
 
-def extract_commits_individually(ctx: BuildContext, base_commit: str,
-                                head_commit: str, verbose: bool = False,
-                                force: bool = False,
-                                include_binary: bool = False,
-                                custom_base: Optional[str] = None) -> int:
+def extract_commits_individually(
+    ctx: BuildContext,
+    base_commit: str,
+    head_commit: str,
+    verbose: bool = False,
+    force: bool = False,
+    include_binary: bool = False,
+    custom_base: Optional[str] = None,
+) -> int:
     """Extract patches from each commit in a range individually
 
     This preserves commit boundaries and can help with conflict resolution.
@@ -544,14 +618,14 @@ def extract_commits_individually(ctx: BuildContext, base_commit: str,
 
     # Get list of commits in range
     result = run_git_command(
-        ['git', 'rev-list', '--reverse', f'{base_commit}..{head_commit}'],
-        cwd=ctx.chromium_src
+        ["git", "rev-list", "--reverse", f"{base_commit}..{head_commit}"],
+        cwd=ctx.chromium_src,
     )
 
     if result.returncode != 0:
         raise GitError(f"Failed to list commits: {result.stderr}")
 
-    commits = [c.strip() for c in result.stdout.strip().split('\n') if c.strip()]
+    commits = [c.strip() for c in result.stdout.strip().split("\n") if c.strip()]
 
     if not commits:
         log_warning(f"No commits between {base_commit} and {head_commit}")
@@ -565,24 +639,28 @@ def extract_commits_individually(ctx: BuildContext, base_commit: str,
     failed_commits = []
 
     with click.progressbar(
-        commits,
-        label='Processing commits',
-        show_pos=True,
-        show_percent=True
+        commits, label="Processing commits", show_pos=True, show_percent=True
     ) as commits_bar:
         for commit in commits_bar:
             try:
                 if custom_base:
                     # Use extract_with_base for full diff from custom base
                     extracted = extract_with_base(
-                        ctx, commit, custom_base, verbose=False,
-                        force=force, include_binary=include_binary
+                        ctx,
+                        commit,
+                        custom_base,
+                        verbose=False,
+                        force=force,
+                        include_binary=include_binary,
                     )
                 else:
                     # Normal extraction from parent
                     extracted = extract_single_commit(
-                        ctx, commit, verbose=False, force=force,
-                        include_binary=include_binary
+                        ctx,
+                        commit,
+                        verbose=False,
+                        force=force,
+                        include_binary=include_binary,
                     )
                 total_extracted += extracted
             except GitError as e:

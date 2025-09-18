@@ -29,13 +29,15 @@ def _ensure_log_file():
         # Create logs directory if it doesn't exist
         log_dir = Path(__file__).parent.parent / "logs"
         log_dir.mkdir(exist_ok=True)
-        
+
         # Create log file with timestamp
         timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         log_file_path = log_dir / f"build_{timestamp}.log"
         # Open with UTF-8 encoding to handle any characters
-        _log_file = open(log_file_path, 'w', encoding='utf-8')
-        _log_file.write(f"Nxtscape Build Log - Started at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+        _log_file = open(log_file_path, "w", encoding="utf-8")
+        _log_file.write(
+            f"Nxtscape Build Log - Started at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+        )
         _log_file.write("=" * 80 + "\n\n")
     return _log_file
 
@@ -52,13 +54,15 @@ def _sanitize_for_windows(message: str) -> str:
     """Remove non-ASCII characters on Windows to avoid encoding issues"""
     if sys.platform == "win32":
         # Remove all non-ASCII characters
-        return ''.join(char for char in message if ord(char) < 128)
+        return "".join(char for char in message if ord(char) < 128)
     return message
+
 
 def log_info(message: str):
     """Print info message"""
     print(_sanitize_for_windows(message))
     _log_to_file(f"INFO: {message}")
+
 
 def log_warning(message: str):
     """Print warning message"""
@@ -67,6 +71,7 @@ def log_warning(message: str):
     else:
         print(f"⚠️ {message}")
     _log_to_file(f"WARNING: {message}")
+
 
 def log_error(message: str):
     """Print error message"""
@@ -107,51 +112,55 @@ def run_command(
             stderr=subprocess.STDOUT,  # Merge stderr into stdout
             text=True,
             bufsize=1,
-            universal_newlines=True
+            universal_newlines=True,
         )
-        
+
         stdout_lines = []
-        
+
         # Stream output line by line
-        for line in iter(process.stdout.readline, ''):
+        for line in iter(process.stdout.readline, ""):
             line = line.rstrip()
             if line:
                 print(line)  # Print to console in real-time
                 _log_to_file(f"RUN_COMMAND: STDOUT: {line}")  # Log to file
                 stdout_lines.append(line)
-        
+
         # Wait for process to complete
         process.wait()
-        
-        _log_to_file(f"RUN_COMMAND: ✅ Command completed with exit code: {process.returncode}")
-        
+
+        _log_to_file(
+            f"RUN_COMMAND: ✅ Command completed with exit code: {process.returncode}"
+        )
+
         # Create a CompletedProcess object with captured output
         result = subprocess.CompletedProcess(
             cmd,
             process.returncode,
-            stdout='\n'.join(stdout_lines) if stdout_lines else '',
-            stderr=''
+            stdout="\n".join(stdout_lines) if stdout_lines else "",
+            stderr="",
         )
-        
+
         if check and process.returncode != 0:
-            raise subprocess.CalledProcessError(process.returncode, cmd, result.stdout, result.stderr)
-        
+            raise subprocess.CalledProcessError(
+                process.returncode, cmd, result.stdout, result.stderr
+            )
+
         return result
-            
+
     except subprocess.CalledProcessError as e:
         _log_to_file(f"RUN_COMMAND: ❌ Command failed: {cmd_str}")
         _log_to_file(f"RUN_COMMAND: ❌ Exit code: {e.returncode}")
-        
+
         if e.stdout:
-            for line in e.stdout.strip().split('\n'):
+            for line in e.stdout.strip().split("\n"):
                 if line.strip():
                     _log_to_file(f"RUN_COMMAND: STDOUT: {line}")
-        
+
         if e.stderr:
-            for line in e.stderr.strip().split('\n'):
+            for line in e.stderr.strip().split("\n"):
                 if line.strip():
                     _log_to_file(f"RUN_COMMAND: STDERR: {line}")
-        
+
         if check:
             log_error(f"Command failed: {cmd_str}")
             if e.stderr:
@@ -197,10 +206,12 @@ def get_platform_arch() -> str:
     elif IS_MACOS:
         # macOS can be arm64 or x64
         import platform
+
         return "arm64" if platform.machine() == "arm64" else "x64"
     elif IS_LINUX:
         # Linux can be x64 or arm64
         import platform
+
         machine = platform.machine()
         if machine in ["x86_64", "AMD64"]:
             return "x64"
@@ -231,7 +242,7 @@ def normalize_path(path: Union[str, Path]) -> Path:
     path = Path(path)
     if IS_WINDOWS:
         # Convert forward slashes to backslashes on Windows
-        return Path(str(path).replace('/', '\\'))
+        return Path(str(path).replace("/", "\\"))
     return path
 
 
@@ -239,31 +250,31 @@ def join_paths(*paths: Union[str, Path]) -> Path:
     """Join paths in a platform-aware way"""
     if not paths:
         return Path()
-    
+
     result = Path(paths[0])
     for p in paths[1:]:
         result = result / p
-    
+
     return normalize_path(result)
 
 
 def safe_rmtree(path: Union[str, Path]) -> None:
     """Safely remove directory tree, handling Windows symlinks and junction points"""
     path = Path(path)
-    
+
     if not path.exists():
         return
-        
+
     if IS_WINDOWS:
         # On Windows, use rmdir for junctions and symlinks
         import stat
-        
+
         def handle_remove_readonly(func, path, exc):
             """Error handler for Windows readonly files"""
             if os.path.exists(path):
                 os.chmod(path, stat.S_IWRITE)
                 func(path)
-        
+
         # Try to remove as a junction/symlink first
         try:
             if path.is_symlink() or (path.is_dir() and os.path.islink(str(path))):
@@ -271,10 +282,9 @@ def safe_rmtree(path: Union[str, Path]) -> None:
                 return
         except:
             pass
-        
+
         # Fall back to rmtree with error handler
         shutil.rmtree(path, onerror=handle_remove_readonly)
     else:
         # On Unix-like systems, regular rmtree works fine
         shutil.rmtree(path)
-

@@ -83,4 +83,3 @@ def apply_string_replacements(ctx: BuildContext) -> bool:
         log_error("String replacements failed")
 
     return success
-

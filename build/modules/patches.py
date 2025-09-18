@@ -349,4 +349,3 @@ def commit_patch(patch_path: Path, tree_path: Path) -> bool:
     except Exception as e:
         log_warning(f"Error creating commit for patch {patch_path.name}: {e}")
         return False
-
