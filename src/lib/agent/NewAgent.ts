@@ -276,28 +276,76 @@ export class NewAgent {
   }
 
   /**
-   * Transform special example tasks into explicit instructions
+   * Check if task is a special predefined task and return its metadata
    * @param task - The original task string
-   * @returns The transformed task string
+   * @returns Metadata with predefined plan or null if not a special task
    */
-  private _transformSpecialTasks(task: string): string {
-    // Exact match for special example tasks
-    if (task === "Visit BrowserOS launch and upvote ❤️") {
-      return "Navigate to https://dub.sh/browseros-launch (it will redirect to the actual page) then click the upvote button then use celebration_tool to show confetti";
+  private _getSpecialTaskMetadata(task: string): {task: string, metadata: ExecutionMetadata} | null {
+    // Case-insensitive comparison
+    const taskLower = task.toLowerCase();
+
+    // BrowserOS Launch Upvote Task
+    if (taskLower === "visit browseros launch and upvote ❤️") {
+      return {
+        task: "Visit BrowserOS launch and upvote",
+        metadata: {
+          executionMode: 'predefined' as const,
+          predefinedPlan: {
+            agentId: 'browseros-launch-upvoter',
+            name: "BrowserOS Launch Upvoter",
+            goal: "Navigate to BrowserOS launch page and upvote it",
+            steps: [
+              "Navigate to https://dub.sh/browseros-launch",
+              "Wait for the page to fully load (2-3 seconds)",
+              "Find and click the upvote button on the page using visual_click",
+              "Use celebration tool to show confetti animation"
+            ]
+          }
+        }
+      };
     }
-    if (task === "Go to GitHub and Star BrowserOS ⭐") {
-      return "Navigate to https://git.new/browserOS (it will redirect to the actual page) then click the star button if it is gray (not starred) then use celebration_tool to show confetti";
+
+    // GitHub Star Task
+    if (taskLower === "go to github and star browseros ⭐") {
+      return {
+        task: "Star the BrowserOS GitHub repository",
+        metadata: {
+          executionMode: 'predefined' as const,
+          predefinedPlan: {
+            agentId: 'github-star-browseros',
+            name: "GitHub Repository Star",
+            goal: "Navigate to BrowserOS GitHub repo and star it",
+            steps: [
+              "Navigate to https://git.new/browserOS",
+              "Wait for GitHub page to fully load (2-3 seconds)",
+              "Check if the star button indicates already starred (filled star icon)",
+              "If not starred (outline star icon), click the star button to star the repository",
+              "Use celebration_tool to show confetti animation"
+            ]
+          }
+        }
+      };
     }
-    // Return original task if not a special case
-    return task;
+
+    // Return null if not a special task
+    return null;
   }
 
   // There are basically two modes of operation:
   // 1. Dynamic planning - the agent plans and executes in a loop until done
   // 2. Predefined plan - the agent executes a predefined set of steps in a loop until all are done
   async execute(task: string, metadata?: ExecutionMetadata): Promise<void> {
-    // Transform special example tasks into explicit instructions
-    const transformedTask = this._transformSpecialTasks(task);
+    // Check for special tasks and get their predefined plans
+    const specialTaskMetadata = this._getSpecialTaskMetadata(task);
+
+    let _task = task;
+    let _metadata = metadata;
+
+    if (specialTaskMetadata) {
+      _task = specialTaskMetadata.task;
+      _metadata = { ...metadata, ...specialTaskMetadata.metadata };
+      Logging.log("NewAgent", `Special task detected: ${specialTaskMetadata.metadata.predefinedPlan?.name}`, "info");
+    }
 
     try {
       this.executionContext.setExecutionMetrics({
@@ -308,11 +356,11 @@ export class NewAgent {
       Logging.log("NewAgent", `Starting execution`, "info");
       await this._initialize();
 
-      // Check for predefined plan
-      if (metadata?.executionMode === 'predefined' && metadata.predefinedPlan) {
-        await this._executePredefined(transformedTask, metadata.predefinedPlan);
+      // Check for predefined plan (from special task or provided metadata)
+      if (_metadata?.executionMode === 'predefined' && _metadata.predefinedPlan) {
+        await this._executePredefined(_task, _metadata.predefinedPlan);
       } else {
-        await this._executeDynamic(transformedTask);
+        await this._executeDynamic(_task);
       }
     } catch (error) {
       this._handleExecutionError(error);
