@@ -296,7 +296,6 @@ export class NewAgent {
             goal: "Navigate to BrowserOS launch page and upvote it",
             steps: [
               "Navigate to https://dub.sh/browseros-launch",
-              "Wait for the page to fully load (2-3 seconds)",
               "Find and click the upvote button on the page using visual_click",
               "Use celebration tool to show confetti animation"
             ]
@@ -317,7 +316,6 @@ export class NewAgent {
             goal: "Navigate to BrowserOS GitHub repo and star it",
             steps: [
               "Navigate to https://git.new/browserOS",
-              "Wait for GitHub page to fully load (2-3 seconds)",
               "Check if the star button indicates already starred (filled star icon)",
               "If not starred (outline star icon), click the star button to star the repository",
               "Use celebration_tool to show confetti animation"
