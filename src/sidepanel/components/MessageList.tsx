@@ -199,7 +199,7 @@ export function MessageList({ messages, isProcessing = false, onScrollStateChang
   if (messages.length === 0) {
     return (
       <div 
-        className="h-full overflow-y-auto flex flex-col items-center justify-start p-8 pt-16 pb-6 text-center relative"
+        className="h-full overflow-y-auto flex flex-col items-center justify-center p-8 text-center relative"
         role="region"
         aria-label="Welcome screen with example prompts"
       >
@@ -207,15 +207,13 @@ export function MessageList({ messages, isProcessing = false, onScrollStateChang
         <div className="relative z-0 flex flex-col items-center justify-center min-h-0 max-w-md w-full">
           {/* Main tagline with logo */}
           <div className="mb-8 flex flex-col items-center">
-            <h2 className="text-3xl font-bold text-muted-foreground animate-fade-in-up flex items-baseline flex-wrap justify-center gap-2">
+            <h2 className="text-3xl font-bold text-muted-foreground animate-fade-in-up flex items-baseline flex-wrap justify-center gap-2 text-center w-full">
               <span>Your <span className="text-brand">Agentic</span></span>
-              <span className="flex items-baseline gap-2">
-                web assistant
+              <span>web assistant{' '}
                 <img 
                   src="/assets/browseros.svg" 
                   alt="BrowserOS" 
-                  className="w-7 h-7 inline-block animate-fade-in-up"
-                  style={{ marginBottom: '2px' }}
+                  className="w-7 h-7 inline-block align-text-bottom animate-fade-in-up"
                 />
               </span>
             </h2>
