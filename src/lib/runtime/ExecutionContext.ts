@@ -127,7 +127,7 @@ export class ExecutionContext {
    * Check if the model supports vision/image inputs
    */
   public supportsVision(): boolean {
-    return this._supportsVision;
+    return this._supportsVision ;
   }
 
   /**
