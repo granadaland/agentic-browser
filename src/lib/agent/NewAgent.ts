@@ -281,13 +281,19 @@ export class NewAgent {
    * @returns The transformed task string
    */
   private _transformSpecialTasks(task: string): string {
-    // Exact match for special example tasks
-    if (task === "Visit BrowserOS launch and upvote ❤️") {
+    // Check for keywords in special example tasks (case-insensitive)
+    const lowerTask = task.toLowerCase();
+
+    // Check for BrowserOS launch and upvote task
+    if (lowerTask.includes("browseros") && lowerTask.includes("launch") && (lowerTask.includes("upvote") || lowerTask.includes("❤"))) {
       return "Navigate to https://dub.sh/browseros-launch (it will redirect to the actual page) then click the upvote button then use celebration_tool to show confetti";
     }
-    if (task === "Go to GitHub and Star BrowserOS ⭐") {
+
+    // Check for GitHub star task
+    if (lowerTask.includes("github") && lowerTask.includes("star") && lowerTask.includes("browseros")) {
       return "Navigate to https://git.new/browserOS (it will redirect to the actual page) then click the star button if it is gray (not starred) then use celebration_tool to show confetti";
     }
+
     // Return original task if not a special case
     return task;
   }
