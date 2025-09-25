@@ -164,14 +164,23 @@ Only needed if you're modifying browser-level features:
    # This typically goes in a separate directory outside this repo
    ```
 
-2. **Configure build:**
+2. **Configure and build:**
    ```bash
-   # Use our Python build system
+   # Debug build (for development)
    python build/build.py --chromium-src /path/to/chromium/src --config build/config/debug.yaml
+
+   # Release build (for production)
+   # macOS:
+   python build/build.py --chromium-src /path/to/chromium/src --config build/config/release.macos.yaml
+   # Linux:
+   python build/build.py --chromium-src /path/to/chromium/src --config build/config/release.linux.yaml
+   # Windows:
+   python build/build.py --chromium-src /path/to/chromium/src --config build/config/release.windows.yaml
    ```
 
-3. **Apply patches and build:**
+3. **Alternative: Apply patches and build manually:**
    ```bash
+   # If you prefer to run steps individually
    python build/build.py --chromium-src /path/to/chromium/src --apply-patches --build
    ```
 
