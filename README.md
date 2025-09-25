@@ -1,5 +1,5 @@
 <div align="center">
-<img src="https://storage.googleapis.com/felafax-public/browseros_readme/github-banner-3.png" alt="backed-by-yc" >
+<img src="https://storage.googleapis.com/felafax-public/browseros_readme/github-banner.png" alt="backed-by-yc" >
 
 <br></br>
 [![Discord](https://img.shields.io/badge/Discord-Join%20us-blue)](https://discord.gg/YKwjt5vuKr)
