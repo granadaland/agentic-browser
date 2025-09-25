@@ -164,15 +164,10 @@ Only needed if you're modifying browser-level features:
    # This typically goes in a separate directory outside this repo
    ```
 
-2. **Configure build:**
+2. **Apply patches and build:**
    ```bash
-   # Use our Python build system
-   python build/build.py --chromium-src /path/to/chromium/src --config build/config/debug.yaml
-   ```
+   python build/build.py -S /path/to/chromium/src --build --build-type debug --arch arm64
 
-3. **Apply patches and build:**
-   ```bash
-   python build/build.py --chromium-src /path/to/chromium/src --apply-patches --build
    ```
 
 For detailed Chromium build instructions, see [docs/BUILD.md](docs/BUILD.md).
