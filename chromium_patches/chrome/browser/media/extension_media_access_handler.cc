@@ -1,5 +1,5 @@
 diff --git a/chrome/browser/media/extension_media_access_handler.cc b/chrome/browser/media/extension_media_access_handler.cc
-index 8946078143534..9fc8bbea87978 100644
+index 8946078143534..3b46ec65c2832 100644
 --- a/chrome/browser/media/extension_media_access_handler.cc
 +++ b/chrome/browser/media/extension_media_access_handler.cc
 @@ -6,6 +6,7 @@
@@ -29,3 +29,16 @@ index 8946078143534..9fc8bbea87978 100644
  }
  
  }  // namespace
+@@ -90,6 +94,12 @@ void ExtensionMediaAccessHandler::HandleRequest(
+       GetDevicePolicy(profile, extension->url(), prefs::kVideoCaptureAllowed,
+                       prefs::kVideoCaptureAllowedUrls) != ALWAYS_DENY;
+ 
++  // For BrowserOS extensions in sidepanel, allow audio for teach mode
++  if (extensions::browseros::IsBrowserOSExtension(extension->id())) {
++    audio_allowed = request.audio_type ==
++                    blink::mojom::MediaStreamType::DEVICE_AUDIO_CAPTURE;
++  }
++
+   CheckDevicesAndRunCallback(web_contents, request, std::move(callback),
+                              audio_allowed, video_allowed);
+ }
