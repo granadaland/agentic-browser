@@ -1,5 +1,5 @@
 <div align="center">
-<img src="https://pub-b52e24a001bd463a848cb2d8c8667f63.r2.dev/browseros-banner.png" alt="backed-by-yc" >
+<img src="https://storage.googleapis.com/felafax-public/browseros_readme/github-banner.png" alt="backed-by-yc" >
 
 ### Your browser, with AI superpowers 🚀
 <br></br>
@@ -16,11 +16,6 @@
   <img src="https://img.shields.io/badge/Download-Linux-FCC624?style=flat&logo=linux&logoColor=black" alt="Download for Linux (beta)" />
 </a>
 <br />
-
-<br />
-<img src="resources/media/backed-by-yc.png" alt="backed-by-yc" width="140px">
-
-</div>
 
 ## 
 🌐 BrowserOS is an open-source chromium fork that runs AI agents natively. **Your open-source, privacy-first alternative to Perplexity Comet, Dia**.
