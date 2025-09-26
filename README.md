@@ -56,17 +56,17 @@
 
 ### 🤖 AI Agents in Action ([watch video](https://storage.googleapis.com/felafax-public/nxtscape/nxtscape-agent-demo.mp4))
 <div align="center">
-<img src="resources/media/nxtscape-agent.gif" alt="AI Agents in Action" width="80%">
+<img src="docs/videos/nxtscape-agent.gif" alt="AI Agents in Action" width="80%">
 </div>
 
 ### 💬 Local AI Chat ([watch video](https://storage.googleapis.com/felafax-public/nxtscape/nxtscape-chat.mp4))
 <div align="center">
-<img src="resources/media/nxtscape-chat.gif" alt="Local AI Chat" width="80%">
+<img src="docs/videos/nxtscape-chat.gif" alt="Local AI Chat" width="80%">
 </div>
 
 ### ⚡ Productivity Tools ([watch video](https://storage.googleapis.com/felafax-public/nxtscape/nxtscape-productivity.mp4))
 <div align="center">
-<img src="resources/media/nxtscape-productivity.gif" alt="Productivity" width="80%">
+<img src="docs/videos/nxtscape-productivity.gif" alt="Productivity" width="80%">
 </div>
 
 ## Why we're building this
