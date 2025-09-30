@@ -49,29 +49,26 @@
 - 🤖 AI agents that run on YOUR browser, not in the cloud
 - 🔒 Privacy first - bring your own keys or use local models with Ollama. Your browsing history stays on your computer
 - 🚀 Open source and community driven - see exactly what's happening under the hood
-- 🤝 (coming soon) MCP store to one-click install popular MCPs and use them directly in the browser bar
+- 🤝 MCP store to one-click install popular MCPs and use them directly in the browser bar
 - 🛡️ (coming soon) Built-in AI ad blocker that works across more scenarios!  
 
 ## Demos
 
 ### 🤖 BrowserOS agent in action
-
 [![BrowserOS agent in action](docs/videos/browserOS-agent-in-action.gif)](https://www.youtube.com/watch?v=SoSFev5R5dI)
-
+<br/><br/>
 
 ### 💬 Use BrowserOS to chat
-<div align="center">
-<img src="docs/videos/nxtscape-chat.gif" alt="Local AI Chat" width="80%">
-</div>
 
+https://github.com/user-attachments/assets/726803c5-8e36-420e-8694-c63a2607beca
 
+<br/><br/>
 
-### ⚡ Use BrowserOS to scrap data
-<div align="center">
-<img src="docs/videos/nxtscape-productivity.gif" alt="Productivity" width="80%">
-</div>
+### ⚡ Use BrowserOS to scrape data
 
+https://github.com/user-attachments/assets/9f038216-bc24-4555-abf1-af2adcb7ebc0
 
+<br/><br/>
 
 ## Why We're Building BrowserOS
 
