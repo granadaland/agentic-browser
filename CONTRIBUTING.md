@@ -90,6 +90,47 @@ yarn build:dev       # One-time build
 
 Building the custom Chromium browser requires significant disk space and time. Only go down this path if you're working on browser-level features like patches to Chromium itself.
 
+### Prerequisites
+
+- **~100GB disk space** for Chromium source
+- **16GB+ RAM** (recommended)
+- **Platform tools:**
+  - macOS: Xcode + Command Line Tools
+  - Linux: build-essential and dependencies
+  - Windows: Visual Studio Build Tools
+
+### Quick Setup
+
+**1. Checkout Chromium source**
+
+First, follow the official Chromium guide for your platform:
+- **[Chromium: Get the Code](https://www.chromium.org/developers/how-tos/get-the-code/)**
+
+This will set up `depot_tools` and fetch the ~100GB Chromium source tree. This typically takes 2-3 hours depending on your internet speed.
+
+**2. Build BrowserOS**
+
+Once you have Chromium checked out, navigate to our build system:
+
+```bash
+cd packages/browseros
+
+# Debug build (for development)
+python build/build.py --chromium-src /path/to/chromium/src --build --build-type debug
+
+# Release build (for production)
+# macOS
+python build/build.py --chromium-src /path/to/chromium/src --build --build-type release
+
+# Linux
+python build/build.py --chromium-src /path/to/chromium/src --build --build-type release
+
+# Windows
+python build/build.py --chromium-src /path/to/chromium/src --build --build-type release
+```
+
+The build typically takes 1-3 hours on modern hardware (M4 Max, Ryzen 9, etc.).
+
 **For detailed instructions, see [Browser Build Guide](docs/BUILD.md).**
 
 ## Making Your First Contribution
