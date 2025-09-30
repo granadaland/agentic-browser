@@ -69,13 +69,13 @@
 <img src="docs/videos/nxtscape-productivity.gif" alt="Productivity" width="80%">
 </div>
 
-## Why we're building this
+## Why We're Building BrowserOS
 
-For the first time since Netscape in 1994, it feels like we can reimagine browsers from scratch. We saw how Cursor gave developers a 10x productivity boost, yet browsers feel stuck in the past.
+For the first time since Netscape pioneered the web in 1994, AI gives us the chance to completely reimagine the browser. We've seen tools like Cursor deliver 10x productivity gains for developers—yet everyday browsing remains frustratingly archaic.
 
-You probably have 70+ tabs open right now. You're constantly fighting your browser instead of it helping you. Simple tasks like "order Tide Pods from my Amazon order history" should just work with AI agents. 
+You're likely juggling 70+ tabs, battling your browser instead of having it assist you. Routine tasks, like "reorder Tide Pods from my Amazon history," should be handled seamlessly by intelligent AI agents.
 
-We believe AI agents should automate your work locally and securely, not send your data to some search or ad company.
+At BrowserOS, we're convinced that AI should empower you by automating tasks locally and securely—keeping your data private. We are building the best browser for this future!
 
 ## How we compare
 
