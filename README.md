@@ -60,7 +60,7 @@
 </div>
 
 
-https://github.com/user-attachments/assets/1669b621-0cb7-4ecc-8f8b-7f79dfe3192d
+[![BrowserOS agent in action](https://github.com/user-attachments/assets/1669b621-0cb7-4ecc-8f8b-7f79dfe3192d)](https://youtu.be/SoSFev5R5dI)
 
 
 ### 💬 Use BrowserOS to chat
