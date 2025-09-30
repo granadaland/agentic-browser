@@ -54,20 +54,33 @@
 
 ## Demos
 
-### 🤖 AI Agents in Action ([watch video](https://storage.googleapis.com/felafax-public/nxtscape/nxtscape-agent-demo.mp4))
+### 🤖 BrowserOS agent in action
 <div align="center">
 <img src="docs/videos/nxtscape-agent.gif" alt="AI Agents in Action" width="80%">
 </div>
 
-### 💬 Local AI Chat ([watch video](https://storage.googleapis.com/felafax-public/nxtscape/nxtscape-chat.mp4))
+
+https://github.com/user-attachments/assets/1669b621-0cb7-4ecc-8f8b-7f79dfe3192d
+
+
+### 💬 Use BrowserOS to chat
 <div align="center">
 <img src="docs/videos/nxtscape-chat.gif" alt="Local AI Chat" width="80%">
 </div>
 
-### ⚡ Productivity Tools ([watch video](https://storage.googleapis.com/felafax-public/nxtscape/nxtscape-productivity.mp4))
+
+
+https://github.com/user-attachments/assets/d468ea01-dcc5-4aff-89cb-375cd0e25039
+
+
+### ⚡ Use BrowserOS to scrape/extract
 <div align="center">
 <img src="docs/videos/nxtscape-productivity.gif" alt="Productivity" width="80%">
 </div>
+
+
+https://github.com/user-attachments/assets/604225e0-d60d-459d-8f4e-81db8dd239c7
+
 
 ## Why We're Building BrowserOS
 
