@@ -33,7 +33,7 @@
 
 2. Import your Chrome data (optional)
 
-3. Connect your AI provider (OpenAI, Anthropic, or local Ollama)
+3. Connect your AI provider (OpenAI, Anthropic, or local models via Ollama/LMStudio)
 
 4. Start automating!
 
