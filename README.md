@@ -56,7 +56,7 @@
 
 ### 🤖 BrowserOS agent in action
 
-[![BrowserOS agent in action](https://github.com/user-attachments/assets/1669b621-0cb7-4ecc-8f8b-7f79dfe3192d)](https://www.youtube.com/watch?v=SoSFev5R5dI)
+[![BrowserOS agent in action](docs/videos/browserOS-agent-in-action.gif)](https://www.youtube.com/watch?v=SoSFev5R5dI)
 
 
 ### 💬 Use BrowserOS to chat
@@ -66,16 +66,11 @@
 
 
 
-https://github.com/user-attachments/assets/d468ea01-dcc5-4aff-89cb-375cd0e25039
-
-
 ### ⚡ Use BrowserOS to scrape/extract
 <div align="center">
 <img src="docs/videos/nxtscape-productivity.gif" alt="Productivity" width="80%">
 </div>
 
-
-https://github.com/user-attachments/assets/604225e0-d60d-459d-8f4e-81db8dd239c7
 
 
 ## Why We're Building BrowserOS
