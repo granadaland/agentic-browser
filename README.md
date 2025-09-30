@@ -55,12 +55,8 @@
 ## Demos
 
 ### 🤖 BrowserOS agent in action
-<div align="center">
-<img src="docs/videos/nxtscape-agent.gif" alt="AI Agents in Action" width="80%">
-</div>
 
-
-[![BrowserOS agent in action](https://github.com/user-attachments/assets/1669b621-0cb7-4ecc-8f8b-7f79dfe3192d)](https://youtu.be/SoSFev5R5dI)
+[![BrowserOS agent in action](https://github.com/user-attachments/assets/1669b621-0cb7-4ecc-8f8b-7f79dfe3192d)](https://www.youtube.com/watch?v=SoSFev5R5dI)
 
 
 ### 💬 Use BrowserOS to chat
