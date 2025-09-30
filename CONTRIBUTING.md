@@ -116,17 +116,24 @@ Once you have Chromium checked out, navigate to our build system:
 cd packages/browseros
 
 # Debug build (for development)
-python build/build.py --chromium-src /path/to/chromium/src --build --build-type debug
+# macOS
+python build/build.py --config build/config/debug.macos.yaml --chromium-src /path/to/chromium/src --build
+
+# Linux
+python build/build.py --config build/config/debug.linux.yaml --chromium-src /path/to/chromium/src --build
+
+# Windows
+python build/build.py --config build/config/debug.windows.yaml --chromium-src /path/to/chromium/src --build
 
 # Release build (for production)
 # macOS
-python build/build.py --chromium-src /path/to/chromium/src --build --build-type release
+python build/build.py --config build/config/release.macos.yaml --chromium-src /path/to/chromium/src --build
 
 # Linux
-python build/build.py --chromium-src /path/to/chromium/src --build --build-type release
+python build/build.py --config build/config/release.linux.yaml --chromium-src /path/to/chromium/src --build
 
 # Windows
-python build/build.py --chromium-src /path/to/chromium/src --build --build-type release
+python build/build.py --config build/config/release.windows.yaml --chromium-src /path/to/chromium/src --build
 ```
 
 The build typically takes 1-3 hours on modern hardware (M4 Max, Ryzen 9, etc.).
