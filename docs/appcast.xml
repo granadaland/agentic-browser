@@ -9,6 +9,21 @@
 
     <!-- Updates -->
     <item>
+      <title>Nxtscape - 0.26.0</title>
+      <description sparkle:format="plain-text">
+      </description>
+      <sparkle:version>7212.69</sparkle:version>
+      <sparkle:shortVersionString>0.26.0</sparkle:shortVersionString>
+      <pubDate>Tue, 01 Oct 2025 11:30:00 -0700</pubDate>
+      <link>https://nxtscape.ai</link>
+      <enclosure
+        url="http://cdn.browseros.com/dmg/BrowserOS_v0.26.0_arm64.dmg"
+        sparkle:edSignature="fKllNsIyBZHWlsq6oT+6Ptg9RmG2zTV9RC1j73INkZAfayMXjffnoE2i6ENVbyybht8aqfH5miV/SOEBXIWpDQ=="
+        length="126214534"
+        type="application/octet-stream" />
+      <sparkle:minimumSystemVersion>10.15</sparkle:minimumSystemVersion>
+    </item>
+    <item>
       <title>BrowserOS - 0.25.0</title>
       <description sparkle:format="plain-text">
       </description>
