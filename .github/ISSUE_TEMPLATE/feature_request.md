@@ -10,14 +10,14 @@ Thanks for sharing your idea! We love hearing how we can make BrowserOS better. 
 
 ---
 
-**What problem does this solve?**
-Describe the problem or frustration you're experiencing.
+What problem does this solve? (describe the problem you're experiencing)
+* 
 
-**How are you working around this today?**
-What's your current solution or workaround, if any?
+How are you working around this today? (your current solution or workaround)
+* 
 
-**What's your proposed solution?**
-How should BrowserOS address this?
+What's your proposed solution? (how should BrowserOS address this?)
+* 
 
-**Additional context** (optional)
-Add screenshots, examples, or any other helpful details.
+Additional context (optional - add screenshots, examples, or other helpful details)
+* 
