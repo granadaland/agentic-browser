@@ -37,7 +37,8 @@ body:
     type: textarea
     attributes:
       label: Description of the bug
-      description: A clear and concise description of what the bug is.
+      description: What happened and what did you expect?
+      placeholder: Describe what went wrong and what you expected to happen instead.
     validations:
       required: true
 
@@ -45,21 +46,12 @@ body:
     type: textarea
     attributes:
       label: Steps to Reproduce
-      description: Detailed steps to reproduce the behavior
       placeholder: |
         1. Open BrowserOS and navigate to...
         2. Click on...
-        3. Enter...
-        4. See error
+        3. See error
     validations:
       required: true
-
-  - id: expectation
-    type: textarea
-    attributes:
-      label: Expected Behavior
-      description: What did you expect to happen?
-      placeholder: I expected...
 
   - id: screenshots
     type: textarea
