@@ -1,0 +1,107 @@
+name: Bug report
+description: File a bug report for BrowserOS
+title: "<short description of the bug>"
+labels:
+  - "bug"
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for taking the time to report this issue and help improve BrowserOS. We'll look into it! 🐛
+
+  - id: issue-type
+    type: dropdown
+    attributes:
+      label: Issue Type
+      description: What type of issue are you reporting?
+      options:
+        - Agent Issue (AI automation, extension features)
+        - Browser Issue (installation, UI, core browser)
+        - Both / Not sure
+    validations:
+      required: true
+
+  - id: description
+    type: textarea
+    attributes:
+      label: Description of the bug
+      description: A clear and concise description of what the bug is.
+      placeholder: Describe what went wrong...
+    validations:
+      required: true
+
+  - id: reproduce
+    type: textarea
+    attributes:
+      label: Steps to Reproduce
+      description: Detailed steps to reproduce the behavior
+      placeholder: |
+        1. Open BrowserOS and navigate to...
+        2. Click on...
+        3. Enter...
+        4. See error
+    validations:
+      required: true
+
+  - id: expectation
+    type: textarea
+    attributes:
+      label: Expected Behavior
+      description: What did you expect to happen?
+      placeholder: I expected...
+
+  - id: screenshots
+    type: textarea
+    attributes:
+      label: Screenshots / Videos
+      description: If applicable, add screenshots or videos to help explain your problem
+      placeholder: Drag and drop images/videos here or paste URLs
+
+  - id: browseros-version
+    type: input
+    attributes:
+      label: BrowserOS Version
+      description: Which version of BrowserOS are you using? (Find it in chrome://settings/help)
+      placeholder: e.g., 137.0.7212.69
+    validations:
+      required: true
+
+  - id: operating-system
+    type: dropdown
+    attributes:
+      label: Operating System
+      description: What operating system are you running?
+      options:
+        - macOS
+        - Windows
+        - Linux
+    validations:
+      required: true
+
+  - id: ai-provider
+    type: dropdown
+    attributes:
+      label: AI Provider (Agent Issues Only)
+      description: Which AI provider are you using? Leave blank if not applicable
+      options:
+        - Not applicable
+        - OpenAI
+        - Anthropic (Claude)
+        - Google (Gemini)
+        - Ollama
+        - LMStudio
+        - Other (specify below)
+
+  - id: ai-model
+    type: input
+    attributes:
+      label: AI Model / Custom Provider (Agent Issues Only)
+      description: If you selected "Other" above, or want to specify the exact model name
+      placeholder: e.g., gpt-4, claude-3-sonnet, llama3, custom-model
+
+  - id: additional-context
+    type: textarea
+    attributes:
+      label: Additional Context
+      description: Add any other context about the problem here (logs, error messages, etc.)
+      placeholder: Paste error messages, logs, or any other relevant information...

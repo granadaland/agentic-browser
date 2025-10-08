@@ -1,0 +1,14 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 💬 Discord Community
+    url: https://discord.gg/YKwjt5vuKr
+    about: Join our Discord for questions, discussions, and real-time support
+  - name: 💼 Slack Community
+    url: https://dub.sh/browserOS-slack
+    about: Join our Slack for team collaboration and community chat
+  - name: 💡 Feature Ideas & Requests
+    url: https://github.com/browseros-ai/BrowserOS/issues/99
+    about: Share your feature ideas and vote on existing requests
+  - name: 📚 Documentation
+    url: https://github.com/browseros-ai/BrowserOS#readme
+    about: Read the docs for setup guides and usage instructions
