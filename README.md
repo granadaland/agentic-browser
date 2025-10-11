@@ -16,6 +16,9 @@
 <a href="https://files.browseros.com/download/BrowserOS.AppImage">
   <img src="https://img.shields.io/badge/Download-Linux-FCC624?style=flat&logo=linux&logoColor=black" alt="Download for Linux (beta)" />
 </a>
+<a href="https://cdn.browseros.com/download/BrowserOS.deb">
+  <img src="https://img.shields.io/badge/Download-Debian-D70A53?style=flat&logo=debian&logoColor=white" alt="Download Debian package" />
+</a>
 <br />
 </div>
 
@@ -31,7 +34,8 @@
 1. Download and install BrowserOS:
    - [macOS](https://files.browseros.com/download/BrowserOS.dmg)
    - [Windows](https://files.browseros.com/download/BrowserOS_installer.exe)
-   - [Linux](https://files.browseros.com/download/BrowserOS.AppImage)
+   - [Linux (AppImage)](https://files.browseros.com/download/BrowserOS.AppImage)
+   - [Linux (Debian)](https://cdn.browseros.com/download/BrowserOS.deb)
 
 2. Import your Chrome data (optional)
 
