@@ -43,6 +43,13 @@
                   "local-LLMs/lm-studio",
                   "local-LLMs/gpt-oss"
                 ]
+              },
+              {
+                "group": "BrowserOS-mcp",
+                "expanded": true,
+                "pages": [
+                  "browseros-mcp/how-to-guide"
+                ]
               }
             ]
           },
