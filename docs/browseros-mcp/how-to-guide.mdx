@@ -3,6 +3,8 @@ title: "How To Guide"
 description: "Learn how to install BrowserOS as an MCP to extend your agent's capabilities"
 ---
 
+# Claude Code
+
 ## Step 1 -- Download BrowserOS
 
 ## Step 2 -- Enable MCP server on BrowserOS
@@ -31,3 +33,30 @@ Restart your claude-code session and type `/mcp` (slash command) to verify that 
 (in your claude code type)
 Open amazon.com on browseros
 ```
+
+# Other ways to use
+
+## Claude Desktop
+
+1. Open your claude desktop json file (use your `<username>` below):
+
+   ```
+   "/Users/<username>/Library/Application Support/Claude/claude_desktop_config.json"
+   ```
+2. Install the BrowserOS-mcp server
+
+   ![image.png](/docs/images/image.png)
+
+   ```
+   {
+     "mcpServers": {
+       "browserOS": {
+         "command": "npx",
+         "args": ["mcp-remote", "http://127.0.0.1:9225/mcp"]
+       }
+     }
+   }
+   ```
+3. Restart claude desktop and **then you are ready to go!**
+
+   ![image.png](/docs/images/image.png)
