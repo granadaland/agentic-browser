@@ -2,3 +2,32 @@
 title: "How To Guide"
 description: "Learn how to install BrowserOS as an MCP to extend your agent's capabilities"
 ---
+
+## Step 1 -- Download BrowserOS
+
+## Step 2 -- Enable MCP server on BrowserOS
+
+![mcp-click-on-settings-icon.png](/docs/images/mcp-click-on-settings-icon.png)
+
+![mcp-note-down-the-port.png](/docs/images/mcp-note-down-the-port.png)
+
+## Step 3 -- install BrowserOS MCP user on claude desktop and start using!
+
+Install MCP server in claude code
+
+```
+claude mcp add --transport http browseros http://127.0.0.1:9225/mcp
+```
+
+<Note>
+  `9225` in the URL above is the MCP port from the settings page.
+</Note>
+
+Restart your claude-code session and type `/mcp` (slash command) to verify that BrowserOS-mcp server is installed and connected.
+
+**Then, you can use claude-code to interact with BrowserOS!**
+
+```
+(in your claude code type)
+Open amazon.com on browseros
+```
