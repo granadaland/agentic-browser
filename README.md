@@ -23,7 +23,7 @@
 </div>
 
 ## 
-🌐 BrowserOS is an open-source chromium fork that runs AI agents natively. **Your open-source, privacy-first alternative to Perplexity Comet, Dia**.
+🌐 BrowserOS is an open-source chromium fork that runs AI agents natively. **Your open-source, privacy-first alternative to ChatGPT Atlas, Perplexity Comet, Dia**.
 
 🔒 Privacy first - use your own API keys or run local models with Ollama. Your data stays on your computer.
 
@@ -48,13 +48,19 @@
 - 🤖 AI agents that run on YOUR browser, not in the cloud
 - 🔒 Privacy first - bring your own keys or use local models with Ollama. Your browsing history stays on your computer
 - 🚀 Open source and community driven - see exactly what's happening under the hood
-- 🤝 MCP store to one-click install popular MCPs and use them directly in the browser bar
+- 🤝 BrowserOS as MCP server - you can install our MCP server and use the browser from within `claude-code` or `gemini-cli`.
 - 🛡️ (coming soon) Built-in AI ad blocker that works across more scenarios!  
 
 ## Demos
 
 ### 🤖 BrowserOS agent in action
 [![BrowserOS agent in action](docs/videos/browserOS-agent-in-action.gif)](https://www.youtube.com/watch?v=SoSFev5R5dI)
+<br/><br/>
+
+### 🎇 Install [BrowserOS as MCP](https://docs.browseros.com/browseros-mcp/how-to-guide) and control it from `claude-code`
+
+https://github.com/user-attachments/assets/c725d6df-1a0d-40eb-a125-ea009bf664dc
+
 <br/><br/>
 
 ### 💬 Use BrowserOS to chat
