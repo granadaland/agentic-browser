@@ -54,6 +54,12 @@
             ]
           },
           {
+            "group": "Integrations",
+            "pages": [
+              "integrations/n8n"
+            ]
+          },
+          {
             "group": "Contributing",
             "pages": [
               "contributing"

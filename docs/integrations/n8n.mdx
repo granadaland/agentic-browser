@@ -1,0 +1,109 @@
+---
+title: "n8n Integration"
+description: "Connect BrowserOS MCP to n8n for AI-powered browser automation workflows"
+icon: "workflow"
+---
+
+Build AI workflows that automate browser tasks using n8n and BrowserOS MCP.
+
+## Prerequisites
+
+- Node.js and npm installed ([nodejs.org](https://nodejs.org))
+- BrowserOS running with MCP server enabled
+- LLM API key (OpenAI, Claude, etc.)
+
+## Setup
+
+### Step 1: Install and Run n8n
+
+Run n8n locally:
+
+```bash
+npx n8n
+```
+
+Access n8n at `http://localhost:5678` and complete the initial setup by creating an account.
+
+<Note>
+For global installation: `npm install n8n -g`, then run `n8n` anytime.
+</Note>
+
+### Step 2: Install MCP Community Node
+
+Go to **Settings → Community Nodes** and install `n8n-nodes-mcp`:
+
+<Frame>
+  <img src="/images/n8n-node.png" alt="Install n8n-nodes-mcp community node" />
+</Frame>
+
+### Step 3: Create Workflow
+
+Create a new workflow and add the **AI Agent** node. Then configure it:
+
+1. In the AI Agent, add **Chat Model** (e.g., OpenAI Chat Model) and configure your API credentials
+2. In the AI Agent's **Tools** section, search for "mcp" and add **MCP Client Tool**
+
+<Frame>
+  <img src="/images/mcp-node.png" alt="Add MCP Client tool to AI Agent" />
+</Frame>
+
+### Step 4: Configure AI Agent Prompt
+
+In the AI Agent node, set **Source for Prompt** to **Define below** and paste:
+
+```
+choose the right tool based on the user input:{{ $json.chatInput }}
+```
+
+<Frame>
+  <img src="/images/agent-step.png" alt="Configure AI Agent prompt" />
+</Frame>
+
+### Step 5: Configure MCP Client Credentials
+
+Click on the **MCP Client** node to configure it:
+
+1. **Credential to connect with** → **Create New Credential**
+2. Select **Command Line (stdio)**
+3. **Command**: `npx`
+4. **Arguments**: `mcp-remote http://127.0.0.1:9101/mcp`
+
+<Note>
+Replace `9101` with your BrowserOS MCP port from **Settings → MCP** in BrowserOS.
+</Note>
+
+### Step 6: Configure MCP Tool Execution
+
+In the same MCP Client node:
+
+1. **Operation**: `Execute Tool`
+2. **Tool Name**: `{{ $fromAI("tool") }}`
+
+<Frame>
+  <img src="/images/client-step.png" alt="Configure MCP Client node" />
+</Frame>
+
+### Step 7: Test Workflow
+
+Save the workflow and test with a chat input:
+
+```
+Open google.com in BrowserOS
+```
+
+Execute and watch BrowserOS respond!
+
+## Troubleshooting
+
+<Warning>
+Connection issues? Verify:
+- BrowserOS is running
+- MCP server is enabled in BrowserOS settings
+- Port number matches your BrowserOS MCP configuration
+</Warning>
+
+## Resources
+
+<Card title="BrowserOS MCP Guide" icon="book" href="/browseros-mcp/how-to-guide">
+  Learn more about BrowserOS MCP
+</Card>
