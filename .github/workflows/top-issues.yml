@@ -1,4 +1,4 @@
-name: Top Issues by Votes
+name: Top Issues and Features by Votes
 
 on:
   schedule:
@@ -57,9 +57,17 @@ jobs:
           current_time=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
 
           {
-            echo "# 👍 Top Issues by Votes"
+            echo "# 👍 Top Issues and Features by Votes"
             echo ""
             echo "This list is automatically updated every hour based on 👍 reactions."
+            echo ""
+            echo "## How to Use This List"
+            echo ""
+            echo "**👍 Upvote features you want** - Items with more votes get prioritized."
+            echo ""
+            echo "**Don't see what you need?** Create a new [feature request](https://github.com/browseros-ai/BrowserOS/issues/new) or [bug report](https://github.com/browseros-ai/BrowserOS/issues/new)."
+            echo ""
+            echo "Thank you for helping us prioritize!"
             echo ""
             echo "**Last updated:** $current_time"
             echo ""
