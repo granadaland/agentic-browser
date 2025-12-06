@@ -109,6 +109,12 @@ Many loved Arc, but it was closed source. When they abandoned users, there was n
 They're a search/ad company. Your browser history becomes their product. We keep everything local.
 </details>
 
+<details>
+<summary><b>vs ChatGPT Atlas</b></summary>
+<br>
+Your browsing data could be used for ads or to train their models. We keep your history and agent interactions strictly local.
+</details>
+
 ## Contributing
 
 We'd love your help making BrowserOS better!
