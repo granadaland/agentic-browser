@@ -18,7 +18,8 @@
             "pages": [
               "index",
               "onboarding",
-              "update"
+              "update",
+              "features/ad-blocking"
             ]
           },
           {
