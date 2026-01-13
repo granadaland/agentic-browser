@@ -1,530 +1,267 @@
 ---
 title: "Contributing to BrowserOS"
-description: "Let's build the best open-source browser!"
-icon: "code-branch"
+description: "Guide to contributing to BrowserOS"
 ---
 
-Hey there! Thanks for your interest in BrowserOS. Whether you're fixing bugs, adding features, improving docs, or just poking around the code, we're glad you're here.
+BrowserOS has two main parts you can contribute to:
 
-BrowserOS is a monorepo with two main parts:
-- **Agent** - The Chrome extension with AI features (TypeScript/React)
-- **Browser** - The custom Chromium build (C++/Python)
+- **Agent** — The AI features, UI, and browser automation (TypeScript/React)
+- **Browser** — The custom Chromium build (C++/Python)
 
-Most folks start with the agent since it's way easier to set up and iterate on.
+Most contributors work on the Agent since it's much easier to set up.
 
-## 1. Quick Links
+## Quick Links
 
-<CardGroup cols={3}>
-  <Card
-    title="GitHub Repository"
-    icon="github"
-    href="https://github.com/BrowserOS-ai/BrowserOS"
-  >
-    Star, fork, and contribute to our codebase
-  </Card>
-  <Card
-    title="Discord Community"
-    icon="discord"
-    href="https://discord.gg/YKwjt5vuKr"
-  >
-    Join our community for discussions and support
-  </Card>
-  <Card
-    title="Report Issues"
-    icon="bug"
-    href="https://github.com/BrowserOS-ai/BrowserOS/issues"
-  >
-    Report bugs or suggest new features
-  </Card>
-</CardGroup>
+- [GitHub Repository](https://github.com/BrowserOS-ai/BrowserOS)
+- [Discord Community](https://discord.gg/YKwjt5vuKr)
+- [Report Issues](https://github.com/BrowserOS-ai/BrowserOS/issues)
 
-## 2. Ways to Contribute
+## Ways to Contribute
 
-You can contribute to BrowserOS in many ways! Whether you want to build features or help out in other ways, we appreciate all contributions.
+**Report bugs** — [Open an issue](https://github.com/browseros-ai/BrowserOS/issues/new) with steps to reproduce, expected vs actual behavior, and screenshots.
 
-<Tabs>
-  <Tab title="🐛 Report Bugs">
-    Found a bug? [Open an issue](https://github.com/browseros-ai/BrowserOS/issues/new) with:
-    - Clear description
-    - Steps to reproduce
-    - Expected vs actual behavior
-    - Screenshots/videos
-    - Environment details (OS, browser version, BrowserOS version)
-  </Tab>
+**Suggest features** — Share ideas on [GitHub](https://github.com/browseros-ai/BrowserOS/issues/99) or [Discord](https://discord.gg/YKwjt5vuKr).
 
-  <Tab title="💡 Suggest Features">
-    Have an idea? [Share it here](https://github.com/browseros-ai/BrowserOS/issues/99) or chat with us on [Discord](https://discord.gg/YKwjt5vuKr).
-  </Tab>
+**Improve docs** — Docs live in `docs/` and use Mintlify. Edit pages and update `docs/docs.json` for navigation.
 
-  <Tab title="📚 Improve Docs">
-    We use <b>Mintlify</b> for our documentation. All docs live in the <code>docs/</code> directory.
+---
 
-    - Add new documentation pages or update existing ones under <code>docs/</code>
-    - Help clarify instructions; add examples, tutorials, or guides
-    - After adding or editing a page, update <code>docs/docs.json</code> to include your new or changed file in the navigation
+## Path 1: Agent Development
 
-    If you have questions about the docs system, ask in Discord!
-  </Tab>
-</Tabs>
+The Agent is a monorepo with 3 components:
 
-## 3. Pick Your Path
+| Component | Path | What it does |
+|-----------|------|--------------|
+| **Agent UI** | `apps/agent` | Chrome extension — chat interface, settings, side panel |
+| **Server** | `apps/server` | Bun server — agent loop, MCP tools, API endpoints |
+| **Controller** | `apps/controller-ext` | Chrome extension — bridges `chrome.*` APIs to the server |
 
-If you want to contribute to development, here are two paths you can take:
+### Architecture
 
-<CardGroup cols={2}>
-  <Card title="Agent Development" icon="robot">
-    **What you'll work on:**
-    - AI agent features & tools
-    - UI/UX improvements
-    - Browser automation
-    - Testing & docs
+<img src="/images/contributing--architecture.png" alt="BrowserOS Agent architecture diagram" />
 
-    **What you need:**
-    - Node.js 18+
-    - ~500MB disk space
-    - 10 minutes to set up
+### Setup
 
-    **Skills:** TypeScript, React, Chrome APIs
-  </Card>
-  <Card title="Browser Development" icon="globe">
-    **What you'll work on:**
-    - Chromium patches
-    - Build system
-    - Platform features
-    - Core browser stuff
+```bash
+# Clone the repo
+git clone https://github.com/YOUR-USERNAME/BrowserOS.git
+cd BrowserOS/packages/browseros-agent
 
-    **What you need:**
-    - ~100GB disk space
-    - 16GB+ RAM (recommended)
-    - 3+ hours for first build
+# Install dependencies
+bun install
 
-    **Skills:** C++, Python, Chromium internals
-  </Card>
-</CardGroup>
+# Copy environment files
+cp apps/server/.env.example apps/server/.env.development
+cp apps/agent/.env.example apps/agent/.env.development
+```
 
-### 3.1 Agent Development
+### Running Locally
 
-The agent is a Chrome extension that provides AI-powered automation. Most contributors work here.
+```bash
+# Terminal 1: Start the server
+bun run start:server
 
-<Accordion title="Instructions">
+# Terminal 2: Start the agent extension (dev mode)
+bun run start:agent
+```
 
-#### Quick Setup
+Then load the extension in BrowserOS:
+1. Go to `chrome://extensions/`
+2. Enable **Developer mode**
+3. Click **Load unpacked** and select the `apps/agent/dist/` folder
 
-<Steps>
-  <Step title="Navigate to Agent Directory">
-    ```bash
-    cd packages/browseros-agent
-    ```
-  </Step>
+### Commands
 
-  <Step title="Install Dependencies">
-    ```bash
-    yarn install
-    ```
-  </Step>
+| Command | Description |
+|---------|-------------|
+| `bun run start:server` | Start the server |
+| `bun run start:agent` | Start agent extension (dev mode) |
+| `bun run build:server` | Build server for production |
+| `bun run build:agent` | Build agent extension |
+| `bun run build:ext` | Build controller extension |
+| `bun run test` | Run tests |
+| `bun run lint` | Check with Biome |
+| `bun run typecheck` | TypeScript check |
 
-  <Step title="Set Up Environment">
-    ```bash
-    cp .env.example .env
-    ```
-    Edit `.env` and add your `LITELLM_API_KEY`
-  </Step>
+---
 
-  <Step title="Build the Extension">
-    ```bash
-    yarn build:dev       # One-time build
-    ```
-  </Step>
-</Steps>
+## Path 2: Browser Development
 
-#### Load in BrowserOS
+Only go down this path if you're working on Chromium-level features like patches to the browser itself.
 
-<Steps>
-  <Step title="Open Extensions Page">
-    Navigate to `chrome://extensions/`
-  </Step>
+**Requirements:**
+- ~100GB disk space
+- 16GB+ RAM recommended
+- 3+ hours for first build
 
-  <Step title="Enable Developer Mode">
-    Toggle **Developer mode** in the top right
-  </Step>
-
-  <Step title="Load Unpacked Extension">
-    Click **Load unpacked** and select `packages/browseros-agent/dist/`
-  </Step>
-
-  <Step title="Open Agent Panel">
-    Press the Agent icon from the extensions toolbar to open the agent panel
-  </Step>
-</Steps>
-
-<Note>
-For detailed setup, architecture, and code standards, see the [Agent Contributing Guide](https://github.com/BrowserOS-ai/BrowserOS/blob/main/packages/browseros-agent/CONTRIBUTING.md).
-</Note>
-
-</Accordion>
-
-### 3.2 Browser Development
-
-Building the custom Chromium browser requires significant disk space and time. Only go down this path if you're working on browser-level features like patches to Chromium itself.
-
-<Accordion title="Instructions">
-
-#### Prerequisites
+### Prerequisites
 
 <Tabs>
   <Tab title="macOS">
-    - macOS (tested on M4 Max)
-    - Xcode and Command Line Tools
+    - macOS with Xcode and Command Line Tools
     - Python 3.12+
     - [UV](https://docs.astral.sh/uv/) (Python package manager)
     - Git
-    - ~100GB of free disk space (for Chromium source)
-    - ~16GB RAM (recommended)
   </Tab>
   <Tab title="Linux">
     - Ubuntu 20.04+ or similar
     - build-essential package
     - Python 3.12+
-    - [UV](https://docs.astral.sh/uv/) (Python package manager)
+    - [UV](https://docs.astral.sh/uv/)
     - Git
-    - ~100GB of free disk space
-    - ~16GB RAM (recommended)
   </Tab>
   <Tab title="Windows">
     - Windows 10/11
     - Visual Studio 2022 with C++ workload
     - Python 3.12+
-    - [UV](https://docs.astral.sh/uv/) (Python package manager)
+    - [UV](https://docs.astral.sh/uv/)
     - Git
-    - ~100GB of free disk space
-    - ~16GB RAM minimum
   </Tab>
 </Tabs>
 
-#### Build Instructions
+### Build Instructions
 
-<Steps>
-  <Step title="Clone Chromium Source">
-    Follow the official Chromium guide for your platform to clone the source code:
+**1. Clone Chromium source**
 
-    **[Chromium: Get the Code](https://www.chromium.org/developers/how-tos/get-the-code/)**
+Follow the official [Chromium: Get the Code](https://www.chromium.org/developers/how-tos/get-the-code/) guide. This sets up `depot_tools` and fetches ~100GB of source code.
 
-    This sets up `depot_tools` and fetches the Chromium source tree (~100GB).
+Note the path where you clone it (e.g., `~/chromium/src`).
 
-    <Info>
-    Take note of the path where you clone Chromium (e.g., `~/chromium/src`). You'll need this path for the build commands.
-    </Info>
-  </Step>
+**2. Install UV and dependencies**
 
-  <Step title="Install UV and Dependencies">
-    Install UV if you haven't already, then install the build system dependencies:
+```bash
+# Install UV
+curl -LsSf https://astral.sh/uv/install.sh | sh
 
+# Navigate to build system
+cd packages/browseros
+
+# Install dependencies
+uv sync
+```
+
+**3. Build debug version**
+
+```bash
+uv run browseros build \
+  --chromium-src <your-chromium-src-path> \
+  --setup \
+  --prep \
+  --build \
+  --build-type debug
+```
+
+The `--setup` and `--prep` flags are only needed for the first build. After that, just use `--build` for incremental builds:
+
+```bash
+uv run browseros build --chromium-src <path> --build --build-type debug
+```
+
+**4. Run BrowserOS**
+
+<Tabs>
+  <Tab title="macOS (ARM64)">
     ```bash
-    # Install UV (if not installed)
-    curl -LsSf https://astral.sh/uv/install.sh | sh
-
-    # Navigate to the build system directory
-    cd packages/browseros
-
-    # Install all dependencies
-    uv sync
+    <chromium-src>/out/Default_arm64/BrowserOS\ Dev.app/Contents/MacOS/BrowserOS\ Dev \
+      --enable-logging=stderr \
+      --use-mock-keychain \
+      --user-data-dir=/tmp/test-profile
     ```
-  </Step>
-
-  <Step title="Build Debug Version">
-    Run the build command with your Chromium source path:
-
+  </Tab>
+  <Tab title="macOS (x64)">
     ```bash
-    uv run browseros build \
-      --chromium-src <your-chromium-src-path> \
-      --setup \
-      --prep \
-      --build \
-      --build-type debug
+    <chromium-src>/out/Default_x64/BrowserOS\ Dev.app/Contents/MacOS/BrowserOS\ Dev \
+      --enable-logging=stderr \
+      --use-mock-keychain \
+      --user-data-dir=/tmp/test-profile
     ```
-
-    Replace `<your-chromium-src-path>` with the actual path to your Chromium source directory (e.g., `~/chromium/src`).
-
-    <Info>
-    The `--setup` and `--prep` flags are only needed for the first build. After that, you can just use `--build` for incremental builds.
-    </Info>
-  </Step>
-
-  <Step title="Build Release Version (Optional)">
-    For a production-optimized build:
-
+  </Tab>
+  <Tab title="Windows">
     ```bash
-    uv run browseros build \
-      --chromium-src <your-chromium-src-path> \
-      --setup \
-      --prep \
-      --build \
-      --build-type release
+    <chromium-src>\out\Default_x64\BrowserOS Dev.exe \
+      --enable-logging=stderr \
+      --user-data-dir=%TEMP%\test-profile
     ```
+  </Tab>
+  <Tab title="Linux">
+    ```bash
+    <chromium-src>/out/Default_x64/browseros \
+      --enable-logging=stderr \
+      --user-data-dir=/tmp/test-profile
+    ```
+  </Tab>
+</Tabs>
 
-    <Warning>
-    Release builds take longer to compile but produce faster, smaller binaries.
-    </Warning>
-  </Step>
-
-  <Step title="Run BrowserOS">
-    After the build completes, you'll find BrowserOS Dev in the output directory.
-
-    <Tabs>
-      <Tab title="macOS (ARM64)">
-        ```bash
-        <your-chromium-src-path>/out/Default_arm64/BrowserOS\ Dev.app/Contents/MacOS/BrowserOS\ Dev \
-          --enable-logging=stderr \
-          --use-mock-keychain \
-          --user-data-dir=/tmp/test-profile
-        ```
-      </Tab>
-      <Tab title="macOS (x64)">
-        ```bash
-        <your-chromium-src-path>/out/Default_x64/BrowserOS\ Dev.app/Contents/MacOS/BrowserOS\ Dev \
-          --enable-logging=stderr \
-          --use-mock-keychain \
-          --user-data-dir=/tmp/test-profile
-        ```
-      </Tab>
-      <Tab title="Windows">
-        ```bash
-        <your-chromium-src-path>\out\Default_x64\BrowserOS Dev.exe \
-          --enable-logging=stderr \
-          --user-data-dir=%TEMP%\test-profile
-        ```
-      </Tab>
-      <Tab title="Linux">
-        ```bash
-        <your-chromium-src-path>/out/Default_x64/browseros \
-          --enable-logging=stderr \
-          --user-data-dir=/tmp/test-profile
-        ```
-      </Tab>
-    </Tabs>
-
-    <Tip>
-    The `--user-data-dir` flag creates an isolated profile, keeping your development browser separate from any existing profiles.
-    </Tip>
-  </Step>
-</Steps>
-
-#### Build Flags Reference
+### Build Flags
 
 | Flag | Description |
 |------|-------------|
-| `--chromium-src` | Path to your Chromium source directory (required) |
-| `--setup` | Run setup phase (clean, git setup) |
-| `--prep` | Run prep phase (resources, patches, configure) |
+| `--chromium-src` | Path to Chromium source directory |
+| `--setup` | Run setup phase (first build only) |
+| `--prep` | Run prep phase (first build only) |
 | `--build` | Run the compile phase |
-| `--build-type` | Build type: `debug` or `release` |
-| `--sign` | Sign the build (platform-specific) |
+| `--build-type` | `debug` or `release` |
+| `--sign` | Sign the build |
 | `--package` | Package for distribution |
 
-<Tip>
-For incremental builds after your first build, you only need `--build`:
-```bash
-uv run browseros build --chromium-src <your-chromium-src-path> --build --build-type debug
-```
-</Tip>
+### Troubleshooting
 
-#### Troubleshooting
+**Build fails with missing dependencies** — Make sure you followed all steps from the Chromium build guide for your platform.
 
-<Accordion title="Build fails with missing dependencies">
-  - Make sure you've followed all prerequisite steps from the Chromium build guide
-  - Ensure Xcode is up to date (macOS)
-  - Verify all required packages are installed (Linux)
-  - Check Visual Studio installation (Windows)
-</Accordion>
+**Out of disk space** — Chromium needs ~100GB. Check with `df -h`.
 
-<Accordion title="Out of disk space">
-  Chromium requires significant disk space (~100GB). Ensure you have enough free space before starting the build. You can use `df -h` on Unix systems or check Disk Management on Windows.
-</Accordion>
+**Build takes too long** — Use ccache, more CPU cores, or stick to debug builds.
 
-<Accordion title="Build takes too long">
-  - Use ccache to speed up rebuilds
-  - Consider using a machine with more CPU cores
-  - Build only the components you need for development
-  - Use debug builds for faster compilation times
-</Accordion>
-
-<Accordion title="UV command not found">
-  Make sure UV is installed and in your PATH:
-  ```bash
-  curl -LsSf https://astral.sh/uv/install.sh | sh
-  source ~/.bashrc  # or restart your terminal
-  ```
-</Accordion>
-
-</Accordion>
-
-## 4. Making Your First Contribution
-
-Open a PR on GitHub with:
-- **Clear title** in conventional commit format
-- **Description** explaining what changed and why
-- **Screenshots/videos** for UI changes
-- **Link to related issues** (e.g., "Fixes #123")
-
-### Sign the CLA
-
-On your first PR, our bot will ask you to sign the Contributor License Agreement:
-
-<Steps>
-  <Step title="Read the CLA">
-    Read the [CLA document](https://github.com/BrowserOS-ai/BrowserOS/blob/main/CLA.md)
-  </Step>
-
-  <Step title="Sign via Comment">
-    Comment on your PR:
-    ```
-    I have read the CLA Document and I hereby sign the CLA
-    ```
-  </Step>
-
-  <Step title="Automatic Recording">
-    The bot will record your signature (one-time thing)
-  </Step>
-</Steps>
-
-## 5. Code Standards
-
-### TypeScript (Agent)
-
-- **Strict typing** - Always declare types, avoid `any`
-- **Zod schemas** - Use Zod instead of TypeScript interfaces
-- **Path aliases** - Use `@/lib` not relative paths like `../`
-- **Naming:**
-  - Classes: `PascalCase`
-  - Functions/variables: `camelCase`
-  - Constants: `UPPERCASE`
-  - Private methods: prefix with `_`
-
-**Example:**
-
-```typescript
-import { z } from 'zod'
-
-// Good: Zod schema with inline comments
-export const ToolInputSchema = z.object({
-  action: z.enum(['click', 'type']),  // Action to perform
-  target: z.string().min(1),  // Element selector
-  timeout: z.number().default(5000)  // Timeout in ms
-})
-
-export type ToolInput = z.infer<typeof ToolInputSchema>
-```
-
-### React (Agent UI)
-
-- **Styling:** Tailwind CSS only (no SCSS or CSS modules)
-- **Hooks:** Only at top level
-- **Props:** Define with Zod schemas
-- **Testing:** Vitest (not Jest)
-
-### General Guidelines
-
-- Keep functions short (\<20 lines ideally)
-- Write tests for new features
-- Use descriptive variable names
-- Handle errors gracefully
-
-<Note>
-claude.md file can be found at below:
-- Agent: [packages/browseros-agent/CLAUDE.md](https://github.com/BrowserOS-ai/BrowserOS/blob/main/packages/browseros-agent/CLAUDE.md)
-</Note>
-
-## 6. Project Structure
-
-```
-monorepo/
-├── packages/
-│   ├── browseros/              # Chromium build system
-│   │   ├── build/             # Python build scripts
-│   │   ├── chromium_patches/  # Patches to Chromium source
-│   │   └── resources/         # Icons, configs
-│   │
-│   └── browseros-agent/        # Chrome extension
-│       ├── src/
-│       │   ├── lib/           # Core agent logic
-│       │   ├── sidepanel/     # Side panel UI
-│       │   ├── newtab/        # New tab page
-│       │   └── background/    # Extension background
-│       └── docs/              # Architecture docs
-│
-├── docs/                       # General documentation
-└── CONTRIBUTING.md            # Contributing guide
-```
-
-## 7. Development Workflow
-
-<Steps>
-  <Step title="Fork and Clone">
-    Fork the repository on GitHub and clone it locally:
-    ```bash
-    git clone https://github.com/YOUR-USERNAME/BrowserOS.git
-    cd BrowserOS
-    ```
-  </Step>
-
-  <Step title="Create a Branch">
-    Create a new branch for your feature or fix:
-    ```bash
-    git checkout -b feature/your-feature-name
-    ```
-  </Step>
-
-  <Step title="Make Changes">
-    Make your changes and test them thoroughly. Follow our coding standards and ensure all tests pass.
-  </Step>
-
-  <Step title="Commit and Push">
-    Commit your changes with a descriptive message:
-    ```bash
-    git add .
-    git commit -m "feat: add new feature description"
-    git push origin feature/your-feature-name
-    ```
-  </Step>
-
-  <Step title="Submit PR">
-    Open a pull request on GitHub with a clear description of your changes and why they're needed.
-  </Step>
-</Steps>
-
-## 8. Support
-
-Stuck? Need clarification? We're here to help.
-
-<CardGroup cols={3}>
-  <Card
-    title="Discord Support"
-    icon="discord"
-    href="https://discord.gg/YKwjt5vuKr"
-  >
-    Real-time chat and support
-  </Card>
-  <Card
-    title="GitHub Issues"
-    icon="bug"
-    href="https://github.com/browseros-ai/BrowserOS/issues"
-  >
-    Bug reports and features
-  </Card>
-  <Card
-    title="GitHub Discussions"
-    icon="comments"
-    href="https://github.com/browseros-ai/BrowserOS/discussions"
-  >
-    General questions
-  </Card>
-</CardGroup>
-
-
-## 9. License
-
-By contributing, you agree that your contributions will be licensed under AGPL-3.0.
+**UV command not found** — Restart your terminal after installing UV.
 
 ---
 
-Built with ❤️ from San Francisco
+## Making Your First PR
+
+1. **Fork** the repository on GitHub
+2. **Clone** your fork locally
+3. **Create a branch**: `git checkout -b feature/your-feature`
+4. **Make changes** and test them
+5. **Commit**: `git commit -m "feat: add your feature"`
+6. **Push**: `git push origin feature/your-feature`
+7. **Open a PR** with a clear description
+
+### Sign the CLA
+
+On your first PR, our bot will ask you to sign the Contributor License Agreement. Just comment:
+
+```
+I have read the CLA Document and I hereby sign the CLA
+```
+
+---
+
+## Code Standards
+
+**TypeScript:**
+- Use strict typing, avoid `any`
+- Use Zod schemas instead of TypeScript interfaces
+- Use path aliases (`@/lib`) not relative paths (`../`)
+- Naming: `PascalCase` for classes, `camelCase` for functions
+
+**React:**
+- Tailwind CSS only (no SCSS or CSS modules)
+- Hooks at top level only
+- Test with Vitest
+
+**General:**
+- Keep functions short (under 20 lines)
+- Write tests for new features
+- Handle errors gracefully
+
+---
+
+## Getting Help
+
+- **Discord** — [discord.gg/YKwjt5vuKr](https://discord.gg/YKwjt5vuKr)
+- **GitHub Issues** — [github.com/BrowserOS-ai/BrowserOS/issues](https://github.com/BrowserOS-ai/BrowserOS/issues)
+- **GitHub Discussions** — [github.com/BrowserOS-ai/BrowserOS/discussions](https://github.com/BrowserOS-ai/BrowserOS/discussions)
+
+---
+
+By contributing, you agree that your contributions will be licensed under AGPL-3.0.
