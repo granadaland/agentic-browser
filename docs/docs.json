@@ -19,35 +19,13 @@
         ]
       },
       {
-        "group": "Bring Your Own LLM",
-        "pages": [
-          "llm-setup-guide",
-          {
-            "group": "Cloud Providers",
-            "pages": [
-              "bring-your-own-keys/gemini",
-              "bring-your-own-keys/claude",
-              "bring-your-own-keys/openai",
-              "bring-your-own-keys/openrouter"
-            ]
-          },
-          {
-            "group": "Local LLMs",
-            "pages": [
-              "local-LLMs/ollama",
-              "local-LLMs/lm-studio",
-              "local-LLMs/gpt-oss"
-            ]
-          }
-        ]
-      },
-      {
         "group": "Core Features",
         "pages": [
+          "features/bring-your-own-llm",
           "features/llm-chat-hub",
           "features/scheduled-tasks",
-          "features/ad-blocking",
           "features/use-with-claude-code"
+          "features/ad-blocking",
         ]
       },
       {
