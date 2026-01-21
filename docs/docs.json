@@ -20,8 +20,8 @@
           "features/bring-your-own-llm",
           "features/scheduled-tasks",
           "features/workflows",
-          "features/use-with-claude-code",
           "features/workspaces",
+          "features/use-with-claude-code",
           "features/llm-chat-hub",
           "features/ad-blocking"
         ]
