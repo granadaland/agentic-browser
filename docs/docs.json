@@ -18,10 +18,10 @@
         "group": "Core Features",
         "pages": [
           "features/bring-your-own-llm",
-          "features/scheduled-tasks",
-          "features/workflows",
           "features/cowork",
           "features/use-with-claude-code",
+          "features/workflows",
+          "features/scheduled-tasks",
           "features/llm-chat-hub",
           "features/ad-blocking"
         ]
