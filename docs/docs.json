@@ -20,7 +20,7 @@
           "features/bring-your-own-llm",
           "features/scheduled-tasks",
           "features/workflows",
-          "features/workspaces",
+          "features/cowork",
           "features/use-with-claude-code",
           "features/llm-chat-hub",
           "features/ad-blocking"

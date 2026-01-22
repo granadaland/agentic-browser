@@ -1,35 +1,35 @@
 ---
-title: "Workspaces"
-description: "Give the agent access to local files for powerful browser + file automations"
+title: "Cowork"
+description: "Describe an outcome, step away, and come back to finished work—browser automation meets local file operations"
 ---
 
-Workspaces let the agent read and write files on your computer. Combine browser automation with local file operations—research on the web, then save reports directly to your folder.
+Cowork lets you describe complex tasks and let the agent handle them end-to-end. Combine browser automation with local file operations—research on the web, then save reports directly to your folder.
 
-## Why Workspaces?
+## Why Cowork?
 
-Without a workspace, the agent can only interact with browser tabs. With a workspace, it can:
+Without Cowork, the agent can only interact with browser tabs. With Cowork enabled, it can:
 
 - **Read files** from your selected folder
 - **Write files** like reports, spreadsheets, or markdown
 - **Run shell commands** within the folder
 
-The real power: do both browser automation AND file operations in a single task.
+The real power: do both browser automation AND file operations in a single task. Describe what you want, step away, and come back to finished work.
 
-## Setting Up a Workspace
+## Setting Up Cowork
 
-<img src="/features/workspace/workspace-selector.png" alt="Select a workspace folder for the agent to operate in" />
+<img src="/features/cowork/cowork-selector.png" alt="Select a folder for the agent to operate in" />
 
-1. Click the workspace dropdown (next to the prompt input)
+1. Click the Cowork dropdown (next to the prompt input)
 2. Select a recent folder or click **Choose a different folder**
 3. Grant BrowserOS access to that folder when prompted
 
 The agent is sandboxed to your selected folder—it cannot access files outside of it.
 
-To disable file access, select **No workspace** and the agent will work with browser tabs only.
+To disable file access, select **No folder** and the agent will work with browser tabs only.
 
 ## Try It: Research and Create a Report
 
-With a workspace selected, try this prompt:
+With Cowork enabled, try this prompt:
 
 ```
 Read the top 3 stories on Hacker News, read the comments too, and write an HTML report.
@@ -39,9 +39,9 @@ The agent will:
 1. Navigate to Hacker News
 2. Read each top story and its comments
 3. Generate an HTML report summarizing the findings
-4. Save the report to your workspace folder
+4. Save the report to your selected folder
 
-<img src="/features/workspace/workspace-research-and-create-example.png" alt="Agent researching Hacker News and generating an HTML report" />
+<img src="/features/cowork/cowork-research-example.png" alt="Agent researching Hacker News and generating an HTML report" />
 
 ## Example Use Cases
 
@@ -60,9 +60,9 @@ The agent will:
 ## Security
 
 - The agent can **only** access the folder you select—no parent directories or other locations
-- You can revoke access anytime by selecting **No workspace**
+- You can revoke access anytime by selecting **No folder**
 - All file operations happen locally on your machine
 
 ## Feedback
 
-Workspaces is a new feature. If you have feedback or feature requests, [open a GitHub issue](https://github.com/browseros-ai/BrowserOS/issues).
+Cowork is a new feature. If you have feedback or feature requests, [open a GitHub issue](https://github.com/browseros-ai/BrowserOS/issues).
