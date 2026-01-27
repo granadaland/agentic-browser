@@ -31,6 +31,10 @@
         "pages": ["integrations/n8n"]
       },
       {
+        "group": "Troubleshooting",
+        "pages": ["troubleshooting/connection-issues"]
+      },
+      {
         "group": "Contributing",
         "pages": ["contributing"]
       }

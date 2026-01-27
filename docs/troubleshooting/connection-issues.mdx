@@ -1,0 +1,91 @@
+---
+title: "Has Agent Crashed?"
+description: "How to fix connection issues when the BrowserOS agent is not responding"
+---
+
+If you see **"Failed to Fetch"** or **"Unable to connect to BrowserOS agent"**, your agent has been killed.
+
+<Frame>
+  <img src="/images/troubleshooting/failed-to-fetch-error.png" alt="Failed to fetch error" />
+</Frame>
+
+## Fix It
+
+<Steps>
+  <Step title="Go to Settings → MCP Server and click Restart">
+    Open **Settings** from the sidebar, scroll to the MCP Server section, and click **Restart**. Wait a couple of minutes.
+
+    <Frame>
+      <img src="/images/troubleshooting/mcp-server-restart.png" alt="Click Restart in MCP Server Settings" />
+    </Frame>
+  </Step>
+
+  <Step title="If restart doesn't work, force quit the browser">
+    <Tabs>
+      <Tab title="macOS">
+        Right-click BrowserOS in the Dock → **Quit**, then reopen the app.
+      </Tab>
+      <Tab title="Windows">
+        Open **Task Manager** (`Ctrl + Shift + Esc`), end both **BrowserOS** and **BrowserOS Agent**, then reopen the app.
+
+        <Frame>
+          <img src="/images/troubleshooting/windows-task-manager.png" alt="Task Manager showing BrowserOS processes" />
+        </Frame>
+      </Tab>
+    </Tabs>
+  </Step>
+</Steps>
+
+## Still Not Working?
+
+<AccordionGroup>
+  <Accordion title="Check if another application is using the port">
+    The agent runs on port `9100` by default. If another application is using this port, BrowserOS cannot start the agent.
+
+    <Tabs>
+      <Tab title="macOS/Linux">
+        Find the process:
+        ```bash
+        lsof -i :9100
+        ```
+
+        Kill it (replace `PID` with the process ID from above):
+        ```bash
+        kill -9 PID
+        ```
+      </Tab>
+      <Tab title="Windows">
+        Find the process:
+        ```powershell
+        netstat -ano | findstr :9100
+        ```
+
+        Kill it (replace `PID` with the process ID from above):
+        ```powershell
+        taskkill /PID PID /F
+        ```
+      </Tab>
+    </Tabs>
+
+    Then restart BrowserOS.
+  </Accordion>
+
+  <Accordion title="Check your firewall or antivirus settings">
+    Some firewalls may block local connections. Make sure your firewall allows connections to `127.0.0.1:9100`.
+
+    **Windows users:** Antivirus software sometimes triggers a false positive. Try temporarily disabling your antivirus and restarting BrowserOS.
+  </Accordion>
+</AccordionGroup>
+
+## Get Help
+
+If you're still experiencing issues, reach out:
+
+<CardGroup cols={2}>
+  <Card title="Discord" icon="discord" href="https://discord.gg/YKwjt5vuKr">
+    Get help from the community
+  </Card>
+  <Card title="Slack" icon="slack" href="SLACK_LINK_HERE">
+    Join our Slack
+  </Card>
+</CardGroup>
