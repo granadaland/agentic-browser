@@ -12,7 +12,15 @@
     "groups": [
       {
         "group": "Get Started",
-        "pages": ["index", "onboarding", "update", "changelog"]
+        "pages": [
+          "index",
+          "onboarding",
+          {
+            "group": "Update BrowserOS",
+"pages": ["update/index", "update/macos", "update/windows", "update/linux"]
+          },
+          "changelog"
+        ]
       },
       {
         "group": "Core Features",
