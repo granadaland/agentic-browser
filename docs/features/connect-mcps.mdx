@@ -1,0 +1,130 @@
+---
+title: "Connect Apps (MCPs)"
+description: "Link your apps to BrowserOS so the assistant can read data and take actions"
+---
+
+Connect your favorite apps to BrowserOS so the assistant can read your emails, check your calendar, post to Slack, update Notion, and more — all through natural conversation.
+
+## What is MCP?
+
+BrowserOS Connected Apps use the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/), an open standard for connecting AI assistants to external systems. Think of it as a single, consistent way to plug your apps into the assistant.
+
+## Built-in Apps
+
+- **Gmail** — Send, read, and search emails
+- **Google Calendar** — Create events, check your schedule
+- **Google Docs** — Create and edit documents
+- **Google Sheets** — Create and edit spreadsheets
+- **Google Drive** — Upload, download, and manage files
+- **Slack** — Post messages, manage channels
+- **Notion** — Create pages, manage databases
+- **LinkedIn** — Post updates, manage connections
+
+## Connect a Built-in App
+
+1. Go to **Settings → Connected Apps**
+2. Click **Add built-in app** and select the app
+3. Sign in and authorize BrowserOS
+
+<Frame caption="Connected apps show a green 'Authenticated' badge">
+  <img src="/images/connect-apps-settings.png" alt="Connected Apps settings page" />
+</Frame>
+
+## Use Connected Apps
+
+Just ask the assistant what you want — it will automatically use the right connected apps.
+
+<Frame caption="Ask naturally and the assistant uses your connected apps">
+  <img src="/images/connect-apps-query.png" alt="Asking what's on my calendar today" />
+</Frame>
+
+## Example Prompts
+
+<AccordionGroup>
+  <Accordion title="Calendar" icon="calendar">
+    - What's on my calendar today?
+    - Schedule a meeting with Sarah tomorrow at 2pm
+    - When is my next meeting with the marketing team?
+    - Block off Friday afternoon for focus time
+  </Accordion>
+  <Accordion title="Email" icon="envelope">
+    - Show me unread emails from my manager
+    - Draft a reply to the last email from John thanking him for the update
+    - Find emails about the Q4 budget from last week
+    - Send an email to the team with the meeting notes
+  </Accordion>
+  <Accordion title="Slack" icon="hashtag">
+    - Post a message to #general saying I'll be out tomorrow
+    - What's the latest message in #engineering?
+    - Send a DM to Sarah asking if she's free for lunch
+    - Summarize what was discussed in #product today
+  </Accordion>
+  <Accordion title="Notion" icon="cube">
+    - Add "Review Q4 report" to my Notion tasks database
+    - Create a new page in my Projects database for the website redesign
+    - What are my open tasks in Notion?
+    - Update the status of the "Launch campaign" task to complete
+  </Accordion>
+  <Accordion title="Cross-app workflows" icon="diagram-project">
+    - Check my calendar for tomorrow, then draft an email to John summarizing what we're meeting about
+    - Find all emails from last week about the budget and create a summary in Notion
+    - Look at my Slack DMs and add any action items to my Notion tasks
+  </Accordion>
+</AccordionGroup>
+
+## Add a Custom MCP Server
+
+You can connect any MCP-compatible server that exposes an SSE endpoint.
+
+1. Go to **Settings → Connected Apps**
+2. Click **Add custom app**
+3. Enter your server URL (e.g., `http://localhost:8000/sse`) and give it a name
+
+Custom servers appear alongside built-in apps and work the same way.
+
+<Tip>
+MCP has a growing ecosystem of servers. Browse [MCP servers on GitHub](https://github.com/modelcontextprotocol/servers) to find integrations for databases, APIs, and more.
+</Tip>
+
+### Connect to OAuth-Protected Remote Servers
+
+Some remote MCP servers (like Atlassian Jira, GitHub, etc.) require OAuth authentication. Use [mcp-remote](https://www.npmjs.com/package/mcp-remote) and [supergateway](https://github.com/supercorp-ai/supergateway) to handle the OAuth flow locally:
+
+```bash
+npx -y supergateway --stdio "npx -y mcp-remote https://mcp.atlassian.com/v1/sse" --port 8000
+```
+
+A browser window will open to sign in. Once authenticated, add `http://localhost:8000/sse` as a custom MCP in BrowserOS.
+
+<Note>
+Keep the terminal running while you use BrowserOS. The local server handles authentication and proxies requests to the remote MCP server.
+</Note>
+
+<AccordionGroup>
+  <Accordion title="Example: Atlassian Jira" icon="jira" iconType="brands">
+    ```bash
+    npx -y supergateway --stdio "npx -y mcp-remote https://mcp.atlassian.com/v1/sse" --port 8000
+    ```
+    Then add `http://localhost:8000/sse` as a custom MCP.
+  </Accordion>
+  <Accordion title="Example: GitHub" icon="github" iconType="brands">
+    ```bash
+    npx -y supergateway --stdio "npx -y mcp-remote https://api.githubcopilot.com/mcp/sse" --port 8001
+    ```
+    Then add `http://localhost:8001/sse` as a custom MCP.
+  </Accordion>
+</AccordionGroup>
+
+## Privacy & Security
+
+<Columns cols={3}>
+  <Card title="Your data stays local" icon="lock">
+    BrowserOS connects directly to your accounts. Credentials are stored locally on your machine.
+  </Card>
+  <Card title="You control access" icon="toggle-on">
+    Connect or disconnect apps anytime in Settings.
+  </Card>
+  <Card title="Secure OAuth" icon="shield-check">
+    Built-in apps use OAuth flows — BrowserOS never sees your passwords.
+  </Card>
+</Columns>

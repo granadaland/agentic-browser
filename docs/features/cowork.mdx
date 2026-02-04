@@ -1,68 +1,112 @@
 ---
-title: "Cowork"
-description: "Describe an outcome, step away, and come back to finished work—browser automation meets local file operations"
+title: "Filesystem Access"
+description: "Give the assistant controlled access to local files and commands"
 ---
 
-Cowork lets you describe complex tasks and let the agent handle them end-to-end. Combine browser automation with local file operations—research on the web, then save reports directly to your folder.
+Filesystem Access lets you describe complex tasks and let the agent handle them end-to-end. Combine browser automation with local file operations — research on the web, then save reports directly to your folder.
 
-## Why Cowork?
+## Why Filesystem Access?
 
-Without Cowork, the agent can only interact with browser tabs. With Cowork enabled, it can:
+Without Filesystem Access, the agent can only interact with browser tabs. With Filesystem Access enabled, it gains full access to a folder on your machine:
 
-- **Read files** from your selected folder
-- **Write files** like reports, spreadsheets, or markdown
-- **Run shell commands** within the folder
+<Columns cols={3}>
+  <Card title="Read files" icon="file-import">
+    Access documents, data files, and more from your selected folder
+  </Card>
+  <Card title="Write files" icon="file-export">
+    Save reports, spreadsheets, markdown, HTML, and other outputs
+  </Card>
+  <Card title="Run commands" icon="terminal">
+    Execute shell commands within the folder
+  </Card>
+</Columns>
 
 The real power: do both browser automation AND file operations in a single task. Describe what you want, step away, and come back to finished work.
 
-## Setting Up Cowork
+## Setting Up Filesystem Access
 
-<img src="/features/cowork/cowork-selector.png" alt="Select a folder for the agent to operate in" />
+<Steps>
+  <Step title="Open the Filesystem Access selector">
+    Click the **Filesystem Access** dropdown next to the prompt input
+  </Step>
+  <Step title="Choose a folder">
+    Select a recent folder or click **Choose a different folder**
+  </Step>
+  <Step title="Grant access">
+    Allow BrowserOS to access that folder when prompted
+  </Step>
+</Steps>
 
-1. Click the Cowork dropdown (next to the prompt input)
-2. Select a recent folder or click **Choose a different folder**
-3. Grant BrowserOS access to that folder when prompted
+<Frame caption="Select a folder for the agent to operate in">
+  <img src="/features/cowork/cowork-selector.png" alt="Select a folder for the agent to operate in" />
+</Frame>
 
-The agent is sandboxed to your selected folder—it cannot access files outside of it.
+The agent is sandboxed to your selected folder — it cannot access files outside of it.
 
+<Tip>
 To disable file access, select **No folder** and the agent will work with browser tabs only.
+</Tip>
 
 ## Try It: Research and Create a Report
 
-With Cowork enabled, try this prompt:
+With Filesystem Access enabled, try this prompt:
 
 ```
 Read the top 3 stories on Hacker News, read the comments too, and write an HTML report.
 ```
 
 The agent will:
-1. Navigate to Hacker News
-2. Read each top story and its comments
-3. Generate an HTML report summarizing the findings
-4. Save the report to your selected folder
 
-<img src="/features/cowork/cowork-research-example.png" alt="Agent researching Hacker News and generating an HTML report" />
+<Steps>
+  <Step title="Navigate to Hacker News">
+    Opens the site and identifies top stories
+  </Step>
+  <Step title="Read stories and comments">
+    Clicks into each story and reads discussion threads
+  </Step>
+  <Step title="Generate report">
+    Creates an HTML report summarizing the findings
+  </Step>
+  <Step title="Save to folder">
+    Writes the report to your selected folder
+  </Step>
+</Steps>
+
+<Frame caption="Agent researching Hacker News and generating an HTML report">
+  <img src="/features/cowork/cowork-research-example.png" alt="Agent researching Hacker News and generating an HTML report" />
+</Frame>
 
 ## Example Use Cases
 
-**Organize your downloads**
-> Go through my Downloads folder and organize files by type—documents, images, videos, archives.
-
-**Competitive research report**
-> Research key trends about [topic] on Reddit, Twitter, and LinkedIn. Create an HTML report with your findings.
-
-**Web scraping to files**
-> Visit these 10 product pages, extract the name, price, and description, and save the results as a markdown file.
-
-**Content aggregation**
-> Find the top posts from these 5 subreddits today and compile them into a daily digest document.
+<AccordionGroup>
+  <Accordion title="Organize your downloads" icon="folder-tree">
+    > Go through my Downloads folder and organize files by type — documents, images, videos, archives.
+  </Accordion>
+  <Accordion title="Competitive research report" icon="magnifying-glass-chart">
+    > Research key trends about [topic] on Reddit, Twitter, and LinkedIn. Create an HTML report with your findings.
+  </Accordion>
+  <Accordion title="Web scraping to files" icon="spider-web">
+    > Visit these 10 product pages, extract the name, price, and description, and save the results as a markdown file.
+  </Accordion>
+  <Accordion title="Content aggregation" icon="newspaper">
+    > Find the top posts from these 5 subreddits today and compile them into a daily digest document.
+  </Accordion>
+</AccordionGroup>
 
 ## Security
 
-- The agent can **only** access the folder you select—no parent directories or other locations
-- You can revoke access anytime by selecting **No folder**
-- All file operations happen locally on your machine
+<Columns cols={3}>
+  <Card title="Sandboxed access" icon="box">
+    The agent can only access the folder you select — no parent directories or other locations
+  </Card>
+  <Card title="Revoke anytime" icon="ban">
+    Select **No folder** to instantly disable file access
+  </Card>
+  <Card title="Local only" icon="house-laptop">
+    All file operations happen locally on your machine
+  </Card>
+</Columns>
 
 ## Feedback
 
-Cowork is a new feature. If you have feedback or feature requests, [open a GitHub issue](https://github.com/browseros-ai/BrowserOS/issues).
+Filesystem Access is a new feature. If you have feedback or feature requests, [open a GitHub issue](https://github.com/browseros-ai/BrowserOS/issues).

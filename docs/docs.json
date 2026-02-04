@@ -15,10 +15,7 @@
         "pages": [
           "index",
           "onboarding",
-          {
-            "group": "Update BrowserOS",
-"pages": ["update/index", "update/macos", "update/windows", "update/linux"]
-          },
+          "update/index",
           "changelog"
         ]
       },
@@ -26,10 +23,11 @@
         "group": "Core Features",
         "pages": [
           "features/bring-your-own-llm",
-          "features/cowork",
-          "features/use-with-claude-code",
           "features/workflows",
           "features/scheduled-tasks",
+          "features/cowork",
+          "features/connect-mcps",
+          "features/use-with-claude-code",
           "features/llm-chat-hub",
           "features/ad-blocking"
         ]
