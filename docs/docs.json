@@ -33,7 +33,8 @@
           "features/memory",
           "features/sync-to-cloud",
           "features/llm-chat-hub",
-          "features/ad-blocking"
+          "features/ad-blocking",
+          "features/vertical-tabs"
         ]
       },
       {
