@@ -1,6 +1,7 @@
 import { Pencil, Play, Trash2 } from 'lucide-react'
 import type { FC } from 'react'
 import { NavLink } from 'react-router'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import type { Workflow } from '@/lib/workflows/workflowStorage'
 
@@ -15,13 +16,34 @@ export const WorkflowCard: FC<WorkflowCardProps> = ({
   onDelete,
   onRun,
 }) => {
+  const lastUpdated = new Date(
+    workflow.latestRunUpdatedAt ?? workflow.updatedAt,
+  ).toLocaleString()
+
   return (
     <div className="rounded-xl border border-border bg-card p-4 shadow-sm transition-all hover:border-[var(--accent-orange)]/50 hover:shadow-sm">
       <div className="flex items-center gap-4">
         <div className="min-w-0 flex-1">
-          <span className="truncate font-semibold">
-            {workflow.workflowName}
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="truncate font-semibold">
+              {workflow.workflowName}
+            </span>
+            <Badge variant="outline">v{workflow.version}</Badge>
+            <Badge variant="secondary" className="capitalize">
+              {workflow.runProfile}
+            </Badge>
+          </div>
+          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-muted-foreground text-xs">
+            <span>Updated {lastUpdated}</span>
+            {workflow.runCount !== undefined && (
+              <span>{workflow.runCount} runs recorded</span>
+            )}
+            {workflow.latestRunStatus && (
+              <span className="capitalize">
+                Latest run: {workflow.latestRunStatus}
+              </span>
+            )}
+          </div>
         </div>
 
         <div className="flex shrink-0 items-center gap-2">

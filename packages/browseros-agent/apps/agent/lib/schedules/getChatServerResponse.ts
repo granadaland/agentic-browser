@@ -111,6 +111,7 @@ export async function getChatServerResponse(
       conversationId,
       model: provider?.modelId ?? 'default',
       mode: request.mode ?? 'agent',
+      runProfile: 'watch',
       contextWindowSize: provider?.contextWindow,
       temperature: provider?.temperature,
       resourceName: provider?.resourceName,

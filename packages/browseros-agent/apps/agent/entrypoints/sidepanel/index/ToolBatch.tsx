@@ -5,7 +5,7 @@ import {
   Loader2,
   XCircle,
 } from 'lucide-react'
-import type { FC } from 'react'
+import { type FC, useEffect, useState } from 'react'
 import {
   Task,
   TaskContent,

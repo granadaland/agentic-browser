@@ -5,6 +5,7 @@ import { sendScheduleMessage } from '@/lib/messaging/schedules/scheduleMessages'
 import { createAlarmFromJob } from './createAlarmFromJob'
 import type { ScheduledJob, ScheduledJobRun } from './scheduleTypes'
 import { syncSchedulesToBackend } from './syncSchedulesToBackend'
+import { deleteWatcherJob, syncWatcherJob, syncWatcherRun } from './watcherSync'
 
 const getAlarmName = (jobId: string) => `scheduled-job-${jobId}`
 
@@ -49,6 +50,8 @@ export function useScheduledJobs() {
     if (newJob.enabled) {
       await createAlarmFromJob(newJob)
     }
+
+    await syncWatcherJob(newJob)
   }
 
   const removeJob = async (id: string) => {
@@ -61,6 +64,8 @@ export function useScheduledJobs() {
     await scheduledJobRunStorage.setValue(
       currentRuns.filter((r) => r.jobId !== id),
     )
+
+    await deleteWatcherJob(id)
   }
 
   const toggleJob = async (id: string, enabled: boolean) => {
@@ -78,6 +83,13 @@ export function useScheduledJobs() {
     } else {
       await chrome.alarms.clear(getAlarmName(id))
     }
+
+    const updatedJob = {
+      ...job,
+      enabled,
+      updatedAt,
+    }
+    await syncWatcherJob(updatedJob)
   }
 
   const editJob = async (
@@ -102,6 +114,8 @@ export function useScheduledJobs() {
     if (updatedJob.enabled) {
       await createAlarmFromJob(updatedJob)
     }
+
+    await syncWatcherJob(updatedJob)
   }
 
   const runJob = async (id: string) => {
@@ -125,6 +139,11 @@ export function useScheduledJobRuns() {
   const addJobRun = async (jobRun: ScheduledJobRun) => {
     const current = (await scheduledJobRunStorage.getValue()) ?? []
     await scheduledJobRunStorage.setValue([...current, jobRun])
+    const jobs = (await scheduledJobStorage.getValue()) ?? []
+    const job = jobs.find((item) => item.id === jobRun.jobId)
+    if (job) {
+      await syncWatcherRun(job, jobRun)
+    }
   }
 
   const removeJobRun = async (id: string) => {
@@ -137,9 +156,16 @@ export function useScheduledJobRuns() {
     updates: Partial<Omit<ScheduledJobRun, 'id'>>,
   ) => {
     const current = (await scheduledJobRunStorage.getValue()) ?? []
-    await scheduledJobRunStorage.setValue(
-      current.map((r) => (r.id === id ? { ...r, ...updates } : r)),
-    )
+    const next = current.map((r) => (r.id === id ? { ...r, ...updates } : r))
+    await scheduledJobRunStorage.setValue(next)
+    const updatedRun = next.find((item) => item.id === id)
+    if (!updatedRun) return
+
+    const jobs = (await scheduledJobStorage.getValue()) ?? []
+    const job = jobs.find((item) => item.id === updatedRun.jobId)
+    if (job) {
+      await syncWatcherRun(job, updatedRun)
+    }
   }
 
   const cancelJobRun = async (runId: string) => {
@@ -152,6 +178,10 @@ export function useScheduledJobRuns() {
 export async function syncScheduledJobs(): Promise<void> {
   const jobs = await scheduledJobStorage.getValue()
   if (!jobs) return
+
+  for (const job of jobs) {
+    await syncWatcherJob(job)
+  }
 
   const session = await sessionStorage.getValue()
   const userId = session?.user?.id

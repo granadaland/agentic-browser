@@ -1,4 +1,5 @@
 import { useChat } from '@ai-sdk/react'
+import type { RunProfile } from '@browseros/shared/schemas/runtime'
 import { DefaultChatTransport, type UIMessage } from 'ai'
 import { compact } from 'es-toolkit/array'
 import { useEffect, useRef, useState } from 'react'
@@ -115,6 +116,7 @@ export const useChatSession = (options?: ChatSessionOptions) => {
   }))
 
   const [mode, setMode] = useState<ChatMode>('agent')
+  const [runProfile, setRunProfile] = useState<RunProfile>('do')
   const [textToAction, setTextToAction] = useState<Map<string, ChatAction>>(
     new Map(),
   )
@@ -161,6 +163,7 @@ export const useChatSession = (options?: ChatSessionOptions) => {
   }
 
   const modeRef = useRef<ChatMode>(mode)
+  const runProfileRef = useRef<RunProfile>(runProfile)
   const textToActionRef = useRef<Map<string, ChatAction>>(textToAction)
   const workingDirRef = useRef<string | undefined>(undefined)
   const messagesRef = useRef<UIMessage[]>([])
@@ -178,8 +181,15 @@ export const useChatSession = (options?: ChatSessionOptions) => {
 
   useDeepCompareEffect(() => {
     modeRef.current = mode
+    runProfileRef.current = runProfile
     textToActionRef.current = textToAction
-  }, [mode, textToAction])
+  }, [mode, runProfile, textToAction])
+
+  useEffect(() => {
+    if (mode === 'chat' && !['ask', 'research'].includes(runProfile)) {
+      setRunProfile('ask')
+    }
+  }, [mode, runProfile])
 
   const selectedProvider = selectedLlmProvider
     ? {
@@ -211,6 +221,7 @@ export const useChatSession = (options?: ChatSessionOptions) => {
         const message = getLastMessageText(messages)
         const provider = selectedLlmProviderRef.current ?? createDefaultBrowserOSProvider()
         const currentMode = modeRef.current
+        const currentRunProfile = runProfileRef.current
         const enabledMcpServers = enabledMcpServersRef.current
         const customMcpServers = enabledCustomServersRef.current
 
@@ -296,6 +307,7 @@ export const useChatSession = (options?: ChatSessionOptions) => {
             conversationId: conversationIdRef.current,
             model: provider?.modelId ?? 'default',
             mode: currentMode,
+            runProfile: currentRunProfile,
             contextWindowSize: provider?.contextWindow,
             temperature: provider?.temperature,
             // Azure-specific
@@ -496,6 +508,8 @@ export const useChatSession = (options?: ChatSessionOptions) => {
   return {
     mode,
     setMode,
+    runProfile,
+    setRunProfile,
     messages,
     sendMessage,
     status,

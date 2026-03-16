@@ -1,0 +1,4 @@
+interface:
+  display_name: "BrowserOS 2 Project Ops"
+  short_description: "Align BrowserOS 2 features with roadmap and progress"
+  default_prompt: "Use $browseros2-project-ops to align a BrowserOS request with the roadmap, update progress, and keep delivery consistent."

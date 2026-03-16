@@ -25,6 +25,8 @@ export const Chat = () => {
   const {
     mode,
     setMode,
+    runProfile,
+    setRunProfile,
     messages,
     sendMessage,
     status,
@@ -182,6 +184,8 @@ export const Chat = () => {
       <ChatFooter
         mode={mode}
         onModeChange={handleModeChange}
+        runProfile={runProfile}
+        onRunProfileChange={setRunProfile}
         input={input}
         onInputChange={setInput}
         onSubmit={handleSubmit}

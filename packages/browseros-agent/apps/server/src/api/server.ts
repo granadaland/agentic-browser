@@ -23,11 +23,14 @@ import { createKlavisRoutes } from './routes/klavis'
 import { createMcpRoutes } from './routes/mcp'
 import { createMemoryRoutes } from './routes/memory'
 import { createProviderRoutes } from './routes/provider'
+import { createRunsRoutes } from './routes/runs'
 import { createSdkRoutes } from './routes/sdk'
 import { createShutdownRoute } from './routes/shutdown'
 import { createSkillsRoutes } from './routes/skills'
 import { createSoulRoutes } from './routes/soul'
 import { createStatusRoute } from './routes/status'
+import { createWatcherRoutes } from './routes/watchers'
+import { createWorkflowRoutes } from './routes/workflows'
 import {
   connectKlavisProxy,
   type KlavisProxyHandle,
@@ -111,6 +114,9 @@ export async function createHttpServer(config: HttpServerConfig) {
     .route('/status', createStatusRoute({ controller }))
     .route('/soul', createSoulRoutes())
     .route('/memory', createMemoryRoutes())
+    .route('/runs', createRunsRoutes())
+    .route('/workflows', createWorkflowRoutes())
+    .route('/watchers', createWatcherRoutes())
     .route('/skills', createSkillsRoutes())
     .route('/test-provider', createProviderRoutes())
     .route('/klavis', createKlavisRoutes({ browserosId: browserosId || '' }))

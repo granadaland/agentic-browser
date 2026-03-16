@@ -75,14 +75,12 @@ export function createGraphRoutes(deps: GraphRouteDeps) {
   const serverUrl = `http://127.0.0.1:${port}`
   const tempDir = deps.tempDir || PATHS.DEFAULT_EXECUTION_DIR
 
-  const graphService = codegenServiceUrl
-    ? new GraphService({ codegenServiceUrl, serverUrl, tempDir })
-    : null
+  const graphService = new GraphService({ codegenServiceUrl, serverUrl, tempDir })
 
   // Chain route definitions for proper Hono RPC type inference
   return new Hono()
     .post('/', zValidator('json', CreateGraphRequestSchema), async (c) => {
-      if (!graphService) {
+      if (!graphService.canUseCodegen) {
         return c.json({ error: 'CODEGEN_SERVICE_URL not configured' }, 503)
       }
       const request = c.req.valid('json')
@@ -126,7 +124,7 @@ export function createGraphRoutes(deps: GraphRouteDeps) {
       zValidator('param', SessionIdParamSchema),
       zValidator('json', UpdateGraphRequestSchema),
       async (c) => {
-        if (!graphService) {
+        if (!graphService.canUseCodegen) {
           return c.json({ error: 'CODEGEN_SERVICE_URL not configured' }, 503)
         }
         const { id: sessionId } = c.req.valid('param')
@@ -172,9 +170,6 @@ export function createGraphRoutes(deps: GraphRouteDeps) {
       },
     )
     .get('/:id', zValidator('param', SessionIdParamSchema), async (c) => {
-      if (!graphService) {
-        return c.json({ error: 'CODEGEN_SERVICE_URL not configured' }, 503)
-      }
       const { id: sessionId } = c.req.valid('param')
 
       logger.debug('Graph get request received', { sessionId })
@@ -192,9 +187,6 @@ export function createGraphRoutes(deps: GraphRouteDeps) {
       zValidator('param', SessionIdParamSchema),
       zValidator('json', RunGraphRequestSchema),
       async (c) => {
-        if (!graphService) {
-          return c.json({ error: 'CODEGEN_SERVICE_URL not configured' }, 503)
-        }
         const { id: sessionId } = c.req.valid('param')
         const request = c.req.valid('json')
         logger.info('Graph run request received', {
@@ -260,9 +252,6 @@ export function createGraphRoutes(deps: GraphRouteDeps) {
       },
     )
     .delete('/:id', zValidator('param', SessionIdParamSchema), async (c) => {
-      if (!graphService) {
-        return c.json({ error: 'CODEGEN_SERVICE_URL not configured' }, 503)
-      }
       const { id: sessionId } = c.req.valid('param')
 
       logger.debug('Graph delete request received', { sessionId })

@@ -6,18 +6,36 @@
 
 import { mkdir, utimes } from 'node:fs/promises'
 import path from 'node:path'
+import type { BrowserContext } from '@browseros/shared/schemas/browser-context'
+import {
+  ArtifactPolicySchema,
+  BudgetPolicySchema,
+  ContextPolicySchema,
+} from '@browseros/shared/schemas/runtime'
 import { createAgentUIStreamResponse, type UIMessage } from 'ai'
 import { AiSdkAgent } from '../../agent/ai-sdk-agent'
 import { formatUserMessage } from '../../agent/format-message'
+import { resolveRoutingPolicy } from '../../agent/provider-capabilities'
+import {
+  resolveRunProfile,
+  shouldUseChatMode,
+  shouldUseScheduledWindow,
+} from '../../agent/run-profile'
 import type { SessionStore } from '../../agent/session-store'
 import type { ResolvedAgentConfig } from '../../agent/types'
 import type { Browser } from '../../browser/browser'
-import { getSessionsDir } from '../../lib/browseros-dir'
+import { getSessionsDir, getSkillsDir } from '../../lib/browseros-dir'
 import type { KlavisClient } from '../../lib/clients/klavis/klavis-client'
+import { getDb } from '../../lib/db'
 import { resolveLLMConfig } from '../../lib/clients/llm/config'
 import { logger } from '../../lib/logger'
+import { RunStore } from '../../lib/run-store'
+import { loadSkills } from '../../skills/loader'
+import { selectSkillsForTask } from '../../skills/ranking'
 import type { ToolRegistry } from '../../tools/tool-registry'
-import type { BrowserContext, ChatRequest } from '../types'
+import { tapUIMessageStreamResponse } from '../utils/observe-ui-message-stream'
+import type { ChatRequest } from '../types'
+import { RunTracker } from './run-tracker'
 
 export interface ChatServiceDeps {
   sessionStore: SessionStore
@@ -28,6 +46,8 @@ export interface ChatServiceDeps {
 }
 
 export class ChatService {
+  private readonly runStore = new RunStore(getDb())
+
   constructor(private deps: ChatServiceDeps) {}
 
   async processMessage(
@@ -35,15 +55,42 @@ export class ChatService {
     abortSignal: AbortSignal,
   ): Promise<Response> {
     const { sessionStore } = this.deps
+    const runProfile = resolveRunProfile(request)
+    const budgetPolicy = BudgetPolicySchema.parse(request.budgetPolicy ?? {})
+    const artifactPolicy = ArtifactPolicySchema.parse(
+      request.artifactPolicy ?? {},
+    )
+    const contextPolicy = ContextPolicySchema.parse(request.contextPolicy ?? {})
+    const chatMode = shouldUseChatMode(runProfile, request.mode)
+    const isScheduledTask = shouldUseScheduledWindow(
+      runProfile,
+      request.isScheduledTask,
+    )
 
-    const llmConfig = await resolveLLMConfig(request, this.deps.browserosId)
+    const [llmConfig, skills, workingDir] = await Promise.all([
+      resolveLLMConfig(request, this.deps.browserosId),
+      loadSkills(getSkillsDir()),
+      this.resolveSessionDir(request),
+    ])
 
-    const workingDir = await this.resolveSessionDir(request)
+    const selectedSkills = selectSkillsForTask(skills, request.message, runProfile)
+    const routingPolicy = resolveRoutingPolicy({
+      provider: llmConfig.provider,
+      model: llmConfig.model,
+      supportsImages: request.supportsImages,
+      runProfile,
+      budgetPolicy,
+    })
+    const executionModel =
+      budgetPolicy.executorModel ??
+      (runProfile === 'ask' || runProfile === 'research'
+        ? routingPolicy.stageModels.executor
+        : llmConfig.model)
 
     const agentConfig: ResolvedAgentConfig = {
       conversationId: request.conversationId,
       provider: llmConfig.provider,
-      model: llmConfig.model,
+      model: executionModel,
       apiKey: llmConfig.apiKey,
       baseUrl: llmConfig.baseUrl,
       upstreamProvider: llmConfig.upstreamProvider,
@@ -56,134 +103,222 @@ export class ChatService {
       userSystemPrompt: request.userSystemPrompt,
       workingDir,
       supportsImages: request.supportsImages,
-      chatMode: request.mode === 'chat',
-      isScheduledTask: request.isScheduledTask,
+      chatMode,
+      isScheduledTask,
       declinedApps: request.declinedApps,
+      runProfile,
+      initialUserMessage: request.message,
+      budgetPolicy,
+      artifactPolicy,
+      contextPolicy,
+      resumeRunId: request.resumeRunId,
     }
 
-    let session = sessionStore.get(request.conversationId)
-    let isNewSession = false
-
-    // Build a stable key from enabled MCP servers for change detection
-    const mcpServerKey = this.buildMcpServerKey(request.browserContext)
-
-    // Detect MCP config change mid-conversation → rebuild session
-    if (session && session.mcpServerKey !== mcpServerKey) {
-      logger.info('MCP servers changed mid-conversation, rebuilding session', {
-        conversationId: request.conversationId,
-        previous: session.mcpServerKey,
-        current: mcpServerKey,
-      })
-      const previousMessages = session.agent.messages
-      await session.agent.dispose()
-      sessionStore.remove(request.conversationId)
-
-      const browserContext = await this.resolvePageIds(request.browserContext)
-      const agent = await AiSdkAgent.create({
-        resolvedConfig: agentConfig,
-        browser: this.deps.browser,
-        registry: this.deps.registry,
-        browserContext,
-        klavisClient: this.deps.klavisClient,
-        browserosId: this.deps.browserosId,
-      })
-      session = { agent, browserContext, mcpServerKey }
-      session.agent.messages = previousMessages
-      sessionStore.set(request.conversationId, session)
-    }
-
-    if (!session) {
-      isNewSession = true
-      let hiddenWindowId: number | undefined
-      let browserContext = await this.resolvePageIds(request.browserContext)
-      if (request.isScheduledTask) {
-        try {
-          const win = await this.deps.browser.createWindow({ hidden: true })
-          hiddenWindowId = win.windowId
-          const pageId = await this.deps.browser.newPage('about:blank', {
-            windowId: hiddenWindowId,
-          })
-          browserContext = {
-            ...browserContext,
-            windowId: hiddenWindowId,
-            activeTab: {
-              id: pageId,
-              pageId,
-              url: 'about:blank',
-              title: 'Scheduled Task',
-            },
-          }
-          logger.info('Created hidden window for scheduled task', {
-            conversationId: request.conversationId,
-            windowId: hiddenWindowId,
-            pageId,
-          })
-        } catch (error) {
-          logger.warn('Failed to create hidden window, using default', {
-            error: error instanceof Error ? error.message : String(error),
-          })
-        }
-      }
-
-      const agent = await AiSdkAgent.create({
-        resolvedConfig: agentConfig,
-        browser: this.deps.browser,
-        registry: this.deps.registry,
-        browserContext,
-        klavisClient: this.deps.klavisClient,
-        browserosId: this.deps.browserosId,
-      })
-      session = { agent, hiddenWindowId, browserContext, mcpServerKey }
-      sessionStore.set(request.conversationId, session)
-    }
-
-    if (isNewSession && request.previousConversation?.length) {
-      for (const msg of request.previousConversation) {
-        session.agent.messages.push({
-          id: crypto.randomUUID(),
-          role: msg.role === 'assistant' ? 'assistant' : 'user',
-          parts: [{ type: 'text', text: msg.content }],
-        })
-      }
-      logger.info('Injected previous conversation history', {
-        conversationId: request.conversationId,
-        messageCount: request.previousConversation.length,
-      })
-    }
-
-    const messageContext = request.isScheduledTask
-      ? (session.browserContext ?? request.browserContext)
-      : request.browserContext
-    // Scheduled tasks already have correct internal pageIds from browser.newPage();
-    // calling resolvePageIds would pass those to resolveTabIds (which expects Chrome
-    // tab IDs), corrupting them back to undefined.
-    const resolvedMessageContext = request.isScheduledTask
-      ? messageContext
-      : await this.resolvePageIds(messageContext)
-    const userContent = formatUserMessage(
-      request.message,
-      resolvedMessageContext,
-    )
-    session.agent.appendUserMessage(userContent)
-
-    return createAgentUIStreamResponse({
-      agent: session.agent.toolLoopAgent,
-      uiMessages: session.agent.messages,
-      abortSignal,
-      onFinish: async ({ messages }: { messages: UIMessage[] }) => {
-        session.agent.messages = messages
-        logger.info('Agent execution complete', {
-          conversationId: request.conversationId,
-          totalMessages: messages.length,
-        })
-
-        if (session?.hiddenWindowId) {
-          const windowId = session.hiddenWindowId
-          session.hiddenWindowId = undefined
-          this.closeHiddenWindow(windowId, request.conversationId)
-        }
-      },
+    const tracker = new RunTracker({
+      runStore: this.runStore,
+      runId: crypto.randomUUID(),
+      conversationId: request.conversationId,
+      requestMessage: request.message,
+      runProfile,
+      provider: llmConfig.provider,
+      model: executionModel,
+      browserContext: request.browserContext,
+      resumedFromRunId: request.resumeRunId,
+      budgetPolicy,
+      artifactPolicy,
+      contextPolicy,
+      routingPolicy,
+      availableSkills: skills,
+      selectedSkills,
     })
+    tracker.start()
+
+    try {
+      let session = sessionStore.get(request.conversationId)
+      let isNewSession = false
+      const mcpServerKey = this.buildMcpServerKey(request.browserContext)
+
+      if (session && session.mcpServerKey !== mcpServerKey) {
+        logger.info('MCP servers changed mid-conversation, rebuilding session', {
+          conversationId: request.conversationId,
+          previous: session.mcpServerKey,
+          current: mcpServerKey,
+        })
+
+        const previousMessages = session.agent.messages
+        const previousHiddenWindowId = session.hiddenWindowId
+        await session.agent.dispose()
+        sessionStore.remove(request.conversationId)
+
+        const browserContext = await this.resolvePageIds(request.browserContext)
+        const agent = await AiSdkAgent.create({
+          resolvedConfig: agentConfig,
+          browser: this.deps.browser,
+          registry: this.deps.registry,
+          browserContext,
+          klavisClient: this.deps.klavisClient,
+          browserosId: this.deps.browserosId,
+        })
+
+        session = {
+          agent,
+          browserContext,
+          hiddenWindowId: previousHiddenWindowId,
+          mcpServerKey,
+        }
+        session.agent.messages = previousMessages
+        sessionStore.set(request.conversationId, session)
+
+        tracker.addCheckpoint(
+          'Session rebuilt after MCP server change',
+          'planner',
+          'completed',
+          {
+            hiddenWindowId: previousHiddenWindowId ?? null,
+          },
+        )
+      }
+
+      if (!session) {
+        isNewSession = true
+        let hiddenWindowId: number | undefined
+        let browserContext = await this.resolvePageIds(request.browserContext)
+
+        if (isScheduledTask) {
+          try {
+            const win = await this.deps.browser.createWindow({ hidden: true })
+            hiddenWindowId = win.windowId
+            const pageId = await this.deps.browser.newPage('about:blank', {
+              windowId: hiddenWindowId,
+            })
+            browserContext = {
+              ...browserContext,
+              windowId: hiddenWindowId,
+              activeTab: {
+                id: pageId,
+                pageId,
+                url: 'about:blank',
+                title: 'Scheduled Task',
+              },
+            }
+            logger.info('Created hidden window for scheduled task', {
+              conversationId: request.conversationId,
+              windowId: hiddenWindowId,
+              pageId,
+            })
+            tracker.addCheckpoint(
+              'Background watch window created',
+              'planner',
+              'completed',
+              {
+                windowId: hiddenWindowId,
+                pageId,
+              },
+            )
+          } catch (error) {
+            logger.warn('Failed to create hidden window, using default', {
+              error: error instanceof Error ? error.message : String(error),
+            })
+          }
+        }
+
+        const agent = await AiSdkAgent.create({
+          resolvedConfig: agentConfig,
+          browser: this.deps.browser,
+          registry: this.deps.registry,
+          browserContext,
+          klavisClient: this.deps.klavisClient,
+          browserosId: this.deps.browserosId,
+        })
+
+        session = { agent, hiddenWindowId, browserContext, mcpServerKey }
+        sessionStore.set(request.conversationId, session)
+
+        tracker.addCheckpoint(
+          'Agent session created',
+          'planner',
+          'completed',
+          {
+            hiddenWindowId: hiddenWindowId ?? null,
+            isScheduledTask,
+            chatMode,
+          },
+        )
+      }
+
+      if (!session) {
+        throw new Error('Failed to initialize agent session')
+      }
+
+      if (isNewSession && request.previousConversation?.length) {
+        for (const msg of request.previousConversation) {
+          session.agent.messages.push({
+            id: crypto.randomUUID(),
+            role: msg.role === 'assistant' ? 'assistant' : 'user',
+            parts: [{ type: 'text', text: msg.content }],
+          })
+        }
+        logger.info('Injected previous conversation history', {
+          conversationId: request.conversationId,
+          messageCount: request.previousConversation.length,
+        })
+      }
+
+      const activeSession = session
+
+      const resumeContext = request.resumeRunId
+        ? this.buildResumeContext(request.resumeRunId)
+        : null
+      if (resumeContext) {
+        tracker.addResumePacket(resumeContext.summary, resumeContext.data)
+      }
+
+      const messageContext = isScheduledTask
+        ? (activeSession.browserContext ?? request.browserContext)
+        : request.browserContext
+      // Scheduled tasks already have correct internal pageIds from browser.newPage();
+      // calling resolvePageIds would pass those to resolveTabIds (which expects Chrome
+      // tab IDs), corrupting them back to undefined.
+      const resolvedMessageContext = isScheduledTask
+        ? messageContext
+        : await this.resolvePageIds(messageContext)
+      const messageWithResumeContext = resumeContext
+        ? `${resumeContext.prompt}\n\n${request.message}`
+        : request.message
+      const userContent = formatUserMessage(
+        messageWithResumeContext,
+        resolvedMessageContext,
+      )
+      activeSession.agent.appendUserMessage(userContent)
+
+      const response = await createAgentUIStreamResponse({
+        agent: activeSession.agent.toolLoopAgent,
+        uiMessages: activeSession.agent.messages,
+        abortSignal,
+        onFinish: async ({ messages }: { messages: UIMessage[] }) => {
+          activeSession.agent.messages = messages
+          await tracker.finalize(messages)
+          logger.info('Agent execution complete', {
+            conversationId: request.conversationId,
+            totalMessages: messages.length,
+            runProfile,
+          })
+
+          if (activeSession.hiddenWindowId) {
+            const windowId = activeSession.hiddenWindowId
+            activeSession.hiddenWindowId = undefined
+            this.closeHiddenWindow(windowId, request.conversationId)
+          }
+        },
+      })
+
+      return tapUIMessageStreamResponse(response, async (event) => {
+        await tracker.observeEvent(event)
+      })
+    } catch (error) {
+      tracker.failBeforeStream(error)
+      throw error
+    }
   }
 
   async deleteSession(
@@ -268,5 +403,42 @@ export class ChatService {
       await utimes(dir, now, now).catch(() => {})
     }
     return dir
+  }
+
+  private buildResumeContext(resumeRunId: string): {
+    prompt: string
+    summary: string
+    data: Record<string, unknown>
+  } | null {
+    const run = this.runStore.getRun(resumeRunId)
+    if (!run) return null
+
+    const contextPackets = this.runStore
+      .getContextPackets({ runId: resumeRunId, limit: 4 })
+      .map((packet) => `- [${packet.packetType}] ${packet.summary}`)
+    const artifacts = this.runStore
+      .getRunArtifacts(resumeRunId)
+      .slice(-2)
+      .map((artifact) => `- ${artifact.name}: ${artifact.previewText ?? artifact.filePath}`)
+
+    const sections = [
+      `Previous run ${resumeRunId} (${run.status})`,
+      contextPackets.length > 0
+        ? `Context packets:\n${contextPackets.join('\n')}`
+        : '',
+      artifacts.length > 0 ? `Artifacts:\n${artifacts.join('\n')}` : '',
+    ].filter(Boolean)
+
+    if (sections.length === 0) return null
+
+    return {
+      prompt: `## Resumed Run Context\n${sections.join('\n\n')}`,
+      summary: sections.join(' | '),
+      data: {
+        resumedFromRunId: resumeRunId,
+        contextPackets: contextPackets.length,
+        artifacts: artifacts.length,
+      },
+    }
   }
 }

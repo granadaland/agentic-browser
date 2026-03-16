@@ -1,18 +1,13 @@
 {
-  "extends": "./.wxt/tsconfig.json",
+  "extends": "./tsconfig.base.json",
   "compilerOptions": {
-    "types": ["chrome", "bun"],
-    "allowImportingTsExtensions": true,
-    "jsx": "react-jsx",
-    "baseUrl": ".",
-    "paths": {
-      "@/*": ["./*"]
-    },
     "plugins": [
       {
         "name": "@0no-co/graphqlsp",
         "schema": "./generated/graphql/schema.graphql"
       }
     ]
-  }
+  },
+  "include": ["./**/*.ts", "./**/*.tsx", "./assets-env.d.ts", "./wxt-env.d.ts"],
+  "exclude": ["./node_modules", "./dist", "./.output", "./.wxt"]
 }

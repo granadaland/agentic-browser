@@ -23,7 +23,7 @@ import { WorkflowsHeader } from './WorkflowsHeader'
 import { WorkflowsList } from './WorkflowsList'
 
 export const WorkflowsPage: FC = () => {
-  const { workflows, removeWorkflow } = useWorkflows()
+  const { workflows, removeWorkflow, editWorkflow } = useWorkflows()
   const rpcClient = useRpcClient()
 
   const [deleteWorkflowId, setDeleteWorkflowId] = useState<string | null>(null)
@@ -68,11 +68,12 @@ export const WorkflowsPage: FC = () => {
     track(WORKFLOW_DELETED_EVENT)
   }
 
-  const handleRun = (workflowId: string) => {
+  const handleRun = async (workflowId: string) => {
     const workflow = workflows.find((w) => w.id === workflowId)
     if (workflow) {
+      await editWorkflow(workflowId, { lastRunAt: new Date().toISOString() })
       track(WORKFLOW_RUN_STARTED_EVENT)
-      runWorkflow(workflow.codeId, workflow.workflowName)
+      runWorkflow(workflow)
     }
   }
 

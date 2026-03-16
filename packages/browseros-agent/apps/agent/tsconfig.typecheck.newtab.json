@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.base.json",
+  "include": [
+    "./assets-env.d.ts",
+    "./entrypoints/newtab/**/*.ts",
+    "./entrypoints/newtab/**/*.tsx",
+    "./wxt-env.d.ts"
+  ],
+  "exclude": ["./node_modules", "./dist", "./.output", "./.wxt"]
+}

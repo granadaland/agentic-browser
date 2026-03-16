@@ -23,6 +23,7 @@ import { MagicLinkCallback } from './login/MagicLinkCallback'
 import { MCPSettingsPage } from './mcp-settings/MCPSettingsPage'
 import { MemoryPage } from './memory/MemoryPage'
 import { ProfilePage } from './profile/ProfilePage'
+import { RunsPage } from './runs/RunsPage'
 import { ScheduledTasksPage } from './scheduled-tasks/ScheduledTasksPage'
 import { SearchProviderPage } from './search-provider/SearchProviderPage'
 import { SkillsPage } from './skills/SkillsPage'
@@ -52,7 +53,9 @@ const OptionsRedirect: FC = () => {
     skills: '/home/skills',
     'jtbd-agent': '/settings/survey',
     workflows: '/workflows',
-    scheduled: '/scheduled',
+    scheduled: '/watchers',
+    watchers: '/watchers',
+    runs: '/runs',
     'create-graph': '/workflows/create-graph',
   }
 
@@ -88,7 +91,9 @@ export const App: FC = () => {
           {/* Primary nav routes */}
           <Route path="connect-apps" element={<ConnectMCP />} />
           <Route path="workflows" element={<WorkflowsPageWrapper />} />
-          <Route path="scheduled" element={<ScheduledTasksPage />} />
+          <Route path="runs" element={<RunsPage />} />
+          <Route path="watchers" element={<ScheduledTasksPage />} />
+          <Route path="scheduled" element={<Navigate to="/watchers" replace />} />
         </Route>
 
         {/* Settings with dedicated sidebar */}

@@ -38,6 +38,14 @@ interface ScheduledTaskCardProps {
 }
 
 function formatSchedule(job: ScheduledJob): string {
+  if (job.triggerType === 'page') {
+    const target = job.triggerUrlPattern || job.triggerTextPattern || 'page match'
+    return `On page match: ${target}`
+  }
+  if (job.triggerType === 'content') {
+    const target = job.triggerTextPattern || 'content match'
+    return `On content match: ${target}`
+  }
   if (job.scheduleType === 'daily' && job.scheduleTime) {
     return `Daily at ${job.scheduleTime}`
   }
@@ -119,7 +127,7 @@ export const ScheduledTaskCard: FC<ScheduledTaskCardProps> = ({
             <span>{formatSchedule(job)}</span>
             {job.lastRunAt && (
               <>
-                <span>•</span>
+                <span>|</span>
                 <span>Last run: {formatRelativeTime(job.lastRunAt)}</span>
               </>
             )}

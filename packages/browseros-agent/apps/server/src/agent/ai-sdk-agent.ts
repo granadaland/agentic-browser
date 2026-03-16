@@ -5,6 +5,7 @@ import {
   type LanguageModel,
   type ModelMessage,
   stepCountIs,
+  type ToolSet,
   ToolLoopAgent,
   type UIMessage,
   wrapLanguageModel,
@@ -16,6 +17,7 @@ import { logger } from '../lib/logger'
 import { isSoulBootstrap, readSoul } from '../lib/soul'
 import { buildSkillsCatalog } from '../skills/catalog'
 import { loadSkills } from '../skills/loader'
+import { selectSkillsForTask } from '../skills/ranking'
 import { buildFilesystemToolSet } from '../tools/filesystem/build-toolset'
 import { buildMemoryToolSet } from '../tools/memory/build-toolset'
 import type { ToolRegistry } from '../tools/tool-registry'
@@ -29,6 +31,7 @@ import {
 } from './message-normalization'
 import { buildSystemPrompt } from './prompt'
 import { createLanguageModel } from './provider-factory'
+import { isReadOnlyRunProfile } from './run-profile'
 import { buildBrowserToolSet } from './tool-adapter'
 import type { ResolvedAgentConfig } from './types'
 
@@ -39,6 +42,37 @@ export interface AiSdkAgentConfig {
   browserContext?: BrowserContext
   klavisClient?: KlavisClient
   browserosId?: string
+}
+
+const READ_ONLY_FILESYSTEM_TOOLS = new Set([
+  'filesystem_read',
+  'filesystem_grep',
+  'filesystem_find',
+  'filesystem_ls',
+])
+
+const READ_ONLY_MEMORY_TOOLS = new Set([
+  'memory_search',
+  'memory_read_core',
+  'soul_read',
+])
+
+function filterToolSet<T extends Record<string, unknown>>(
+  tools: T,
+  allowedTools: Set<string>,
+): T {
+  return Object.fromEntries(
+    Object.entries(tools).filter(([name]) => allowedTools.has(name)),
+  ) as T
+}
+
+function omitToolSet<T extends Record<string, unknown>>(
+  tools: T,
+  blockedTools: Set<string>,
+): T {
+  return Object.fromEntries(
+    Object.entries(tools).filter(([name]) => !blockedTools.has(name)),
+  ) as T
 }
 
 export class AiSdkAgent {
@@ -74,15 +108,21 @@ export class AiSdkAgent {
       config.browser,
       config.resolvedConfig.workingDir,
     )
-    const browserTools = config.resolvedConfig.chatMode
+    const browserTools =
+      config.resolvedConfig.chatMode ||
+      isReadOnlyRunProfile(config.resolvedConfig.runProfile)
       ? Object.fromEntries(
           Object.entries(allBrowserTools).filter(([name]) =>
             CHAT_MODE_ALLOWED_TOOLS.has(name),
           ),
         )
       : allBrowserTools
-    if (config.resolvedConfig.chatMode) {
-      logger.info('Chat mode enabled, restricting to read-only browser tools', {
+    if (
+      config.resolvedConfig.chatMode ||
+      isReadOnlyRunProfile(config.resolvedConfig.runProfile)
+    ) {
+      logger.info('Read-only browser tools enabled', {
+        runProfile: config.resolvedConfig.runProfile,
         allowedTools: Array.from(CHAT_MODE_ALLOWED_TOOLS),
       })
     }
@@ -95,14 +135,22 @@ export class AiSdkAgent {
     })
     const { clients, tools: externalMcpTools } = await createMcpClients(specs)
 
-    // Add filesystem tools (Pi coding agent) — skip in chat mode (read-only)
+    // Add filesystem tools (Pi coding agent) and narrow them for research runs.
+    const allFilesystemTools = buildFilesystemToolSet(
+      config.resolvedConfig.workingDir,
+    )
     const filesystemTools = config.resolvedConfig.chatMode
       ? {}
-      : buildFilesystemToolSet(config.resolvedConfig.workingDir)
+      : config.resolvedConfig.runProfile === 'research'
+        ? filterToolSet(allFilesystemTools, READ_ONLY_FILESYSTEM_TOOLS)
+        : allFilesystemTools
+    const allMemoryTools = buildMemoryToolSet()
     const memoryTools = config.resolvedConfig.chatMode
       ? {}
-      : buildMemoryToolSet()
-    const tools = {
+      : config.resolvedConfig.runProfile === 'research'
+        ? filterToolSet(allMemoryTools, READ_ONLY_MEMORY_TOOLS)
+        : allMemoryTools
+    let tools: ToolSet = {
       ...browserTools,
       ...externalMcpTools,
       ...filesystemTools,
@@ -113,8 +161,10 @@ export class AiSdkAgent {
       config.resolvedConfig.isScheduledTask ||
       config.resolvedConfig.chatMode
     ) {
-      delete tools.suggest_schedule
-      delete tools.suggest_app_connection
+      tools = omitToolSet(
+        tools,
+        new Set(['suggest_schedule', 'suggest_app_connection']),
+      )
     }
 
     // Build system prompt with optional section exclusions
@@ -131,10 +181,15 @@ export class AiSdkAgent {
     const soulContent = await readSoul()
     const isBootstrap = await isSoulBootstrap()
 
-    // Load skills catalog for prompt injection
+    // Load only the highest-signal skills for this run profile.
     const skills = await loadSkills(getSkillsDir())
+    const selectedSkills = selectSkillsForTask(
+      skills,
+      config.resolvedConfig.initialUserMessage,
+      config.resolvedConfig.runProfile,
+    )
     const skillsCatalog =
-      skills.length > 0 ? buildSkillsCatalog(skills) : undefined
+      selectedSkills.length > 0 ? buildSkillsCatalog(selectedSkills) : undefined
 
     const instructions = buildSystemPrompt({
       userSystemPrompt: config.resolvedConfig.userSystemPrompt,
@@ -148,6 +203,7 @@ export class AiSdkAgent {
       connectedApps: config.browserContext?.enabledMcpServers,
       declinedApps: config.resolvedConfig.declinedApps,
       skillsCatalog,
+      runProfile: config.resolvedConfig.runProfile,
     })
 
     // Configure compaction for context window management
@@ -184,6 +240,8 @@ export class AiSdkAgent {
       conversationId: config.resolvedConfig.conversationId,
       provider: config.resolvedConfig.provider,
       model: config.resolvedConfig.model,
+      runProfile: config.resolvedConfig.runProfile,
+      selectedSkillCount: selectedSkills.length,
       toolCount: Object.keys(tools).length,
     })
 

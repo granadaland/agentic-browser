@@ -13,6 +13,13 @@ import {
   TabSchema,
 } from '@browseros/shared/schemas/browser-context'
 import { LLMConfigSchema } from '@browseros/shared/schemas/llm'
+import {
+  ArtifactPolicySchema,
+  BudgetPolicySchema,
+  ContextPolicySchema,
+  RunProfileSchema,
+} from '@browseros/shared/schemas/runtime'
+import type { LocalWorkflowIR } from '@browseros/shared/schemas/automation'
 import { z } from 'zod'
 import type { ControllerBackend } from '../browser/backends/controller'
 import type { Browser } from '../browser/browser'
@@ -46,6 +53,11 @@ export const ChatRequestSchema = AgentLLMConfigSchema.extend({
   userWorkingDir: z.string().min(1).optional(),
   supportsImages: z.boolean().optional().default(true),
   mode: z.enum(['chat', 'agent']).optional().default('agent'),
+  runProfile: RunProfileSchema.optional(),
+  budgetPolicy: BudgetPolicySchema.optional(),
+  resumeRunId: z.string().uuid().optional(),
+  artifactPolicy: ArtifactPolicySchema.optional(),
+  contextPolicy: ContextPolicySchema.optional(),
   declinedApps: z.array(z.string()).optional(),
   previousConversation: z
     .union([
@@ -162,6 +174,7 @@ export interface GraphSession {
   id: string
   code: string
   graph: WorkflowGraph | null
+  ir?: LocalWorkflowIR | null
   createdAt: Date
 }
 

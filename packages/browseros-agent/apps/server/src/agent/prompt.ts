@@ -202,6 +202,40 @@ These are services that CAN be connected. Only use Strata tools for ones listed 
 // section: style
 // -----------------------------------------------------------------------------
 
+function getRunProfileInstructions(
+  _exclude: Set<string>,
+  options?: BuildSystemPromptOptions,
+): string {
+  if (!options?.runProfile) return ''
+
+  const profileGuidance: Record<string, string> = {
+    ask: `You are in ASK mode.
+- Prioritize explanation, synthesis, and lightweight inspection
+- Avoid side effects unless the user explicitly asks you to act
+- Keep answers direct and efficient`,
+    do: `You are in DO mode.
+- Execute the task end-to-end using the browser and local tools as needed
+- Favor deterministic actions over broad exploration
+- Leave behind useful artifacts when the task produces meaningful outputs`,
+    research: `You are in RESEARCH mode.
+- Gather evidence before acting
+- Prefer search, browsing, extraction, and citation over mutation
+- Capture the most important findings as reusable context`,
+    build: `You are in BUILD mode.
+- Favor code, files, and runnable artifacts over prose
+- Inspect the workspace before making changes
+- Verify work with tests or checks when feasible`,
+    watch: `You are in WATCH mode.
+- Operate like a background worker with deterministic steps
+- Minimize unnecessary chatter and focus on durable outputs
+- Leave enough checkpoints and artifacts for the run to be resumed later`,
+  }
+
+  return `<runtime_profile>
+${profileGuidance[options.runProfile]}
+</runtime_profile>`
+}
+
 function getStyle(): string {
   return `<style_rules>
 - Be concise, use 1-2 lines for status updates
@@ -410,6 +444,7 @@ const promptSections: Record<string, PromptSectionFn> = {
   'handle-obstacles': getHandleObstacles,
   'error-recovery': getErrorRecovery,
   'external-integrations': getExternalIntegrations,
+  'runtime-profile': getRunProfileInstructions,
   style: getStyle,
   nudges: getNudges,
   workspace: getWorkspace,
@@ -436,6 +471,7 @@ interface BuildSystemPromptOptions {
   /** Apps the user previously declined to connect (chose "do it manually"). */
   declinedApps?: string[]
   skillsCatalog?: string
+  runProfile?: 'ask' | 'do' | 'research' | 'build' | 'watch'
 }
 
 export function buildSystemPrompt(options?: BuildSystemPromptOptions): string {

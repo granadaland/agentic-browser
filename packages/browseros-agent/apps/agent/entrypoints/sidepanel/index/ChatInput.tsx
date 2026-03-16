@@ -1,3 +1,4 @@
+import type { RunProfile } from '@browseros/shared/schemas/runtime'
 import { Send, SquareStop } from 'lucide-react'
 import type { FormEvent, KeyboardEvent } from 'react'
 import {
@@ -22,6 +23,7 @@ interface ChatInputProps {
   input: string
   status: 'streaming' | 'submitted' | 'ready' | 'error'
   mode: ChatMode
+  runProfile: RunProfile
   onInputChange: (value: string) => void
   onSubmit: (e: FormEvent) => void
   onStop: () => void
@@ -43,6 +45,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       input,
       status,
       mode,
+      runProfile,
       onInputChange,
       onSubmit: onSubmitProp,
       onStop,
@@ -282,7 +285,17 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
           onChange={(e) => handleInputChange(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder={
-            mode === 'chat' ? 'Ask about this page...' : 'What should I do?'
+            mode === 'chat'
+              ? runProfile === 'research'
+                ? 'What should I research?'
+                : 'Ask about this page...'
+              : runProfile === 'build'
+                ? 'What should I build?'
+                : runProfile === 'watch'
+                  ? 'What should I monitor?'
+                  : runProfile === 'research'
+                    ? 'What should I research?'
+                    : 'What should I do?'
           }
           rows={1}
         />

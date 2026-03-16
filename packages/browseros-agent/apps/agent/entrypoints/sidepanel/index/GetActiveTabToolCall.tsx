@@ -1,5 +1,5 @@
 import { ChevronDown, ChevronRight, ExternalLink } from 'lucide-react'
-import { type FC, useState } from 'react'
+import { type FC, useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
 
 interface GetActiveTabToolCallProps {

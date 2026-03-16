@@ -12,6 +12,7 @@ let db: Database | null = null
 export function initializeDb(dbPath: string): Database {
   if (!db) {
     db = new Database(dbPath)
+    db.exec('PRAGMA foreign_keys = ON')
     db.exec('PRAGMA journal_mode = WAL')
     initSchema(db)
   }

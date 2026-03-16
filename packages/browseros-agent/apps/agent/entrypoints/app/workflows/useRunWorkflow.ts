@@ -10,6 +10,7 @@ import {
   WORKFLOW_RUN_STOPPED_EVENT,
 } from '@/lib/constants/analyticsEvents'
 import { track } from '@/lib/metrics/track'
+import { workflowStorage, type Workflow } from '@/lib/workflows/workflowStorage'
 
 type WorkflowMessageMetadata = {
   window?: chrome.windows.Window
@@ -20,6 +21,8 @@ export const useRunWorkflow = () => {
   const [runningWorkflowName, setRunningWorkflowName] = useState<string>('')
   const [wasCancelled, setWasCancelled] = useState(false)
   const codeIdRef = useRef<string | undefined>(undefined)
+  const activeWorkflowRef = useRef<Workflow | null>(null)
+  const workflowRunIdRef = useRef<string | null>(null)
 
   const { baseUrl: agentServerUrl } = useAgentServerUrl()
 
@@ -86,6 +89,12 @@ export const useRunWorkflow = () => {
       wasProcessing && (status === 'ready' || status === 'error')
 
     if (justFinished && isRunning) {
+      const workflowRunStatus = wasCancelled
+        ? 'cancelled'
+        : status === 'error'
+          ? 'failed'
+          : 'completed'
+      void updateWorkflowRunRecord(workflowRunStatus)
       track(WORKFLOW_RUN_COMPLETED_EVENT, {
         status: wasCancelled
           ? 'cancelled'
@@ -97,9 +106,92 @@ export const useRunWorkflow = () => {
     previousStatus.current = status
   }, [status, isRunning, wasCancelled])
 
+  const createWorkflowRunRecord = async () => {
+    if (!agentUrlRef.current || !activeWorkflowRef.current?.definitionId) {
+      workflowRunIdRef.current = null
+      return
+    }
+
+    try {
+      const response = await fetch(
+        `${agentUrlRef.current}/workflows/${activeWorkflowRef.current.definitionId}/runs`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            sourceWorkflowId: activeWorkflowRef.current.id,
+            runProfile: activeWorkflowRef.current.runProfile,
+            request: {
+              codeId: activeWorkflowRef.current.codeId,
+              workflowName: activeWorkflowRef.current.workflowName,
+            },
+          }),
+        },
+      )
+      if (!response.ok) {
+        workflowRunIdRef.current = null
+        return
+      }
+
+      const data = (await response.json()) as { run?: { id: string } }
+      workflowRunIdRef.current = data.run?.id ?? null
+      await reflectWorkflowRunLocally('running')
+    } catch {
+      workflowRunIdRef.current = null
+    }
+  }
+
+  const reflectWorkflowRunLocally = async (nextStatus: string) => {
+    if (!activeWorkflowRef.current) return
+
+    const current = (await workflowStorage.getValue()) ?? []
+    const updatedAt = new Date().toISOString()
+    await workflowStorage.setValue(
+      current.map((workflow) =>
+        workflow.id === activeWorkflowRef.current?.id
+          ? {
+              ...workflow,
+              lastRunAt: updatedAt,
+              latestRunStatus: nextStatus,
+              latestRunUpdatedAt: updatedAt,
+            }
+          : workflow,
+      ),
+    )
+  }
+
+  const updateWorkflowRunRecord = async (
+    nextStatus: 'completed' | 'failed' | 'cancelled',
+  ) => {
+    await reflectWorkflowRunLocally(nextStatus)
+    if (!agentUrlRef.current || !workflowRunIdRef.current) return
+
+    try {
+      await fetch(`${agentUrlRef.current}/workflows/runs/${workflowRunIdRef.current}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          status: nextStatus,
+          result: {
+            messageCount: messages.length,
+            wasCancelled,
+            error: error?.message,
+          },
+        }),
+      })
+    } catch {
+      // keep workflow runs local-first when server persistence is unavailable
+    }
+  }
+
   const startWorkflowRun = async () => {
     setMessages([])
     setWasCancelled(false)
+    await createWorkflowRunRecord()
 
     const backgroundWindow = await chrome.windows.create({
       url: 'chrome://newtab',
@@ -115,9 +207,10 @@ export const useRunWorkflow = () => {
     })
   }
 
-  const runWorkflow = async (codeId: string, workflowName: string) => {
-    codeIdRef.current = codeId
-    setRunningWorkflowName(workflowName)
+  const runWorkflow = async (workflow: Workflow) => {
+    activeWorkflowRef.current = workflow
+    codeIdRef.current = workflow.codeId
+    setRunningWorkflowName(workflow.workflowName)
     setIsRunning(true)
     await startWorkflowRun()
   }
@@ -138,6 +231,8 @@ export const useRunWorkflow = () => {
     setRunningWorkflowName('')
     setWasCancelled(false)
     setMessages([])
+    workflowRunIdRef.current = null
+    activeWorkflowRef.current = null
   }
 
   return {

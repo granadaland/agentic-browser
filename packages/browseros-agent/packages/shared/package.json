@@ -48,6 +48,14 @@
     "./schemas/browser-context": {
       "types": "./src/schemas/browser-context.ts",
       "default": "./src/schemas/browser-context.ts"
+    },
+    "./schemas/automation": {
+      "types": "./src/schemas/automation.ts",
+      "default": "./src/schemas/automation.ts"
+    },
+    "./schemas/runtime": {
+      "types": "./src/schemas/runtime.ts",
+      "default": "./src/schemas/runtime.ts"
     }
   }
 }

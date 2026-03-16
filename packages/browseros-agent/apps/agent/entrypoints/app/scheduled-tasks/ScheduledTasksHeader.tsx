@@ -24,7 +24,7 @@ export const ScheduledTasksHeader: FC<ScheduledTasksHeaderProps> = ({
         </div>
         <div className="flex-1">
           <div className="mb-1 flex items-center gap-2">
-            <h2 className="font-semibold text-xl">Scheduled Tasks</h2>
+            <h2 className="font-semibold text-xl">Watchers</h2>
             <TooltipProvider delayDuration={0}>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -44,7 +44,7 @@ export const ScheduledTasksHeader: FC<ScheduledTasksHeaderProps> = ({
             </TooltipProvider>
           </div>
           <p className="text-muted-foreground text-sm">
-            Automate recurring browser tasks
+            Automate recurring browser tasks with background watch profiles
           </p>
         </div>
         <Button
@@ -53,7 +53,7 @@ export const ScheduledTasksHeader: FC<ScheduledTasksHeaderProps> = ({
           variant="outline"
         >
           <Plus className="mr-1.5 h-4 w-4" />
-          New Task
+          New Watcher
         </Button>
       </div>
     </div>

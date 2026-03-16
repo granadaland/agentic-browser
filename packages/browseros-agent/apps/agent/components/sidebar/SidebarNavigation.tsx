@@ -2,6 +2,7 @@ import {
   Brain,
   CalendarClock,
   Home,
+  ListChecks,
   PlugZap,
   Settings,
   Sparkles,
@@ -38,7 +39,8 @@ const primaryNavItems: NavItem[] = [
     icon: PlugZap,
     feature: Feature.MANAGED_MCP_SUPPORT,
   },
-  { name: 'Scheduled Tasks', to: '/scheduled', icon: CalendarClock },
+  { name: 'Runs', to: '/runs', icon: ListChecks },
+  { name: 'Watchers', to: '/watchers', icon: CalendarClock },
   {
     name: 'Skills',
     to: '/home/skills',

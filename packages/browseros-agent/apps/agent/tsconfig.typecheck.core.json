@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.base.json",
+  "include": [
+    "./assets-env.d.ts",
+    "./components/**/*.ts",
+    "./components/**/*.tsx",
+    "./generated/**/*.ts",
+    "./hooks/**/*.ts",
+    "./hooks/**/*.tsx",
+    "./lib/**/*.ts",
+    "./lib/**/*.tsx",
+    "./wxt-env.d.ts"
+  ],
+  "exclude": ["./node_modules", "./dist", "./.output", "./.wxt"]
+}

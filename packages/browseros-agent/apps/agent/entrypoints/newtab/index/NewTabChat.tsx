@@ -26,6 +26,8 @@ export const NewTabChat: FC<NewTabChatProps> = ({ onBackToSearch }) => {
   const {
     mode,
     setMode,
+    runProfile,
+    setRunProfile,
     messages,
     sendMessage,
     status,
@@ -160,6 +162,8 @@ export const NewTabChat: FC<NewTabChatProps> = ({ onBackToSearch }) => {
         <ChatFooter
           mode={mode}
           onModeChange={handleModeChange}
+          runProfile={runProfile}
+          onRunProfileChange={setRunProfile}
           input={input}
           onInputChange={setInput}
           onSubmit={handleSubmit}

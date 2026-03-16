@@ -70,11 +70,16 @@ export const ScheduledTasksPage: FC = () => {
       id: '',
       name: searchParams.get('name') ?? '',
       query: searchParams.get('query') ?? '',
+      triggerType:
+        (searchParams.get('triggerType') as ScheduledJob['triggerType']) ??
+        'schedule',
       scheduleType:
         (searchParams.get('scheduleType') as ScheduledJob['scheduleType']) ??
         'daily',
       scheduleTime: searchParams.get('scheduleTime') ?? '09:00',
       scheduleInterval: 1,
+      triggerUrlPattern: searchParams.get('triggerUrlPattern') ?? undefined,
+      triggerTextPattern: searchParams.get('triggerTextPattern') ?? undefined,
       enabled: true,
       createdAt: '',
       updatedAt: '',
@@ -172,7 +177,7 @@ export const ScheduledTasksPage: FC = () => {
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList>
             <TabsTrigger value="results">Results</TabsTrigger>
-            <TabsTrigger value="tasks">Scheduled Tasks</TabsTrigger>
+            <TabsTrigger value="tasks">Watchers</TabsTrigger>
           </TabsList>
 
           <TabsContent value="results">
@@ -229,10 +234,10 @@ export const ScheduledTasksPage: FC = () => {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Scheduled Task</AlertDialogTitle>
+            <AlertDialogTitle>Delete Watcher</AlertDialogTitle>
             <AlertDialogDescription>
-              Delete "{jobToDelete?.name}"? This will also remove all run
-              history for this task.
+              Delete watcher "{jobToDelete?.name}"? This will also remove all
+              run history for this task.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

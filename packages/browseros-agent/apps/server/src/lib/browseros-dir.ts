@@ -16,6 +16,18 @@ export function getSessionsDir(): string {
   return join(getBrowserosDir(), PATHS.SESSIONS_DIR_NAME)
 }
 
+export function getRunsDir(): string {
+  return join(getBrowserosDir(), PATHS.RUNS_DIR_NAME)
+}
+
+export function getRunDir(runId: string): string {
+  return join(getRunsDir(), runId)
+}
+
+export function getRunArtifactsDir(runId: string): string {
+  return join(getRunDir(runId), 'artifacts')
+}
+
 export function getSoulPath(): string {
   return join(getBrowserosDir(), PATHS.SOUL_FILE_NAME)
 }
@@ -32,6 +44,7 @@ export async function ensureBrowserosDir(): Promise<void> {
   await mkdir(getMemoryDir(), { recursive: true })
   await mkdir(getSkillsDir(), { recursive: true })
   await mkdir(getSessionsDir(), { recursive: true })
+  await mkdir(getRunsDir(), { recursive: true })
 }
 
 export async function cleanOldSessions(): Promise<void> {

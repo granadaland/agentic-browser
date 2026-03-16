@@ -10,6 +10,21 @@ const GLOW_OPACITY = 0.6
 
 let activeConversationId: string | null = null
 
+interface WatcherSnapshotMessage {
+  type: 'browseros-watcher-snapshot'
+}
+
+function isWatcherSnapshotMessage(
+  message: unknown,
+): message is WatcherSnapshotMessage {
+  return (
+    typeof message === 'object' &&
+    message !== null &&
+    'type' in message &&
+    message.type === 'browseros-watcher-snapshot'
+  )
+}
+
 function injectStyles(): void {
   if (document.getElementById(GLOW_STYLES_ID)) {
     return
@@ -195,7 +210,20 @@ export default defineContentScript({
   runAt: 'document_start',
   main() {
     browser.runtime.onMessage.addListener(
-      (message: GlowMessage, _sender, sendResponse) => {
+      (message: GlowMessage | WatcherSnapshotMessage, _sender, sendResponse) => {
+        if (isWatcherSnapshotMessage(message)) {
+          const text = document.body?.innerText
+            ?.replace(/\s+/g, ' ')
+            .trim()
+            .slice(0, 12_000)
+          sendResponse({
+            url: window.location.href,
+            title: document.title,
+            text,
+          })
+          return true
+        }
+
         if (
           typeof message !== 'object' ||
           !('conversationId' in message) ||

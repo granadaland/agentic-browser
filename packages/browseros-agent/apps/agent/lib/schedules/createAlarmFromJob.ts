@@ -16,6 +16,10 @@ const getNextScheduledTime = (timeString: string): number => {
 }
 
 export const createAlarmFromJob = async (job: ScheduledJob) => {
+  if (job.triggerType && job.triggerType !== 'schedule') {
+    return
+  }
+
   const alarmName = `scheduled-job-${job.id}`
 
   let time: chrome.alarms.AlarmCreateInfo | undefined

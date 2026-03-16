@@ -11,6 +11,7 @@ export const PATHS = {
   BROWSEROS_DIR_NAME: '.browseros',
   MEMORY_DIR_NAME: 'memory',
   SESSIONS_DIR_NAME: 'sessions',
+  RUNS_DIR_NAME: 'runs',
   TOOL_OUTPUT_DIR_NAME: 'tool-output',
   SOUL_FILE_NAME: 'SOUL.md',
   CORE_MEMORY_FILE_NAME: 'CORE.md',

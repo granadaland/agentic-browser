@@ -1,3 +1,5 @@
+export type ScheduledJobTriggerType = 'schedule' | 'page' | 'content'
+
 export interface ScheduledJob {
   id: string
   name: string
@@ -6,6 +8,9 @@ export interface ScheduledJob {
   scheduleTime?: string
   scheduleInterval?: number
   enabled: boolean
+  triggerType?: ScheduledJobTriggerType
+  triggerUrlPattern?: string
+  triggerTextPattern?: string
   createdAt: string
   updatedAt: string
   lastRunAt?: string

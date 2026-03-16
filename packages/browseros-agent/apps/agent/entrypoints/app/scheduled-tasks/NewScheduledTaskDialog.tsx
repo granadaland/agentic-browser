@@ -40,13 +40,20 @@ const formSchema = z
       .min(1, 'Name is required')
       .max(100, 'Name must be 100 characters or less'),
     query: z.string().min(1, 'Prompt is required'),
+    triggerType: z.enum(['schedule', 'page', 'content']),
     scheduleType: z.enum(['daily', 'hourly', 'minutes']),
     scheduleTime: z.string().optional(),
     scheduleInterval: z.number().int().min(1).max(60).optional(),
+    triggerUrlPattern: z.string().optional(),
+    triggerTextPattern: z.string().optional(),
     enabled: z.boolean(),
   })
   .superRefine((data, ctx) => {
-    if (data.scheduleType === 'daily' && !data.scheduleTime) {
+    if (
+      data.triggerType === 'schedule' &&
+      data.scheduleType === 'daily' &&
+      !data.scheduleTime
+    ) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: 'Time is required for daily schedule',
@@ -54,6 +61,7 @@ const formSchema = z
       })
     }
     if (
+      data.triggerType === 'schedule' &&
       (data.scheduleType === 'hourly' || data.scheduleType === 'minutes') &&
       (!data.scheduleInterval || data.scheduleInterval < 1)
     ) {
@@ -61,6 +69,26 @@ const formSchema = z
         code: z.ZodIssueCode.custom,
         message: 'Interval must be at least 1',
         path: ['scheduleInterval'],
+      })
+    }
+
+    if (
+      data.triggerType === 'page' &&
+      !data.triggerUrlPattern?.trim() &&
+      !data.triggerTextPattern?.trim()
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Add a page URL/title match for this watcher',
+        path: ['triggerUrlPattern'],
+      })
+    }
+
+    if (data.triggerType === 'content' && !data.triggerTextPattern?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Content trigger needs text to watch for',
+        path: ['triggerTextPattern'],
       })
     }
   })
@@ -87,14 +115,18 @@ export const NewScheduledTaskDialog: FC<NewScheduledTaskDialogProps> = ({
     defaultValues: {
       name: '',
       query: '',
+      triggerType: 'schedule',
       scheduleType: 'daily',
       scheduleTime: '09:00',
       scheduleInterval: 1,
+      triggerUrlPattern: '',
+      triggerTextPattern: '',
       enabled: true,
     },
   })
 
   const scheduleType = form.watch('scheduleType')
+  const triggerType = form.watch('triggerType')
 
   useEffect(() => {
     if (open) {
@@ -102,18 +134,24 @@ export const NewScheduledTaskDialog: FC<NewScheduledTaskDialogProps> = ({
         form.reset({
           name: initialValues.name,
           query: initialValues.query,
+          triggerType: initialValues.triggerType || 'schedule',
           scheduleType: initialValues.scheduleType,
           scheduleTime: initialValues.scheduleTime || '09:00',
           scheduleInterval: initialValues.scheduleInterval || 1,
+          triggerUrlPattern: initialValues.triggerUrlPattern || '',
+          triggerTextPattern: initialValues.triggerTextPattern || '',
           enabled: initialValues.enabled,
         })
       } else {
         form.reset({
           name: '',
           query: '',
+          triggerType: 'schedule',
           scheduleType: 'daily',
           scheduleTime: '09:00',
           scheduleInterval: 1,
+          triggerUrlPattern: '',
+          triggerTextPattern: '',
           enabled: true,
         })
       }
@@ -124,11 +162,18 @@ export const NewScheduledTaskDialog: FC<NewScheduledTaskDialogProps> = ({
     onSave({
       name: values.name.trim(),
       query: values.query.trim(),
+      triggerType: values.triggerType,
       scheduleType: values.scheduleType,
       scheduleTime:
-        values.scheduleType === 'daily' ? values.scheduleTime : undefined,
+        values.triggerType === 'schedule' && values.scheduleType === 'daily'
+          ? values.scheduleTime
+          : undefined,
       scheduleInterval:
-        values.scheduleType !== 'daily' ? values.scheduleInterval : undefined,
+        values.triggerType === 'schedule' && values.scheduleType !== 'daily'
+          ? values.scheduleInterval
+          : undefined,
+      triggerUrlPattern: values.triggerUrlPattern?.trim() || undefined,
+      triggerTextPattern: values.triggerTextPattern?.trim() || undefined,
       enabled: values.enabled,
     })
     form.reset()
@@ -140,12 +185,12 @@ export const NewScheduledTaskDialog: FC<NewScheduledTaskDialogProps> = ({
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>
-            {isEditing ? 'Edit Scheduled Task' : 'Create Scheduled Task'}
+            {isEditing ? 'Edit Watcher' : 'Create Watcher'}
           </DialogTitle>
           <DialogDescription>
             {isEditing
-              ? 'Update your scheduled task configuration.'
-              : 'Create a new task that runs automatically on a schedule.'}
+              ? 'Update how this watcher should run and what it should look for.'
+              : 'Create a watcher that runs on a schedule or when a page changes.'}
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -188,10 +233,10 @@ export const NewScheduledTaskDialog: FC<NewScheduledTaskDialogProps> = ({
             <div className="grid gap-4 sm:grid-cols-2">
               <FormField
                 control={form.control}
-                name="scheduleType"
+                name="triggerType"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Schedule</FormLabel>
+                    <FormLabel>Trigger</FormLabel>
                     <Select
                       onValueChange={field.onChange}
                       defaultValue={field.value}
@@ -199,65 +244,155 @@ export const NewScheduledTaskDialog: FC<NewScheduledTaskDialogProps> = ({
                     >
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="Select schedule type" />
+                          <SelectValue placeholder="Select trigger type" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="daily">Daily at time</SelectItem>
-                        <SelectItem value="hourly">Every N hours</SelectItem>
-                        <SelectItem value="minutes">Every N minutes</SelectItem>
+                        <SelectItem value="schedule">Time-based</SelectItem>
+                        <SelectItem value="page">Page match</SelectItem>
+                        <SelectItem value="content">Content match</SelectItem>
                       </SelectContent>
                     </Select>
+                    <FormDescription>
+                      Choose whether this watcher runs on a schedule or when a
+                      page matches.
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
               />
 
-              {scheduleType === 'daily' ? (
+              {triggerType === 'schedule' && (
                 <FormField
                   control={form.control}
-                  name="scheduleTime"
+                  name="scheduleType"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Time</FormLabel>
-                      <FormControl>
-                        <Input type="time" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              ) : (
-                <FormField
-                  control={form.control}
-                  name="scheduleInterval"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>
-                        Interval (
-                        {scheduleType === 'hourly' ? 'hours' : 'minutes'})
-                      </FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          min={1}
-                          max={scheduleType === 'hourly' ? 24 : 60}
-                          value={field.value ?? ''}
-                          onChange={(e) =>
-                            field.onChange(
-                              e.target.value
-                                ? Number(e.target.value)
-                                : undefined,
-                            )
-                          }
-                        />
-                      </FormControl>
+                      <FormLabel>Schedule</FormLabel>
+                      <Select
+                        onValueChange={field.onChange}
+                        defaultValue={field.value}
+                        value={field.value}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select schedule type" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="daily">Daily at time</SelectItem>
+                          <SelectItem value="hourly">Every N hours</SelectItem>
+                          <SelectItem value="minutes">Every N minutes</SelectItem>
+                        </SelectContent>
+                      </Select>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
               )}
             </div>
+
+            {triggerType === 'schedule' ? (
+              <div className="grid gap-4 sm:grid-cols-2">
+                {scheduleType === 'daily' ? (
+                  <FormField
+                    control={form.control}
+                    name="scheduleTime"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Time</FormLabel>
+                        <FormControl>
+                          <Input type="time" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                ) : (
+                  <FormField
+                    control={form.control}
+                    name="scheduleInterval"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>
+                          Interval (
+                          {scheduleType === 'hourly' ? 'hours' : 'minutes'})
+                        </FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            min={1}
+                            max={scheduleType === 'hourly' ? 24 : 60}
+                            value={field.value ?? ''}
+                            onChange={(e) =>
+                              field.onChange(
+                                e.target.value
+                                  ? Number(e.target.value)
+                                  : undefined,
+                              )
+                            }
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
+              </div>
+            ) : (
+              <FormField
+                control={form.control}
+                name="triggerUrlPattern"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>URL or title match</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="e.g., github.com/browseros or BrowserOS"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      Optional. Match against the page URL or title.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+
+            {triggerType !== 'schedule' && (
+              <FormField
+                control={form.control}
+                name="triggerTextPattern"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>
+                      {triggerType === 'content'
+                        ? 'Text to watch for'
+                        : 'Optional page text match'}
+                    </FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder={
+                          triggerType === 'content'
+                            ? 'e.g., Error, Sold out, Build failed'
+                            : 'Optional text or title snippet'
+                        }
+                        className="min-h-[80px] resize-none"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {triggerType === 'content'
+                        ? 'Run this watcher when the page contains this text.'
+                        : 'Optional extra filter against the current page title or visible text.'}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
 
             <FormField
               control={form.control}
@@ -271,7 +406,7 @@ export const NewScheduledTaskDialog: FC<NewScheduledTaskDialogProps> = ({
                     />
                   </FormControl>
                   <FormLabel className="font-normal">
-                    Enable this task
+                    Enable this watcher
                   </FormLabel>
                 </FormItem>
               )}

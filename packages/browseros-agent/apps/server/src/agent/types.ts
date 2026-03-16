@@ -4,6 +4,12 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 import type { LLMProvider } from '@browseros/shared/schemas/llm'
+import type {
+  ArtifactPolicy,
+  BudgetPolicy,
+  ContextPolicy,
+  RunProfile,
+} from '@browseros/shared/schemas/runtime'
 
 export interface ProviderConfig {
   provider: LLMProvider
@@ -43,4 +49,16 @@ export interface ResolvedAgentConfig {
   isScheduledTask?: boolean
   /** Apps the user previously declined to connect via MCP (chose "do it manually"). */
   declinedApps?: string[]
+  /** BrowserOS 2 runtime profile resolved from legacy mode + explicit profile. */
+  runProfile: RunProfile
+  /** The user request that seeded this agent run. */
+  initialUserMessage: string
+  /** Optional run budget controls for adaptive routing and token discipline. */
+  budgetPolicy?: BudgetPolicy
+  /** Controls how large outputs are externalized into run artifacts. */
+  artifactPolicy?: ArtifactPolicy
+  /** Controls reuse and capture of structured context packets. */
+  contextPolicy?: ContextPolicy
+  /** Optional run resume source used for timeline and context carry-over. */
+  resumeRunId?: string
 }

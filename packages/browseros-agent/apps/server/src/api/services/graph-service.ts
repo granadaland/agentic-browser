@@ -8,6 +8,12 @@ import { UIMessageStreamEventSchema } from '@browseros/shared/schemas/ui-stream'
 import type { LLMConfig, UIMessageStreamEvent } from '@browseros-ai/agent-sdk'
 import { createParser, type EventSourceMessage } from 'eventsource-parser'
 import { cleanupExecution, executeGraph } from '../../graph/executor'
+import {
+  canExecuteWorkflowGraphLocally,
+  executeWorkflowGraphLocally,
+} from '../../graph/local-ir-executor'
+import { AutomationStore } from '../../lib/automation-store'
+import { getDb } from '../../lib/db'
 import { logger } from '../../lib/logger'
 import {
   CodegenFinishMetadataSchema,
@@ -18,7 +24,7 @@ import {
 } from '../types'
 
 export interface GraphServiceDeps {
-  codegenServiceUrl: string
+  codegenServiceUrl?: string
   serverUrl: string
   tempDir: string
 }
@@ -30,7 +36,13 @@ interface SessionState {
 }
 
 export class GraphService {
+  private readonly automationStore = new AutomationStore(getDb())
+
   constructor(private deps: GraphServiceDeps) {}
+
+  get canUseCodegen(): boolean {
+    return Boolean(this.deps.codegenServiceUrl)
+  }
 
   /**
    * Create a new graph by proxying to codegen service.
@@ -41,6 +53,9 @@ export class GraphService {
     onEvent: (event: UIMessageStreamEvent) => Promise<void>,
     signal?: AbortSignal,
   ): Promise<GraphSession | null> {
+    if (!this.deps.codegenServiceUrl) {
+      throw new Error('CODEGEN_SERVICE_URL not configured')
+    }
     const url = `${this.deps.codegenServiceUrl}/api/code`
 
     logger.debug('Creating graph via codegen service', { url, query })
@@ -57,6 +72,9 @@ export class GraphService {
     onEvent: (event: UIMessageStreamEvent) => Promise<void>,
     signal?: AbortSignal,
   ): Promise<GraphSession | null> {
+    if (!this.deps.codegenServiceUrl) {
+      throw new Error('CODEGEN_SERVICE_URL not configured')
+    }
     const url = `${this.deps.codegenServiceUrl}/api/code/${sessionId}`
 
     logger.debug('Updating graph via codegen service', {
@@ -72,42 +90,48 @@ export class GraphService {
    * Get graph code and visualization from codegen service.
    */
   async getGraph(sessionId: string): Promise<GraphSession | null> {
-    const url = `${this.deps.codegenServiceUrl}/api/code/${sessionId}`
+    if (this.deps.codegenServiceUrl) {
+      const url = `${this.deps.codegenServiceUrl}/api/code/${sessionId}`
 
-    logger.debug('Fetching graph from codegen service', { url, sessionId })
+      logger.debug('Fetching graph from codegen service', { url, sessionId })
 
-    try {
-      const response = await fetch(url)
+      try {
+        const response = await fetch(url)
 
-      if (!response.ok) {
-        if (response.status === 404) {
-          return null
+        if (!response.ok) {
+          if (response.status === 404) {
+            return this.getStoredGraph(sessionId)
+          }
+          throw new Error(`Codegen service error: ${response.status}`)
         }
-        throw new Error(`Codegen service error: ${response.status}`)
-      }
 
-      const json = await response.json()
-      const result = CodegenGetResponseSchema.safeParse(json)
+        const json = await response.json()
+        const result = CodegenGetResponseSchema.safeParse(json)
 
-      if (!result.success) {
-        logger.error('Invalid codegen response', {
-          issues: result.error.issues,
+        if (!result.success) {
+          logger.error('Invalid codegen response', {
+            issues: result.error.issues,
+          })
+          throw new Error('Invalid response from codegen service')
+        }
+
+        return {
+          id: sessionId,
+          code: result.data.code,
+          graph: result.data.graph,
+          createdAt: new Date(result.data.createdAt || Date.now()),
+        }
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : String(error)
+        logger.warn('Failed to fetch graph from codegen service', {
+          sessionId,
+          error: errorMessage,
         })
-        throw new Error('Invalid response from codegen service')
       }
-
-      return {
-        id: sessionId,
-        code: result.data.code,
-        graph: result.data.graph,
-        createdAt: new Date(result.data.createdAt || Date.now()),
-      }
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error)
-      logger.error('Failed to fetch graph', { sessionId, error: errorMessage })
-      throw error
     }
+
+    return this.getStoredGraph(sessionId)
   }
 
   /**
@@ -119,17 +143,10 @@ export class GraphService {
     onProgress: (event: UIMessageStreamEvent) => Promise<void>,
     signal?: AbortSignal,
   ): Promise<void> {
-    // Fetch code from codegen service
     const graph = await this.getGraph(sessionId)
-
     if (!graph) {
       throw new Error(`Graph not found: ${sessionId}`)
     }
-
-    logger.debug('Executing graph', {
-      sessionId,
-      codeLength: graph.code.length,
-    })
 
     // Build LLM config from request
     const llmConfig: LLMConfig | undefined = request.provider
@@ -146,22 +163,64 @@ export class GraphService {
         }
       : undefined
 
-    const result = await executeGraph(
-      graph.code,
+    const sendProgress = (event: UIMessageStreamEvent) => {
+      onProgress(event).catch((err) => {
+        logger.warn('Failed to send progress event', { error: String(err) })
+      })
+    }
+
+    const localGraph = graph.graph
+    if (localGraph) {
+      const localSupport = canExecuteWorkflowGraphLocally(
+        localGraph,
+        graph.ir ?? null,
+      )
+      if (localSupport.supported) {
+        logger.debug('Executing workflow graph locally', { sessionId })
+
+        const localResult = await executeWorkflowGraphLocally(localGraph, {
+          serverUrl: this.deps.serverUrl,
+          llmConfig,
+          browserContext: request.browserContext,
+          ir: graph.ir ?? null,
+          onProgress: sendProgress,
+          signal,
+        })
+
+        if (localResult.success) {
+          return
+        }
+
+        logger.warn('Local workflow executor could not complete graph', {
+          sessionId,
+          reason: localResult.reason,
+        })
+      } else {
+        logger.debug('Workflow graph requires advanced executor', {
+          sessionId,
+          reason: localSupport.reason,
+        })
+      }
+    }
+
+    if (!graph.code) {
+      throw new Error(
+        'Graph requires the advanced executor, but no generated code is available',
+      )
+    }
+
+    logger.debug('Executing graph with advanced executor', {
       sessionId,
-      this.deps.tempDir,
-      {
-        serverUrl: this.deps.serverUrl,
-        llmConfig,
-        browserContext: request.browserContext,
-        onProgress: (event) => {
-          onProgress(event).catch((err) => {
-            logger.warn('Failed to send progress event', { error: String(err) })
-          })
-        },
-        signal,
-      },
-    )
+      codeLength: graph.code.length,
+    })
+
+    const result = await executeGraph(graph.code, sessionId, this.deps.tempDir, {
+      serverUrl: this.deps.serverUrl,
+      llmConfig,
+      browserContext: request.browserContext,
+      onProgress: sendProgress,
+      signal,
+    })
 
     if (!result.success) {
       throw new Error(result.error || 'Graph execution failed')
@@ -221,6 +280,19 @@ export class GraphService {
     }
 
     return response
+  }
+
+  private getStoredGraph(sessionId: string): GraphSession | null {
+    const workflow = this.automationStore.getWorkflowDefinitionByCodeId(sessionId)
+    if (!workflow) return null
+
+    return {
+      id: sessionId,
+      code: '',
+      graph: workflow.graph ?? null,
+      ir: workflow.ir ?? null,
+      createdAt: new Date(workflow.createdAt),
+    }
   }
 
   /**

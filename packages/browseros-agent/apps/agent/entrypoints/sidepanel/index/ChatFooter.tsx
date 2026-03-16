@@ -1,3 +1,4 @@
+import type { RunProfile } from '@browseros/shared/schemas/runtime'
 import { ChevronDown, Folder, Layers, PlugZap } from 'lucide-react'
 import type { FC, FormEvent } from 'react'
 import { useEffect, useRef, useState } from 'react'
@@ -14,11 +15,14 @@ import { useWorkspace } from '@/lib/workspace/use-workspace'
 import { ChatAttachedTabs } from './ChatAttachedTabs'
 import { ChatInput, type ChatInputHandle } from './ChatInput'
 import { ChatModeToggle } from './ChatModeToggle'
+import { RunProfileSelect } from './RunProfileSelect'
 import type { ChatMode } from './chatTypes'
 
 interface ChatFooterProps {
   mode: ChatMode
   onModeChange: (mode: ChatMode) => void
+  runProfile: RunProfile
+  onRunProfileChange: (runProfile: RunProfile) => void
   input: string
   onInputChange: (value: string) => void
   onSubmit: (e: FormEvent) => void
@@ -32,6 +36,8 @@ interface ChatFooterProps {
 export const ChatFooter: FC<ChatFooterProps> = ({
   mode,
   onModeChange,
+  runProfile,
+  onRunProfileChange,
   input,
   onInputChange,
   onSubmit,
@@ -84,6 +90,11 @@ export const ChatFooter: FC<ChatFooterProps> = ({
       <div className="p-3">
         <div className="flex items-center gap-2">
           <ChatModeToggle mode={mode} onModeChange={onModeChange} />
+          <RunProfileSelect
+            mode={mode}
+            runProfile={runProfile}
+            onRunProfileChange={onRunProfileChange}
+          />
 
           <div className="h-4 w-px bg-border/50" />
 
@@ -176,6 +187,7 @@ export const ChatFooter: FC<ChatFooterProps> = ({
           input={input}
           status={status}
           mode={mode}
+          runProfile={runProfile}
           onInputChange={onInputChange}
           onSubmit={onSubmit}
           onStop={onStop}

@@ -1,4 +1,5 @@
 import { useChat } from '@ai-sdk/react'
+import type { WorkflowGraph } from '@browseros/shared/schemas/automation'
 import { DefaultChatTransport, type UIMessage } from 'ai'
 import { compact } from 'es-toolkit/array'
 import type { FC, FormEvent } from 'react'
@@ -46,20 +47,7 @@ type GraphMessageMetadata = {
   window?: chrome.windows.Window
 }
 
-export type GraphData = {
-  nodes: {
-    id: string
-    type: string
-    data: {
-      label: string
-    }
-  }[]
-  edges: {
-    id: string
-    source: string
-    target: string
-  }[]
-}
+export type GraphData = WorkflowGraph
 
 const getLastMessageText = (messages: UIMessage[]) => {
   const lastMessage = messages[messages.length - 1]
@@ -297,12 +285,14 @@ export const CreateGraph: FC = () => {
       await editWorkflow(savedWorkflowId, {
         workflowName: graphName,
         codeId,
+        graph: graphData,
       })
       setSavedCodeId(codeId)
     } else {
       const newWorkflow = await addWorkflow({
         workflowName: graphName,
         codeId,
+        graph: graphData,
       })
       setSavedWorkflowId(newWorkflow.id)
       setSavedCodeId(codeId)
